@@ -119,7 +119,7 @@ void Dimer::localize(const shared_ptr<const PTree> idata, shared_ptr<const Matri
   for (int sub = 0; sub < nsubspaces; ++sub) {
     size_t imo = orbital_subspaces[sub].first;
 
-    vector<set<int>> subsets{{subsets_A[sub], subsets_B[sub], ambiguous_subsets[sub]}};
+    vector<set<int>> subsets{subsets_A[sub], subsets_B[sub], ambiguous_subsets[sub]};
     for (auto& subset : subsets) {
       if (subset.empty()) continue;
       auto subspace = make_shared<Matrix>(dimerbasis, subset.size());
@@ -281,7 +281,8 @@ void Dimer::set_active(const shared_ptr<const PTree> idata, const bool localize_
         copy_n(subcoeff->element_ptr(0, i), dimerbasis, subspace.element_ptr(0, ii++));
 
       Matrix Sactive(active % S * active);
-      Sactive.inverse_half();
+//      Sactive.inverse_half(); // Raymond Debug
+      Sactive.inverse_symmetric();
 
       Matrix projector( Sactive * ( active % S * subspace ) );
       vector<double> singulars(active_size, 0.0);
@@ -312,8 +313,28 @@ void Dimer::set_active(const shared_ptr<const PTree> idata, const bool localize_
     }
   }
 
-  nvirt_ = {nexternA - nactA, nexternB - nactB};
-  sref_ = make_shared<Reference>(sgeom_, make_shared<Coeff>(*out_coeff), nclosed, nact, nexternA+nexternB - (nclosed+nact));
+#if 0
+  nvirt_ = {nexternA - nactvirtA, nexternB - nactvirtB}; // Raymond debug
+  sref_ = make_shared<Reference>(sgeom_, make_shared<Coeff>(*out_coeff), nclosed, nact, nvirt_.first + nvirt_.second); // Raymond debug
+#else
+  nvirt_ = {nexternA - nactA, nexternB - nactB}; // TODO : Check this line, Raymond debug
+  sref_ = make_shared<Reference>(sgeom_, make_shared<Coeff>(*out_coeff), nclosed, nact, nexternA+nexternB - (nclosed+nact)); // Check this line, Raymond debug
+#endif
+
+cout << "===========================================" << endl;
+cout << "Shane's code calculated nvirt_ as nexternA - nactA" << endl;
+cout << "nexternA: " << nexternA << endl; // Raymond debug
+cout << "nactA: " << nactA << endl; // Raymond debug
+cout << "I think it should be nexternA - nactvirtA" << endl;
+cout << "nactvirtA: " << nactvirtA << endl; // Raymond debug
+//cout << "dimer nvirt_: " << nvirt_.first << ", " << nvirt_.second << endl; // Raymond debug
+cout << "Let's check the dimensionality: " << endl;
+cout << "Coeff->mdim(): " << out_coeff->mdim() << endl;
+cout << "nclosed: " << sref_->nclosed() << endl; // Raymond debug
+cout << "nact: " << sref_->nact() << endl; // Raymond debug
+cout << "Shane's nvirt: " << nexternA+nexternB - (nclosed+nact) << endl; // Raymond debug
+cout << "My nvirt: " << nexternA - nactvirtA + nexternB - nactvirtB << endl; // Raymond debug
+cout << "===========================================" << endl;
 }
 
 

@@ -58,6 +58,7 @@ class Dimer : public std::enable_shared_from_this<Dimer> {
 
     double active_thresh_;                                    ///< overlap threshold for inclusion in the active space
     bool print_orbital_;
+    bool bridge_;
 
   public:
     // Constructors
@@ -110,7 +111,7 @@ class Dimer : public std::enable_shared_from_this<Dimer> {
     /// Reads information on monomer subspaces from input
     void get_spaces(std::shared_ptr<const PTree> idata, std::vector<std::vector<int>>& spaces_A, std::vector<std::vector<int>>& spaces_B);
 
-    /// Takes monomer references, projections them onto the supergeom basis, and arranges the
+    /// Takes monomer references, projects them onto the supergeom basis, and arranges the
     /// to follow (closedA, closedB, activeA, activeB, virtA, virtB) and returns the result
     std::shared_ptr<const Matrix> form_projected_coeffs();
 
