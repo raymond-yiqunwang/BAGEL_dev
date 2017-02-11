@@ -137,9 +137,56 @@ cout << "sumB: " << sum_B << endl;
     auto projected_B = make_shared<const Matrix>(*SB_inv * *SBmix * *Lactcoeff);
     auto projected_AB = projected_A->merge(projected_B);
 
-    projected_AB->print();
-    
+    // Principal Component Analysis
+{
+    shared_ptr<Matrix> subave_A = projected_A->copy();
+    for (int j = 0; j != subave_A->mdim(); ++j) {
+      double average = 0.0;
+      for (int i = 0; i != subave_A->ndim(); ++i) 
+        average += *subave_A->element_ptr(i,j);
+      average /= subave_A->ndim();
+      for (int k = 0; k != subave_A->ndim(); ++k)
+        *subave_A->element_ptr(k,j) -= average;
+    }
+    auto ATA = make_shared<Matrix>(1.0 / subave_A->ndim() * *subave_A % *subave_A);
+    VectorB eigs(projected_A->mdim());
+    ATA->diagonalize(eigs);
+    cout << "eigenvalues: " << endl;
+    for(auto& i : eigs)
+      cout << i << endl;
+    auto P = ATA->get_submatrix(0, ATA->mdim()/2, ATA->ndim(), ATA->mdim()/2);
+    auto reduced_A = make_shared<const Matrix>(*P->transpose() ^ *projected_A);
+    auto out = reduced_A->transpose();
+    cout << "print reduced_A : " << endl;
+    out->print();
+    cout << "print projected_A :" << endl;
+    projected_A->print();
+}
 
+{
+    shared_ptr<Matrix> subave_B = projected_B->copy();
+    for (int j = 0; j != subave_B->mdim(); ++j) {
+      double average = 0.0;
+      for (int i = 0; i != subave_B->ndim(); ++i) 
+        average += *subave_B->element_ptr(i,j);
+      average /= subave_B->ndim();
+      for (int k = 0; k != subave_B->ndim(); ++k)
+        *subave_B->element_ptr(k,j) -= average;
+    }
+    auto BTB = make_shared<Matrix>(1.0 / subave_B->ndim() * *subave_B % *subave_B);
+    VectorB eigs(projected_B->mdim());
+    BTB->diagonalize(eigs);
+    cout << "eigenvalues: " << endl;
+    for(auto& i : eigs)
+      cout << i << endl;
+    auto P = BTB->get_submatrix(0, BTB->mdim()/2, BTB->ndim(), BTB->mdim()/2);
+    auto reduced_B = make_shared<const Matrix>(*P->transpose() ^ *projected_B);
+    auto out = reduced_B->transpose();
+    cout << "print reduced_B : " << endl;
+    out->print();
+    cout << "print projected_B :" << endl;
+    projected_B->print();
+}
 
   }
 
