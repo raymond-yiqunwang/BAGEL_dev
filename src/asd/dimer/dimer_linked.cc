@@ -175,8 +175,29 @@ if (!bridge_) {
       coeff = make_shared<Matrix>(*coeff * *tildex);
       cout << "orthogonalized coeff :" << endl;
       coeff->print();
-
     }
+    auto tmpref = make_shared<Reference>(sgeom_, make_shared<const Coeff>(move(*coeff)), isolated_refs_.first->nclosed(), isolated_refs_.first->nact(),
+                                          isolated_refs_.first->nvirt());
+    isolated_refs_ = {tmpref, tmpref};
+
+    for (auto amo : Lactlist) {
+      const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, amo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, amo));
+      const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, amo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[0].second, amo));
+      cout << "amo : " << amo + 1 << endl;
+      cout << "sumA : " << sum_A << endl;
+      cout << "sumB : " << sum_B << endl;
+      if (sum_A > sum_B) {
+        cout << "    - projected active orbital("  << amo + 1 << ") is assigned to monomer A." << endl;
+        cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl; 
+        Alist.insert(amo);
+      } else if (sum_B > sum_A && sum_B) {
+        Blist.insert(amo);
+        cout << "    - projected active orbital("  << amo + 1 << ") is assigned to monomer B." << endl;
+        cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
+      } else
+        throw runtime_error("Wrong choice of active orbitals. The orbital(" + to_string(amo) + ") does not belong to any of monomers.");
+    }
+
 } // endif
   }
 
