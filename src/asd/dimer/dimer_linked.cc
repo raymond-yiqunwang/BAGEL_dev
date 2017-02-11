@@ -115,79 +115,56 @@ cout << "sumB: " << sum_B << endl;
         ++iter;
     }
     
-    Overlap S(sgeom_);
-    const int abasis = bounds[0].second - bounds[0].first;
-    const int bbasis = bounds[1].second - bounds[1].first;
-    auto SA = make_shared<Matrix>(abasis, abasis);
-    auto SB = make_shared<Matrix>(bbasis, bbasis);
-    auto SAmix = make_shared<Matrix>(abasis, dimerbasis);
-    auto SBmix = make_shared<Matrix>(bbasis, dimerbasis);
-    SA->copy_block(0, 0, abasis, abasis, S.get_submatrix(0, 0, abasis, abasis));
-    SB->copy_block(0, 0, bbasis, bbasis, S.get_submatrix(abasis, abasis, bbasis, bbasis));
-    SAmix->copy_block(0, 0, abasis, dimerbasis, S.get_submatrix(0, 0, abasis, dimerbasis));
-    SBmix->copy_block(0, 0, bbasis, dimerbasis, S.get_submatrix(abasis, 0, bbasis, dimerbasis));
+    {
+      Overlap S(sgeom_);
+      const int abasis = bounds[0].second - bounds[0].first;
+      const int bbasis = bounds[1].second - bounds[1].first;
+      auto SA = make_shared<Matrix>(abasis, abasis);
+      auto SB = make_shared<Matrix>(bbasis, bbasis);
+      auto SAmix = make_shared<Matrix>(abasis, dimerbasis);
+      auto SBmix = make_shared<Matrix>(bbasis, dimerbasis);
+      SA->copy_block(0, 0, abasis, abasis, S.get_submatrix(0, 0, abasis, abasis));
+      SB->copy_block(0, 0, bbasis, bbasis, S.get_submatrix(abasis, abasis, bbasis, bbasis));
+      SAmix->copy_block(0, 0, abasis, dimerbasis, S.get_submatrix(0, 0, abasis, dimerbasis));
+      SBmix->copy_block(0, 0, bbasis, dimerbasis, S.get_submatrix(abasis, 0, bbasis, dimerbasis));
     
-    auto SA_inv = make_shared<Matrix>(*SA);
-    SA_inv->inverse_symmetric();
-    auto SB_inv = make_shared<Matrix>(*SB);
-    SB_inv->inverse_symmetric();
+      auto SA_inv = make_shared<Matrix>(*SA);
+      SA_inv->inverse_symmetric();
+      auto SB_inv = make_shared<Matrix>(*SB);
+      SB_inv->inverse_symmetric();
 
-    // Forming projected coefficients to A and B
-    auto projected_A = make_shared<const Matrix>(*SA_inv * *SAmix * *Lactcoeff);
-    auto projected_B = make_shared<const Matrix>(*SB_inv * *SBmix * *Lactcoeff);
-    auto projected_AB = projected_A->merge(projected_B);
+      // Forming projected coefficients to A and B
+      auto projected_A = make_shared<const Matrix>(*SA_inv * *SAmix * *Lactcoeff);
+      auto projected_B = make_shared<const Matrix>(*SB_inv * *SBmix * *Lactcoeff);
+      auto projected_AB = projected_A->merge(projected_B);
 
-    // Principal Component Analysis
-{
-    shared_ptr<Matrix> subave_A = projected_A->copy();
-    for (int j = 0; j != subave_A->mdim(); ++j) {
-      double average = 0.0;
-      for (int i = 0; i != subave_A->ndim(); ++i) 
-        average += *subave_A->element_ptr(i,j);
-      average /= subave_A->ndim();
-      for (int k = 0; k != subave_A->ndim(); ++k)
-        *subave_A->element_ptr(k,j) -= average;
+      // Get rid of redundancy in projected coeffs 
+      {
+        auto CSC = make_shared<Matrix>(*projected_A % *SA * *projected_A);
+        VectorB eig(projected_A->mdim());
+        CSC->diagonalize(eig);
+        cout << "eig :" << endl;
+        for (auto& i : eig)
+          cout << i << endl;
+        auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
+        auto reduced_A = make_shared<Matrix>(*projected_A * *P);
+        cout << "reduced_A :" << endl;
+        reduced_A->print();
+        cout << "print projected_A :" << endl;
+        projected_A->print();
+      }
+      {
+        auto CSC = make_shared<Matrix>(*projected_B % *SB * *projected_B);
+        VectorB eig(projected_B->mdim());
+        CSC->diagonalize(eig);
+        cout << "eig :" << endl;
+        for (auto& i : eig)
+          cout << i << endl;
+        auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
+        auto reduced_B = make_shared<Matrix>(*projected_B * *P);
+      }
+ 
     }
-    auto ATA = make_shared<Matrix>(1.0 / subave_A->ndim() * *subave_A % *subave_A);
-    VectorB eigs(projected_A->mdim());
-    ATA->diagonalize(eigs);
-    cout << "eigenvalues: " << endl;
-    for(auto& i : eigs)
-      cout << i << endl;
-    auto P = ATA->get_submatrix(0, ATA->mdim()/2, ATA->ndim(), ATA->mdim()/2);
-    auto reduced_A = make_shared<const Matrix>(*P->transpose() ^ *projected_A);
-    auto out = reduced_A->transpose();
-    cout << "print reduced_A : " << endl;
-    out->print();
-    cout << "print projected_A :" << endl;
-    projected_A->print();
-}
-
-{
-    shared_ptr<Matrix> subave_B = projected_B->copy();
-    for (int j = 0; j != subave_B->mdim(); ++j) {
-      double average = 0.0;
-      for (int i = 0; i != subave_B->ndim(); ++i) 
-        average += *subave_B->element_ptr(i,j);
-      average /= subave_B->ndim();
-      for (int k = 0; k != subave_B->ndim(); ++k)
-        *subave_B->element_ptr(k,j) -= average;
-    }
-    auto BTB = make_shared<Matrix>(1.0 / subave_B->ndim() * *subave_B % *subave_B);
-    VectorB eigs(projected_B->mdim());
-    BTB->diagonalize(eigs);
-    cout << "eigenvalues: " << endl;
-    for(auto& i : eigs)
-      cout << i << endl;
-    auto P = BTB->get_submatrix(0, BTB->mdim()/2, BTB->ndim(), BTB->mdim()/2);
-    auto reduced_B = make_shared<const Matrix>(*P->transpose() ^ *projected_B);
-    auto out = reduced_B->transpose();
-    cout << "print reduced_B : " << endl;
-    out->print();
-    cout << "print projected_B :" << endl;
-    projected_B->print();
-}
-
   }
 
   // Make new References, with large basis sets, but with projected coeffs (MO space up to smaller basis sets); active orbitals are placed after closed orbitals
