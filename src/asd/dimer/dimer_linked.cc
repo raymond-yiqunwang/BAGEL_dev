@@ -106,6 +106,7 @@ cout << "sumB: " << sum_B << endl;
 
     // Raymond
     // Assigning linked active orbitals to Alist and Blist.
+if (!bridge_) {
 
     const int dimerbasis = sgeom_->nbasis();
     auto Lactcoeff = make_shared<Matrix>(dimerbasis, Lactlist.size());
@@ -136,35 +137,47 @@ cout << "sumB: " << sum_B << endl;
       // Forming projected coefficients to A and B
       auto projected_A = make_shared<const Matrix>(*SA_inv * *SAmix * *Lactcoeff);
       auto projected_B = make_shared<const Matrix>(*SB_inv * *SBmix * *Lactcoeff);
-      auto projected_AB = projected_A->merge(projected_B);
 
       // Get rid of redundancy in projected coeffs 
+        shared_ptr<Matrix> reduced_MO_A;
+        shared_ptr<Matrix> reduced_MO_B;
       {
         auto CSC = make_shared<Matrix>(*projected_A % *SA * *projected_A);
         VectorB eig(projected_A->mdim());
         CSC->diagonalize(eig);
-        cout << "eig :" << endl;
-        for (auto& i : eig)
-          cout << i << endl;
         auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
         auto reduced_A = make_shared<Matrix>(*projected_A * *P);
-        cout << "reduced_A :" << endl;
-        reduced_A->print();
-        cout << "print projected_A :" << endl;
-        projected_A->print();
+        reduced_MO_A = make_shared<Matrix>(dimerbasis, reduced_A->mdim());
+        reduced_MO_A->copy_block(0, 0, abasis, reduced_A->mdim(), reduced_A->data());
       }
       {
         auto CSC = make_shared<Matrix>(*projected_B % *SB * *projected_B);
         VectorB eig(projected_B->mdim());
         CSC->diagonalize(eig);
-        cout << "eig :" << endl;
-        for (auto& i : eig)
-          cout << i << endl;
         auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
         auto reduced_B = make_shared<Matrix>(*projected_B * *P);
+        reduced_MO_B = make_shared<Matrix>(dimerbasis, reduced_B->mdim());
+        reduced_MO_B->copy_block(abasis, 0, bbasis, reduced_B->mdim(), reduced_B->data());
       }
- 
+      auto reduced_MO_AB = reduced_MO_A->merge(reduced_MO_B);
+      cout << "original coeff :" << endl;
+      coeff->print();
+      int iter = 0;
+      for (auto& imo : Lactlist) { 
+        coeff->copy_block(0, imo, dimerbasis, 1, reduced_MO_AB->slice(iter, 1));
+        ++iter;
+      }
+      cout << "modified coeff :" << endl;
+      coeff->print();
+      // lowdin orthogonalization
+      auto tildex = make_shared<Matrix>(*coeff % S * *coeff);
+      tildex->inverse_half();
+      coeff = make_shared<Matrix>(*coeff * *tildex);
+      cout << "orthogonalized coeff :" << endl;
+      coeff->print();
+
     }
+} // endif
   }
 
   // Make new References, with large basis sets, but with projected coeffs (MO space up to smaller basis sets); active orbitals are placed after closed orbitals
