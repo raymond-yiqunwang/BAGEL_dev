@@ -57,6 +57,7 @@ class Dimer : public std::enable_shared_from_this<Dimer> {
     std::shared_ptr<const Reference>  sref_;
 
     double active_thresh_;                                    ///< overlap threshold for inclusion in the active space
+    double region_thresh_;                                    ///< threshold for assigning to fragments
     bool print_orbital_;
     bool bridge_;
 
@@ -88,6 +89,9 @@ class Dimer : public std::enable_shared_from_this<Dimer> {
     std::shared_ptr<Matrix> form_reference_active_coeff() const;
     std::shared_ptr<Matrix> form_semi_canonical_coeff(std::shared_ptr<const PTree> idata) const;
     std::shared_ptr<Matrix> overlap_selection(std::shared_ptr<const Matrix> control, std::shared_ptr<const Matrix> treatment) const;
+
+    // ASD_Metal
+    void set_active_metal(std::shared_ptr<const PTree> idata);
 
     // Calculations
     void scf(std::shared_ptr<const PTree> idata); ///< Driver for preparation of dimer for MultiExcitonHamiltonian or CI calculation
