@@ -37,7 +37,7 @@ void Dimer::set_active(shared_ptr<const PTree> idata) {
   if (it.empty())
     throw runtime_error("Active space of the dimer MUST be specified in dimer_active.");
 
-  set<int> Alist, Blist, Lactlist;
+  set<int> Alist, Blist;
 
   { //sort out mixed active indices into A or B fragment (defined by region), if an index does not belong to any of fragments, throw error..
     vector<pair<int, int>> bounds;
@@ -56,8 +56,7 @@ void Dimer::set_active(shared_ptr<const PTree> idata) {
         bounds.emplace_back(basisstart, nbasis);
     }
     if (bounds.size() != 3)
-//      throw logic_error("Only 3 regions should be defined in order of A, B, and the rest");
-      bridge_ = 0; // no bridging region
+      throw logic_error("Only 3 regions should be defined in order of A, B, and the rest");
     if (natoms != count_if(sgeom_->atoms().begin(), sgeom_->atoms().end(), [](const shared_ptr<const Atom> a){return !a->dummy();}))
       throw logic_error("All atoms must be assigned to regions");
     //scan it set
@@ -66,139 +65,18 @@ void Dimer::set_active(shared_ptr<const PTree> idata) {
     for (auto& imo : it) {
       const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, imo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, imo));
       const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, imo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[1].first, imo));
-cout << "imo: " << imo + 1 << endl;
-cout << "sumA: " << sum_A << endl;
-cout << "sumB: " << sum_B << endl;
-      if (bridge_) {
-        const double sum_rest = blas::dot_product(coeff->element_ptr(bounds[2].first, imo), bounds[2].second - bounds[2].first, coeff->element_ptr(bounds[2].first, imo));
-        if (sum_A > sum_B && sum_A > sum_rest) {
-          cout << "    - active orbital("  << imo + 1 << ") is assigned to monomer A." << endl;
-          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << "), the rest(" 
-               << setw(6) << setprecision(3) << sum_rest << ")" << endl;
-          Alist.insert(imo);
-        } else if (sum_B > sum_A && sum_B > sum_rest) {
-          Blist.insert(imo);
-          cout << "    - active orbital("  << imo + 1 << ") is assigned to monomer B." << endl;
-          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << "), the rest("
-               << setw(6) << setprecision(3) << sum_rest << ")" << endl;
-        } else
-          throw runtime_error("Wrong choice of active orbitals. The orbital(" + to_string(imo) + ") does not belong to any of monomers.");
-      } else { 
-        const double thresh = 0.4;
-        if (sum_A > sum_B && abs(sum_A - sum_B) > thresh) {
-          cout << "    - active orbital("  << imo + 1 << ") is assigned to monomer A." << endl;
-          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
-          Alist.insert(imo);
-        } else if (sum_A < sum_B && abs(sum_A - sum_B) > thresh) {
-          cout << "    - active orbital("  << imo + 1 << ") is assigned to monomer B." << endl;
-          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
-          Blist.insert(imo);
-        } else {
-          cout << "    - active orbital("  << imo + 1 << ") is assigned to linked active orbitals." << endl;
-          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
-          Lactlist.insert(imo);
-        }
-      }
+      const double sum_rest = blas::dot_product(coeff->element_ptr(bounds[2].first, imo), bounds[2].second - bounds[2].first, coeff->element_ptr(bounds[2].first, imo));
+
+      if (sum_A > sum_B && sum_A > sum_rest)
+      //cout << "    - active orbital("  << imo << ") is assigned to monomer A." << endl;
+      //cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << "), the rest(" << setw(6) << setprecision(3) << sum_rest << ")" << endl;
+        Alist.insert(imo);
+      else if (sum_B > sum_A && sum_B > sum_rest)
+        Blist.insert(imo);
+      else
+        throw runtime_error("Wrong choice of active orbitals. The orbital(" + to_string(imo) + ") does not belong to any of monomers.");
     }
     cout << "    - orbitals are assigned as : " << Alist.size() << "(A), " << Blist.size() << "(B)." << endl;
-    if (!bridge_) cout << "    - and " << Lactlist.size() << " orbitals are assigned to Linked_Active_List." << endl;
-
-
-    // Raymond
-    // Assigning linked active orbitals to Alist and Blist.
-if (!bridge_) {
-
-    const int dimerbasis = sgeom_->nbasis();
-    auto Lactcoeff = make_shared<Matrix>(dimerbasis, Lactlist.size());
-    int iter = 0;
-    for (auto& lamo : Lactlist) {
-        Lactcoeff->copy_block(0, iter, dimerbasis, 1, isolated_refs_.first->coeff()->slice(lamo, lamo + 1));
-        ++iter;
-    }
-    
-    {
-      Overlap S(sgeom_);
-      const int abasis = bounds[0].second - bounds[0].first;
-      const int bbasis = bounds[1].second - bounds[1].first;
-      auto SA = make_shared<Matrix>(abasis, abasis);
-      auto SB = make_shared<Matrix>(bbasis, bbasis);
-      auto SAmix = make_shared<Matrix>(abasis, dimerbasis);
-      auto SBmix = make_shared<Matrix>(bbasis, dimerbasis);
-      SA->copy_block(0, 0, abasis, abasis, S.get_submatrix(0, 0, abasis, abasis));
-      SB->copy_block(0, 0, bbasis, bbasis, S.get_submatrix(abasis, abasis, bbasis, bbasis));
-      SAmix->copy_block(0, 0, abasis, dimerbasis, S.get_submatrix(0, 0, abasis, dimerbasis));
-      SBmix->copy_block(0, 0, bbasis, dimerbasis, S.get_submatrix(abasis, 0, bbasis, dimerbasis));
-    
-      auto SA_inv = make_shared<Matrix>(*SA);
-      SA_inv->inverse_symmetric();
-      auto SB_inv = make_shared<Matrix>(*SB);
-      SB_inv->inverse_symmetric();
-
-      // Forming projected coefficients to A and B
-      auto projected_A = make_shared<const Matrix>(*SA_inv * *SAmix * *Lactcoeff);
-      auto projected_B = make_shared<const Matrix>(*SB_inv * *SBmix * *Lactcoeff);
-
-      // Get rid of redundancy in projected coeffs 
-        shared_ptr<Matrix> reduced_MO_A;
-        shared_ptr<Matrix> reduced_MO_B;
-      {
-        auto CSC = make_shared<Matrix>(*projected_A % *SA * *projected_A);
-        VectorB eig(projected_A->mdim());
-        CSC->diagonalize(eig);
-        auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
-        auto reduced_A = make_shared<Matrix>(*projected_A * *P);
-        reduced_MO_A = make_shared<Matrix>(dimerbasis, reduced_A->mdim());
-        reduced_MO_A->copy_block(0, 0, abasis, reduced_A->mdim(), reduced_A->data());
-      }
-      {
-        auto CSC = make_shared<Matrix>(*projected_B % *SB * *projected_B);
-        VectorB eig(projected_B->mdim());
-        CSC->diagonalize(eig);
-        auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
-        auto reduced_B = make_shared<Matrix>(*projected_B * *P);
-        reduced_MO_B = make_shared<Matrix>(dimerbasis, reduced_B->mdim());
-        reduced_MO_B->copy_block(abasis, 0, bbasis, reduced_B->mdim(), reduced_B->data());
-      }
-      auto reduced_MO_AB = reduced_MO_A->merge(reduced_MO_B);
-      cout << "original coeff :" << endl;
-      coeff->print();
-      int iter = 0;
-      for (auto& imo : Lactlist) { 
-        coeff->copy_block(0, imo, dimerbasis, 1, reduced_MO_AB->slice(iter, 1));
-        ++iter;
-      }
-      cout << "modified coeff :" << endl;
-      coeff->print();
-      // lowdin orthogonalization
-      auto tildex = make_shared<Matrix>(*coeff % S * *coeff);
-      tildex->inverse_half();
-      coeff = make_shared<Matrix>(*coeff * *tildex);
-      cout << "orthogonalized coeff :" << endl;
-      coeff->print();
-    }
-    auto tmpref = make_shared<Reference>(sgeom_, make_shared<const Coeff>(move(*coeff)), isolated_refs_.first->nclosed(), isolated_refs_.first->nact(),
-                                          isolated_refs_.first->nvirt());
-    isolated_refs_ = {tmpref, tmpref};
-
-    for (auto amo : Lactlist) {
-      const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, amo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, amo));
-      const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, amo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[0].second, amo));
-      cout << "amo : " << amo + 1 << endl;
-      cout << "sumA : " << sum_A << endl;
-      cout << "sumB : " << sum_B << endl;
-      if (sum_A > sum_B) {
-        cout << "    - projected active orbital("  << amo + 1 << ") is assigned to monomer A." << endl;
-        cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl; 
-        Alist.insert(amo);
-      } else if (sum_B > sum_A && sum_B) {
-        Blist.insert(amo);
-        cout << "    - projected active orbital("  << amo + 1 << ") is assigned to monomer B." << endl;
-        cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
-      } else
-        throw runtime_error("Wrong choice of active orbitals. The orbital(" + to_string(amo) + ") does not belong to any of monomers.");
-    }
-
-} // endif
   }
 
   // Make new References, with large basis sets, but with projected coeffs (MO space up to smaller basis sets); active orbitals are placed after closed orbitals
@@ -264,7 +142,7 @@ shared_ptr<Matrix> Dimer::form_reference_active_coeff() const {
   //closed
   auto ccoeff = make_shared<Matrix>(dimerbasis, nclosed+nactcloA+nactcloB);
   ccoeff->copy_block(0,0,                dimerbasis,nclosed,  sref_->coeff()->get_submatrix(0,0,             dimerbasis,nclosed)); //shared closed
-  ccoeff->copy_block(0,nclosed,          dimerbasis,nactcloA, sref_->coeff()->get_submatrix(0,nclosed,       dimerbasis,nactcloA)); //embed activeA
+  ccoeff->copy_block(0,nclosed,          dimerbasis,nactcloA, sref_->coeff()->get_submatrix(0,nclosed,       dimerbasis,nactcloA)); //embed activeB
   ccoeff->copy_block(0,nclosed+nactcloA, dimerbasis,nactcloB, sref_->coeff()->get_submatrix(0,nclosed+nactA, dimerbasis,nactcloB)); //embed activeB
 
   //AO Fock
@@ -287,19 +165,19 @@ shared_ptr<Matrix> Dimer::form_reference_active_coeff() const {
   }
 
   {//Monomer B
-    auto bcoeff = sref_->coeff()->slice_copy(nclosed+nactA, nclosed+nact);
+    auto acoeff = sref_->coeff()->slice_copy(nclosed+nactA, nclosed+nact);
     // MO Fock
     VectorB eigs(nactB);
-    auto fockact = make_shared<Matrix>(*bcoeff % *ofockao  * *bcoeff);
+    auto fockact = make_shared<Matrix>(*acoeff % *ofockao  * *acoeff);
     fockact->diagonalize(eigs);
     cout << "  o Eigenvlues of B orbitals :" << endl;
     for (int i = 0; i < nactB; ++i) cout << setw(12) << setprecision(6) << eigs[i];
     cout << endl << endl;
-    *bcoeff *= *fockact;
+    *acoeff *= *fockact;
 
     size_t act_position = nactA; //for B
     for (int i = 0; i < nactB; ++i)
-      copy_n(bcoeff->element_ptr(0, i), dimerbasis, active_semi_coeff->element_ptr(0,act_position++));
+      copy_n(acoeff->element_ptr(0, i), dimerbasis, active_semi_coeff->element_ptr(0,act_position++));
   }
 
   return active_semi_coeff;
@@ -339,6 +217,10 @@ shared_ptr<Matrix> Dimer::form_semi_canonical_coeff(shared_ptr<const PTree> idat
     if (basisstart != nbasis)
       bounds.emplace_back(basisstart, nbasis);
   }
+  if (bounds.size() != 3)
+    throw logic_error("Only 3 regions should be defined in order of A, B, and the rest");
+  if (natoms != count_if(sgeom_->atoms().begin(), sgeom_->atoms().end(), [](const shared_ptr<const Atom> a){return !a->dummy();}))
+    throw logic_error("All atoms must be assigned to regions");
   //scan it set
   set<int> closed_Alist, closed_Blist, closed_Clist;
   set<int> virtual_Alist, virtual_Blist, virtual_Clist;
@@ -346,75 +228,39 @@ shared_ptr<Matrix> Dimer::form_semi_canonical_coeff(shared_ptr<const PTree> idat
   {//closed
     set<int> cset; // (0:nclosed)
     for (int i = 0; i != nclosed; ++i) cset.insert(i);
-    if (bridge_) {
-      cout << "  o Assigning dimer closed (localized) orbitals to monomers A and B, and bridge" << endl;
-      for (auto& imo : cset) {
-        const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, imo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, imo));
-        const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, imo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[1].first, imo));
-        const double sum_rest = blas::dot_product(coeff->element_ptr(bounds[2].first, imo), bounds[2].second - bounds[2].first, coeff->element_ptr(bounds[2].first, imo));
-        if (sum_A > sum_B && sum_A > sum_rest)
-          closed_Alist.insert(imo);
-        //cout << "    - closed orbital("  << imo << ") is assigned to monomer A." << endl;
-        //cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << "), the rest(" << setw(6) << setprecision(3) << sum_rest << ")" << endl;
-        else if (sum_B > sum_A && sum_B > sum_rest)
-          closed_Blist.insert(imo);
-        else
-          closed_Clist.insert(imo);
-      }
-      cout << "    - orbitals are assigned as : " << closed_Alist.size() << "(A), " << closed_Blist.size() << "(B), " << closed_Clist.size() << "(bridge) " << endl << endl;
-    } else {
-      cout << "  o Assigning dimer closed (localized) orbitals to monomers A and B" << endl;
-      for (auto& imo : cset) {
-        const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, imo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, imo));
-        const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, imo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[1].first, imo));
-        if (sum_A > sum_B) {
-          closed_Alist.insert(imo);
-          cout << "    - closed orbital("  << imo + 1 << ") is assigned to monomer A." << endl;
-          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl; 
-        } else {
-          closed_Blist.insert(imo);
-          cout << "    - closed orbital("  << imo + 1 << ") is assigned to monomer B." << endl;
-          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl; 
-        }
-      }
-      cout << "    - orbitals are assigned as : " << closed_Alist.size() << "(A), " << closed_Blist.size() << "(B), " << closed_Clist.size() << "(bridge) " << endl << endl;
+    cout << "  o Assigning dimer closed (localized) orbitals to monomers A and B, and bridge" << endl;
+    for (auto& imo : cset) {
+      const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, imo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, imo));
+      const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, imo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[1].first, imo));
+      const double sum_rest = blas::dot_product(coeff->element_ptr(bounds[2].first, imo), bounds[2].second - bounds[2].first, coeff->element_ptr(bounds[2].first, imo));
+      if (sum_A > sum_B && sum_A > sum_rest)
+        closed_Alist.insert(imo);
+      //cout << "    - closed orbital("  << imo << ") is assigned to monomer A." << endl;
+      //cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << "), the rest(" << setw(6) << setprecision(3) << sum_rest << ")" << endl;
+      else if (sum_B > sum_A && sum_B > sum_rest)
+        closed_Blist.insert(imo);
+      else
+        closed_Clist.insert(imo);
     }
+    cout << "    - orbitals are assigned as : " << closed_Alist.size() << "(A), " << closed_Blist.size() << "(B), " << closed_Clist.size() << "(bridge) " << endl << endl;
   }
   {//virtual
     set<int> vset; // (nclosed+nact:nbasis)
     for (int i = nclosed+nact; i != nbasis; ++i) vset.insert(i);
-    if (bridge_) {
-      cout << "  o Assigning dimer virtual (localized) orbitals to monomers A and B, and bridge" << endl;
-      for (auto& imo : vset) {
-        const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, imo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, imo));
-        const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, imo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[1].first, imo));
-        const double sum_rest = blas::dot_product(coeff->element_ptr(bounds[2].first, imo), bounds[2].second - bounds[2].first, coeff->element_ptr(bounds[2].first, imo));
-        if (sum_A > sum_B && sum_A > sum_rest)
-          virtual_Alist.insert(imo);
-        //cout << "    - virtual orbital("  << imo << ") is assigned to monomer A." << endl;
-        else if (sum_B > sum_A && sum_B > sum_rest)
-          virtual_Blist.insert(imo);
-        else
-          virtual_Clist.insert(imo);
-      }
-      cout << "    - orbitals are assigned as : " << virtual_Alist.size() << "(A), " << virtual_Blist.size() << "(B), " << virtual_Clist.size() << "(bridge) " << endl;
-    } else {
-      cout << "  o Assigning dimer virtual (localized) orbitals to monomers A and B" << endl;
-      for (auto& imo : vset) {
-        const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, imo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, imo));
-        const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, imo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[1].first, imo));
-        if (sum_A > sum_B) {
-          virtual_Alist.insert(imo);
-          cout << "    - virtual orbital("  << imo + 1 << ") is assigned to monomer A." << endl;
-          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl; 
-        } else {
-          virtual_Blist.insert(imo);
-          cout << "    - virtual orbital("  << imo + 1 << ") is assigned to monomer B." << endl;
-          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl; 
-        }
-      }
-      cout << "    - orbitals are assigned as : " << virtual_Alist.size() << "(A), " << virtual_Blist.size() << "(B), " << endl; 
+    cout << "  o Assigning dimer virtual (localized) orbitals to monomers A and B, and bridge" << endl;
+    for (auto& imo : vset) {
+      const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, imo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, imo));
+      const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, imo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[1].first, imo));
+      const double sum_rest = blas::dot_product(coeff->element_ptr(bounds[2].first, imo), bounds[2].second - bounds[2].first, coeff->element_ptr(bounds[2].first, imo));
+      if (sum_A > sum_B && sum_A > sum_rest)
+        virtual_Alist.insert(imo);
+      //cout << "    - virtual orbital("  << imo << ") is assigned to monomer A." << endl;
+      else if (sum_B > sum_A && sum_B > sum_rest)
+        virtual_Blist.insert(imo);
+      else
+        virtual_Clist.insert(imo);
     }
+    cout << "    - orbitals are assigned as : " << virtual_Alist.size() << "(A), " << virtual_Blist.size() << "(B), " << virtual_Clist.size() << "(bridge) " << endl;
   }
 
   auto ccoeff_A = make_shared<Matrix>(dimerbasis,nclosed_HF);
@@ -441,7 +287,7 @@ shared_ptr<Matrix> Dimer::form_semi_canonical_coeff(shared_ptr<const PTree> idat
     for (int i = 0; i != nactcloB; ++i)
       copy_n(coeff->element_ptr(0, nclosed+nactA+i), dimerbasis, ccoeff_B->element_ptr(0,pos++));
   }
-  if (bridge_) {//Bridge
+  {//Bridge
     size_t pos = 0;
     for (auto& i : closed_Clist)
       copy_n(coeff->element_ptr(0, i), dimerbasis, ccoeff_C->element_ptr(0,pos++));
@@ -461,7 +307,7 @@ shared_ptr<Matrix> Dimer::form_semi_canonical_coeff(shared_ptr<const PTree> idat
     for (int i = 0; i != nactvirtB; ++i)
       copy_n(coeff->element_ptr(0, nclosed+nactA+nactcloB+i), dimerbasis, vcoeff_B->element_ptr(0,pos++));
   }
-  if (bridge_) {//Bridge
+  {//Bridge
     size_t pos = 0;
     for (auto& i : virtual_Clist)
       copy_n(coeff->element_ptr(0, i), dimerbasis, vcoeff_C->element_ptr(0,pos++));
@@ -500,7 +346,7 @@ shared_ptr<Matrix> Dimer::form_semi_canonical_coeff(shared_ptr<const PTree> idat
     for (int i = 0; i < dim; ++i)
       copy_n(mocoeff->element_ptr(0, i), dimerbasis, semi_coeff->element_ptr(0,pos++));
   }
-  if (bridge_ && !closed_Clist.empty()) { //closed C
+  if (!closed_Clist.empty()) { //closed C
     const int dim = closed_Clist.size();
     VectorB eigs(dim);
     auto mocoeff = ccoeff_C->slice_copy(0,dim);
@@ -530,7 +376,7 @@ shared_ptr<Matrix> Dimer::form_semi_canonical_coeff(shared_ptr<const PTree> idat
     for (int i = 0; i < dim; ++i)
       copy_n(mocoeff->element_ptr(0, i), dimerbasis, semi_coeff->element_ptr(0,pos++));
   }
-  if (bridge_ && !virtual_Clist.empty()) { //virtual C
+  if (!virtual_Clist.empty()) { //virtual C
     const int dim = virtual_Clist.size();
     VectorB eigs(dim);
     auto mocoeff = vcoeff_C->slice_copy(0,dim);

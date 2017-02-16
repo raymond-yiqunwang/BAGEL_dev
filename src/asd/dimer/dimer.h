@@ -59,7 +59,6 @@ class Dimer : public std::enable_shared_from_this<Dimer> {
     double active_thresh_;                                    ///< overlap threshold for inclusion in the active space
     double region_thresh_;                                    ///< threshold for assigning to fragments
     bool print_orbital_;
-    bool bridge_;
 
   public:
     // Constructors
