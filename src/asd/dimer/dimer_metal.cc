@@ -36,7 +36,6 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
 
   set<int> Alist, Blist, Llist;
  
-  // Now dealing with localized orbitals, assign them to A and B fragments, briding active orbitals are assigned to Llist.
   {
     vector<pair<int, int>> bounds;
     vector<int> sizes = idata->get_vector<int>("region_sizes"); // [A, B, link]
@@ -81,6 +80,47 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
     }
     cout << "    - orbitals are assigned as : " << Alist.size() << "(A), " << Blist.size() << "(B) and " << Llist.size() << " bridging active orbitals." << endl;
 
+    // active_refs_ coeff in the order: closed - actA - actB - bridging - virtual
+    auto tmpref = isolated_refs_.first->set_active_metal(Alist, Blist, Llist); 
+    active_refs_ = {tmpref, tmpref};
+  }
+  
+  // Update dimer info
+  const int nclosedA = active_refs_.first->nclosed();
+  const int nclosedB = active_refs_.second->nclosed();
+  const int nactA = active_refs_.first->nact();
+  const int nactB = active_refs_.second->nact();
+  const int nact = nactA + nactB;
+  const int nactvirtA = isolated_refs_.first->nvirt() - active_refs_.first->nvirt();
+  const int nactvirtB = isolated_refs_.second->nvirt() - active_refs_.second->nvirt();
+  const int dimerbasis = sgeom_->nbasis();
+  assert(dimerbasis == geoms_.first->nbasis());
+  assert(dimerbasis == geoms_.second->nbasis());
+  const int nclosed_HF = sref_->nclosed();
+  const int nvirt_HF = sref_->nvirt();
+  assert(dimerbasis == nclosed_HF + nvirt_HF);
+  assert(sref_->nact() == 0);
+  const int nclosed = nclosed_HF - (nclosed_HF - nclosedA) - (nclosed_HF - nclosedB);
+cout << "nclosedA = " << nclosedA << endl;
+cout << "nclosedB = " << nclosedB << endl;
+cout << "nactA = " << nactA << endl;
+cout << "nactB = " << nactB << endl;
+cout << "nact = " << nact << endl;
+cout << "nactvirtA = " << nactvirtA << endl;
+cout << "nactvirtB = " << nactvirtB << endl;
+cout << "dimerbasis = " << dimerbasis << endl;
+cout << "nclosed_HF = " << nclosed_HF << endl;
+cout << "nvirt_HF = " << nvirt_HF << endl;
+cout << "nclosed = " << nclosed << endl;
+
+
+}
+
+
+
+
+
+/******** Used later, not now    
     // Assigning bridging active orbitals to fragments A and B by projection
     if (!Llist.empty()) {
       const int dimerbasis = sgeom_->nbasis();
@@ -172,38 +212,4 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
           throw runtime_error("Wrong choice of active orbitals. The projected orbital(" + to_string(amo+1) + ") does not belong to any monomer.");
       }
     } // end of !Llist.empty() 
-  } // Now we have new orthonormal coeff as well as active orbital lists.
-
-  // Make new Reference; active orbitals are placed after closed orbitals
-  active_refs_ = {isolated_refs_.first->set_active(Alist), isolated_refs_.second->set_active(Blist)};
-
-  // Update dimer info
-  const int nclosedA = active_refs_.first->nclosed();
-  const int nclosedB = active_refs_.second->nclosed();
-  const int nactA = active_refs_.first->nact();
-  const int nactB = active_refs_.second->nact();
-  const int nact = nactA + nactB;
-  const int nactvirtA = isolated_refs_.first->nvirt() - active_refs_.first->nvirt();
-  const int nactvirtB = isolated_refs_.second->nvirt() - active_refs_.second->nvirt();
-  const int dimerbasis = sgeom_->nbasis();
-  assert(dimerbasis == geoms_.first->nbasis());
-  assert(dimerbasis == geoms_.second->nbasis());
-  const int nclosed_HF = sref_->nclosed();
-  const int nvirt_HF = sref_->nvirt();
-  assert(dimerbasis == nclosed_HF + nvirt_HF);
-  assert(sref_->nact() == 0);
-  const int nclosed = nclosed_HF - (nclosed_HF - nclosedA) - (nclosed_HF - nclosedB);
-cout << "nclosedA = " << nclosedA << endl;
-cout << "nclosedB = " << nclosedB << endl;
-cout << "nactA = " << nactA << endl;
-cout << "nactB = " << nactB << endl;
-cout << "nact = " << nact << endl;
-cout << "nactvirtA = " << nactvirtA << endl;
-cout << "nactvirtB = " << nactvirtB << endl;
-cout << "dimerbasis = " << dimerbasis << endl;
-cout << "nclosed_HF = " << nclosed_HF << endl;
-cout << "nvirt_HF = " << nvirt_HF << endl;
-cout << "nclosed = " << nclosed << endl;
-
-
-}
+*********/

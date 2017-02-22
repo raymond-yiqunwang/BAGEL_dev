@@ -258,6 +258,50 @@ shared_ptr<Reference> Reference::set_active(set<int> active_indices) const {
   return make_shared<Reference>(geom_, make_shared<const Coeff>(*tmp_coeff), nclosed, nactive, nvirt);
 }
 
+shared_ptr<Reference> Reference::set_active_metal(set<int> Alist, set<int> Blist, set<int> Llist) const {
+  if (!coeff_) throw logic_error("Reference::set_active is not implemented for relativistic cases");
+  const int naobasis = geom_->nbasis();
+  const int nmo = coeff_->mdim();
+  
+  const set<set<int>> Actlist = {Alist, Blist, Llist};
+
+  const int nactA = Alist.size();
+  const int nactB = Blist.size();
+  const int nactL = Llist.size();
+  const int nactive = nactA + nactB + nactL;
+
+
+  int nclosed = nclosed_;
+  int nvirt = nmo - nclosed;
+  for (auto& list : Actlist) {
+    for (auto& iter : list) {
+      if (iter < nclosed_) --nclosed;
+      else --nvirt;
+    }
+  }
+
+  auto coeff = coeff_;
+  auto tmp_coeff = make_shared<Matrix>(naobasis, nmo);
+
+  int iclosed = 0;
+  int iactiveA = nclosed;
+  int iactiveB = nclosed + nactA;
+  int iactiveL = nclosed + nactA + nactB;
+  int ivirt = nclosed + nactive;
+
+  auto cp = [&tmp_coeff, &naobasis, &coeff] (const int i, int& pos) { copy_n(coeff->element_ptr(0,i), naobasis, tmp_coeff->element_ptr(0, pos)); ++pos; };
+
+  for (int i = 0; i < nmo; ++i) {
+    if ( Alist.find(i) != Alist.end() ) cp(i, iactiveA);
+    else if ( Blist.find(i) != Blist.end() ) cp(i, iactiveB);
+    else if ( Llist.find(i) != Llist.end() ) cp(i, iactiveL);
+    else if ( i < nclosed_ ) cp(i, iclosed);
+    else cp(i, ivirt);
+  }
+
+  return make_shared<Reference>(geom_, make_shared<const Coeff>(*tmp_coeff), nclosed, nactive, nvirt);
+}
+
 // This function currently assumes it is being called on a Reference object with no defined active space
 shared_ptr<Reference> Reference::set_ractive(set<int> ras1, set<int> ras2, set<int> ras3) const {
   if (!coeff_) throw logic_error("Reference::set_active is not implemented for relativistic cases");
