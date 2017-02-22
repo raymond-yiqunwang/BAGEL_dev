@@ -175,8 +175,7 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
   } // Now we have new orthonormal coeff as well as active orbital lists.
 
   // Make new Reference; active orbitals are placed after closed orbitals
-  auto tmpref = isolated_refs_.first->set_active_metal(Alist, Blist);
-  active_refs_ = {tmpref, tmpref};
+  active_refs_ = {isolated_refs_.first->set_active(Alist), isolated_refs_.second->set_active(Blist)};
 
   // Update dimer info
   const int nclosedA = active_refs_.first->nclosed();
