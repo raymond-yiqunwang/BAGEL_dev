@@ -87,33 +87,144 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
   const int nclosed = active_refs_.first->nclosed();
   const int nactA = active_refs_.first->nact();  
   const int nactB = active_refs_.second->nact();
-  const int nactcloA = active_refs_.first->nactclo();
-  const int nactcloB = active_refs_.second->nactclo();
-  const int nactvirtA = active_refs_.first->nactvirt();
-  const int nactvirtB = active_refs_.second->nactvirt();
+  const int nact = nactA + nactB;
   const int nlink = active_refs_.first->nlink();
   const int dimerbasis = sgeom_->nbasis();
-  const int nclosed_HF = sref_->nclosed();
-  const int nvirt_HF = sref_->nvirt();
-  assert(dimerbasis == nclosed_HF + nvirt_HF);
-  assert(sref_->nact() == 0);
 
-cout << "nclosed = " << nclosed << endl;
-cout << "nactA = " << nactA << endl;
-cout << "nactB = " << nactB << endl;
-cout << "nactcloA = " << nactcloA << endl;
-cout << "nactcloB = " << nactcloB << endl;
-cout << "nactvirtA = " << nactvirtA << endl;
-cout << "nactvirtB = " << nactvirtB << endl;
-cout << "nlink = " << nlink << endl;
-cout << "dimerbasis = " << dimerbasis << endl;
-cout << "nclosed_HF = " << nclosed_HF << endl;
-cout << "nvirt_HF = " << nvirt_HF << endl;
+  // active MO matrix
+  auto activeMO = make_shared<Matrix>(dimerbasis, nact + nlink);
+  if (nactA) activeMO->copy_block(0, 0, dimerbasis, nactA, active_refs_.first->coeff()->get_submatrix(0, nclosed, dimerbasis, nactA));
+  if (nactB) activeMO->copy_block(0, nactA, dimerbasis, nactB, active_refs_.second->coeff()->get_submatrix(0, nclosed, dimerbasis, nactB));
+  if (nlink) activeMO->copy_block(0, nactA + nactB, dimerbasis, nlink, active_refs_.first->coeff()->get_submatrix(0, nclosed + nactA, dimerbasis, nlink));
+
+  // pick active orbitals in localized MOs and reorder to closed - actcloA - actvirtA - actcloB - actvirtB - Link - virtual
+  cout << endl << "  o Picking up active orbitals in localized MOs" << endl;
+  shared_ptr<Matrix> out_coeff = pick_active(activeMO, sref_->coeff());
+
+  // project Link(active) orbitals to fragments and construct new MO coeff
 
 
 }
 
 
+shared_ptr<Matrix> Dimer::pick_active(shared_ptr<const Matrix> control, shared_ptr<const Matrix> treatment) const {
+  const int nactA = active_refs_.first->nact();
+  const int nactB = active_refs_.second->nact();
+
+  const int nactcloA = active_refs_.first->nactclo();
+  const int nactcloB = active_refs_.second->nactclo();
+  const int nactvirtA = active_refs_.first->nactvirt();
+  const int nactvirtB = active_refs_.second->nactvirt();
+  const int nlink = active_refs_.first->nlink();
+
+  const int nclosed = active_refs_.first->nclosed();
+  const int dimerbasis = sgeom_->nbasis();
+  const int nclosed_HF = isolated_refs_.first->nclosed();
+
+# if 0 // debugging purpose
+  cout << "nclosed = " << nclosed << endl;
+  cout << "nactA = " << nactA << endl;
+  cout << "nactB = " << nactB << endl;
+  cout << "nactcloA = " << nactcloA << endl;
+  cout << "nactcloB = " << nactcloB << endl;
+  cout << "nactvirtA = " << nactvirtA << endl;
+  cout << "nactvirtB = " << nactvirtB << endl;
+  cout << "nlink = " << nlink << endl;
+  cout << "dimerbasis = " << dimerbasis << endl;
+#endif
+  
+  vector<tuple<shared_ptr<const Matrix>, pair<int, int>, int, string, bool>> ovl_info;
+
+  if (nactA) {
+    auto activeA = make_shared<Matrix>(dimerbasis, nactA);
+    activeA->copy_block(0, 0, dimerbasis, nactA, control->get_submatrix(0, 0, dimerbasis, nactA));
+    ovl_info.emplace_back(activeA, make_pair(0, nclosed_HF), nactcloA, "A", true);
+    ovl_info.emplace_back(activeA, make_pair(nclosed_HF, dimerbasis), nactvirtA, "A", false);
+  }
+
+  if (nactB) {
+    auto activeB = make_shared<Matrix>(dimerbasis, nactB);
+    activeB->copy_block(0, 0, dimerbasis, nactB, control->get_submatrix(0, nactA, dimerbasis, nactB));
+    ovl_info.emplace_back(activeB, make_pair(0, nclosed_HF), nactcloB, "B", true);
+    ovl_info.emplace_back(activeB, make_pair(nclosed_HF, dimerbasis), nactvirtB, "B", false);
+  }
+
+  if (nlink) {
+    auto Link = make_shared<Matrix>(dimerbasis, nlink);
+    Link->copy_block(0, 0, dimerbasis, nlink, control->get_submatrix(0, 0, dimerbasis, nlink));
+    ovl_info.emplace_back(Link, make_pair(0, dimerbasis), nlink, "L", true);
+  }
+
+  const Overlap S(sgeom_);
+
+  shared_ptr<Matrix> out_coeff = treatment->clone();
+  size_t active_position = nclosed;
+
+  set<int> mask;
+  for (int i = 0; i != out_coeff->mdim(); ++i) mask.insert(i);
+
+  for (auto& subset : ovl_info) {
+    const Matrix& active = *get<0>(subset);
+    const pair<int , int> bounds = get<1>(subset);
+    const int norb = get<2>(subset);
+    const string set_name = get<3>(subset);
+    const bool closed = get<4>(subset);
+
+    shared_ptr<const Matrix> subcoeff = treatment->slice_copy(bounds.first, bounds.second);
+
+    const Matrix overlap(active % S * *subcoeff);
+
+    multimap<double, int> norms;
+
+    for (int i = 0; i != overlap.mdim(); ++i) {
+      const double norm = blas::dot_product(overlap.element_ptr(0, i), overlap.ndim(), overlap.element_ptr(0, i));
+      norms.emplace(norm, i);
+    }
+
+    cout << endl << "  o Forming dimer's active orbitals arising from " << (closed ? "closed " : "virtual") << set_name
+                 << " orbitals. Threshold for includsion in candidate space: " << setw(6) << setprecision(3) << active_thresh_ << endl;
+
+    vector<int> active_list;
+    double max_overlap, min_overlap;
+    {
+      auto end = norms.rbegin(); advance(end, norb);
+      end = find_if(end, norms.rend(), [this] (const pair<const double, int>& p) { return p.first < active_thresh_; });
+      for_each(norms.rbegin(), end, [&active_list] (const pair<const double, int>& p) { active_list.emplace_back(p.second); });
+      auto mnmx = minmax_element(norms.rbegin(), end);
+      tie(min_overlap, max_overlap) = make_tuple(mnmx.first->first, mnmx.second->first);
+    }
+
+    const int active_size = active_list.size();
+    cout << "    - size of candidate space: " << active_size << endl;
+    cout << "    - largest overlap with monomer space: " << max_overlap << ", smallest: " << min_overlap << endl;
+
+    if (active_size != norb)
+      throw runtime_error("active size != norb, SVD required or check for other reasons...");
+    else {
+      const set<int> active_set(active_list.begin(), active_list.end());
+      for (size_t i = 0; i != subcoeff->mdim(); ++i) {
+        if (active_set.count(i)) {
+          const int imo = bounds.first + i;
+          assert(mask.count(imo));
+          mask.erase(imo);
+          copy_n(subcoeff->element_ptr(0, i), dimerbasis, out_coeff->element_ptr(0, active_position++)); // Finally should be [cA, vA, cB, vB, L]
+        }
+      }
+    }
+  }
+
+  size_t closed_position = 0;
+  for (int i = 0; i != nclosed_HF; ++i)
+    if (mask.count(i))
+      copy_n(treatment->element_ptr(0, i), dimerbasis, out_coeff->element_ptr(0, closed_position++));
+
+  size_t virt_position = 0;
+  for (int i = nclosed_HF; i != dimerbasis; ++i)
+    if (mask.count(i))
+      copy_n(treatment->element_ptr(0, i), dimerbasis, out_coeff->element_ptr(0, virt_position++));
+
+  return out_coeff;
+}
 
 
 
