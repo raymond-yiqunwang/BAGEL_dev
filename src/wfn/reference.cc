@@ -63,6 +63,15 @@ Reference::Reference(shared_ptr<const Geometry> g, shared_ptr<const Coeff> c,
 
 }
 
+Reference::Reference(shared_ptr<const Geometry> geom, shared_ptr<const Coeff> coeff,
+                     const int nclosed, const int nact, const int nvirt,
+                     const int nactclo, const int nactvirt, const int nlink) : 
+  Reference(geom, coeff, nclosed, nact, nvirt) {
+    nactclo_ = nactclo;
+    nactvirt_ = nactvirt;
+    nlink_ = nlink;
+}
+
 
 Reference::Reference(shared_ptr<const Geometry> g, shared_ptr<const PTree> itree) : geom_(g), hcore_(make_shared<Hcore>(geom_)) {
   // Note that other informations are not available...
@@ -258,26 +267,24 @@ shared_ptr<Reference> Reference::set_active(set<int> active_indices) const {
   return make_shared<Reference>(geom_, make_shared<const Coeff>(*tmp_coeff), nclosed, nactive, nvirt);
 }
 
-shared_ptr<Reference> Reference::set_active_metal(set<int> Alist, set<int> Blist, set<int> Llist) const {
+// new coeff in the order: closedA - actcloA - actvirtA - actL - virt
+shared_ptr<Reference> Reference::set_active_metal(set<int> Alist, set<int> Llist) const {
   if (!coeff_) throw logic_error("Reference::set_active is not implemented for relativistic cases");
   const int naobasis = geom_->nbasis();
   const int nmo = coeff_->mdim();
   
-  const set<set<int>> Actlist = {Alist, Blist, Llist};
-
-  const int nactA = Alist.size();
-  const int nactB = Blist.size();
-  const int nactL = Llist.size();
-  const int nactive = nactA + nactB + nactL;
-
+  const int nactive = Alist.size();
+  const int nLink = Llist.size();
 
   int nclosed = nclosed_;
   int nvirt = nmo - nclosed;
-  for (auto& list : Actlist) {
-    for (auto& iter : list) {
-      if (iter < nclosed_) --nclosed;
-      else --nvirt;
-    }
+  for (auto& aiter : Alist) {
+    if (aiter < nclosed_) --nclosed;
+    else --nvirt;
+  }
+  for (auto& liter : Llist) {
+    if (liter < nclosed_) --nclosed;
+    else --nvirt;
   }
 
   auto coeff = coeff_;
@@ -285,21 +292,28 @@ shared_ptr<Reference> Reference::set_active_metal(set<int> Alist, set<int> Blist
 
   int iclosed = 0;
   int iactiveA = nclosed;
-  int iactiveB = nclosed + nactA;
-  int iactiveL = nclosed + nactA + nactB;
-  int ivirt = nclosed + nactive;
+  int iLink = nclosed + nactive;
+  int ivirt = nclosed + nactive + nLink;
+
+  int nactclo = 0;
+  int nactvirt = 0;
 
   auto cp = [&tmp_coeff, &naobasis, &coeff] (const int i, int& pos) { copy_n(coeff->element_ptr(0,i), naobasis, tmp_coeff->element_ptr(0, pos)); ++pos; };
 
-  for (int i = 0; i < nmo; ++i) {
-    if ( Alist.find(i) != Alist.end() ) cp(i, iactiveA);
-    else if ( Blist.find(i) != Blist.end() ) cp(i, iactiveB);
-    else if ( Llist.find(i) != Llist.end() ) cp(i, iactiveL);
+  for (int i = 0; i != nmo; ++i) {
+    if ( Alist.find(i) != Alist.end() ) {
+      cp(i, iactiveA);
+      if ( i < nclosed_ ) ++nactclo;
+      else ++nactvirt;
+    }
+    else if ( Llist.find(i) != Llist.end() ) {
+      cp(i, iLink);
+    }
     else if ( i < nclosed_ ) cp(i, iclosed);
     else cp(i, ivirt);
   }
 
-  return make_shared<Reference>(geom_, make_shared<const Coeff>(*tmp_coeff), nclosed, nactive, nvirt);
+  return make_shared<Reference>(geom_, make_shared<const Coeff>(*tmp_coeff), nclosed, nactive, nvirt, nactclo, nactvirt, nLink);
 }
 
 // This function currently assumes it is being called on a Reference object with no defined active space

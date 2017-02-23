@@ -80,38 +80,35 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
     }
     cout << "    - orbitals are assigned as : " << Alist.size() << "(A), " << Blist.size() << "(B) and " << Llist.size() << " bridging active orbitals." << endl;
 
-    // active_refs_ coeff in the order: closed - actA - actB - bridging - virtual
-    auto tmpref = isolated_refs_.first->set_active_metal(Alist, Blist, Llist); 
-    active_refs_ = {tmpref, tmpref};
+    active_refs_ = {isolated_refs_.first->set_active_metal(Alist, Llist), isolated_refs_.second->set_active_metal(Blist, Llist)};
   }
   
   // Update dimer info
-  const int nclosedA = active_refs_.first->nclosed();
-  const int nclosedB = active_refs_.second->nclosed();
-  const int nactA = active_refs_.first->nact();
+  const int nclosed = active_refs_.first->nclosed();
+  const int nactA = active_refs_.first->nact();  
   const int nactB = active_refs_.second->nact();
-  const int nact = nactA + nactB;
-  const int nactvirtA = isolated_refs_.first->nvirt() - active_refs_.first->nvirt();
-  const int nactvirtB = isolated_refs_.second->nvirt() - active_refs_.second->nvirt();
+  const int nactcloA = active_refs_.first->nactclo();
+  const int nactcloB = active_refs_.second->nactclo();
+  const int nactvirtA = active_refs_.first->nactvirt();
+  const int nactvirtB = active_refs_.second->nactvirt();
+  const int nlink = active_refs_.first->nlink();
   const int dimerbasis = sgeom_->nbasis();
-  assert(dimerbasis == geoms_.first->nbasis());
-  assert(dimerbasis == geoms_.second->nbasis());
   const int nclosed_HF = sref_->nclosed();
   const int nvirt_HF = sref_->nvirt();
   assert(dimerbasis == nclosed_HF + nvirt_HF);
   assert(sref_->nact() == 0);
-  const int nclosed = nclosed_HF - (nclosed_HF - nclosedA) - (nclosed_HF - nclosedB);
-cout << "nclosedA = " << nclosedA << endl;
-cout << "nclosedB = " << nclosedB << endl;
+
+cout << "nclosed = " << nclosed << endl;
 cout << "nactA = " << nactA << endl;
 cout << "nactB = " << nactB << endl;
-cout << "nact = " << nact << endl;
+cout << "nactcloA = " << nactcloA << endl;
+cout << "nactcloB = " << nactcloB << endl;
 cout << "nactvirtA = " << nactvirtA << endl;
 cout << "nactvirtB = " << nactvirtB << endl;
+cout << "nlink = " << nlink << endl;
 cout << "dimerbasis = " << dimerbasis << endl;
 cout << "nclosed_HF = " << nclosed_HF << endl;
 cout << "nvirt_HF = " << nvirt_HF << endl;
-cout << "nclosed = " << nclosed << endl;
 
 
 }
