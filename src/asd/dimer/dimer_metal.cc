@@ -137,19 +137,19 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
     shared_ptr<Matrix> reduced_MO_A;
     shared_ptr<Matrix> reduced_MO_B;
     {
-      auto CSC = make_shared<Matrix>(*projected_A % *SA * *projected_A);
+      auto CC = make_shared<Matrix>(*projected_A % *projected_A);
       VectorB eig(projected_A->mdim());
-      CSC->diagonalize(eig);
-      auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
+      CC->diagonalize(eig);
+      auto P = CC->get_submatrix(0, CC->mdim()/2, CC->ndim(), CC->mdim()/2);
       auto reduced_A = make_shared<Matrix>(*projected_A * *P);
       reduced_MO_A = make_shared<Matrix>(dimerbasis, reduced_A->mdim());
       reduced_MO_A->copy_block(0, 0, abasis, reduced_A->mdim(), reduced_A->data());
     }
     {
-      auto CSC = make_shared<Matrix>(*projected_B % *SB * *projected_B);
+      auto CC = make_shared<Matrix>(*projected_B % *projected_B);
       VectorB eig(projected_B->mdim());
-      CSC->diagonalize(eig);
-      auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
+      CC->diagonalize(eig);
+      auto P = CC->get_submatrix(0, CC->mdim()/2, CC->ndim(), CC->mdim()/2);
       auto reduced_B = make_shared<Matrix>(*projected_B * *P);
       reduced_MO_B = make_shared<Matrix>(dimerbasis, reduced_B->mdim());
       reduced_MO_B->copy_block(abasis, 0, bbasis, reduced_B->mdim(), reduced_B->data());
@@ -192,12 +192,6 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
       assert(countA == countB); // to make sure projection to both sides
     }
   } 
-
-#if 0 // Compare new orthogonal coeff with original coeff
-    auto compare = make_shared<Matrix>(*sref_->coeff() % S * *out_coeff);
-    cout << "Overlap between original and new coeff :" << endl;
-    compare->print();
-#endif
 
   // lowdin orthogonalization
   auto tildex = make_shared<Matrix>(*out_coeff % S * *out_coeff);
