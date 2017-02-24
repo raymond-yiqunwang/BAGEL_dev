@@ -80,12 +80,14 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
   cout << "    - orbitals are assigned as : " << Alist.size() << "(A), " << Blist.size() << "(B) and " << Llist.size() << " bridging active orbitals." << endl;
 
   active_refs_ = {isolated_refs_.first->set_active_metal(Alist, Llist), isolated_refs_.second->set_active_metal(Blist, Llist)};
-  
+
   // Update dimer info
   const int nclosed = active_refs_.first->nclosed();
   int nactA = active_refs_.first->nact();  
   int nactB = active_refs_.second->nact();
   const int nlink = active_refs_.first->nlink();
+  const int nact = nactA + nactB + nlink;
+  const int nvirt = sref_->coeff()->mdim() - nclosed - nact;
   const int dimerbasis = sgeom_->nbasis();
 
   // active MO matrix
@@ -97,111 +99,112 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
   // pick active orbitals in localized MOs and reorder to closed - actcloA - actvirtA - actcloB - actvirtB - Link - virtual
   cout << endl << "  o Picking up active orbitals in localized MOs" << endl;
   shared_ptr<Matrix> new_coeff = pick_active(activeMO, sref_->coeff());
+      
+  auto out_coeff = new_coeff->clone();
+  // build out_coeff except for actLA and actLB part
+  out_coeff->copy_block(0, 0, dimerbasis, nclosed, new_coeff->get_submatrix(0, 0, dimerbasis, nclosed)); // closed
+  out_coeff->copy_block(0, nclosed, dimerbasis, nactA, new_coeff->get_submatrix(0, nclosed, dimerbasis, nactA)); // actcloA - actvirtA
+  out_coeff->copy_block(0, nclosed + nactA + nlink/2, dimerbasis, nactB, new_coeff->get_submatrix(0, nclosed + nactA + nlink/2, dimerbasis, nactB)); // actcloB - actvirtB
+  out_coeff->copy_block(0, nclosed + nactA + nactB + nlink, dimerbasis, nvirt, new_coeff->get_submatrix(0, nclosed + nactA + nactB + nlink, dimerbasis, nvirt)); // virtual
+
+  Overlap S(sgeom_);
 
   // project Link(active) orbitals to fragments and construct new MO coeff
   if (nlink) {
-    auto Lcoeff = new_coeff->get_submatrix(0, nactA + nactB, dimerbasis, nlink);
+    auto Lcoeff = new_coeff->get_submatrix(0, nclosed + nactA + nactB, dimerbasis, nlink);
   
+    const int abasis = bounds[0].second - bounds[0].first;
+    const int bbasis = bounds[1].second - bounds[1].first;
+    auto SA = make_shared<Matrix>(abasis, abasis);
+    auto SB = make_shared<Matrix>(bbasis, bbasis);
+    auto SAmix = make_shared<Matrix>(abasis, dimerbasis);
+    auto SBmix = make_shared<Matrix>(bbasis, dimerbasis);
+    SA->copy_block(0, 0, abasis, abasis, S.get_submatrix(0, 0, abasis, abasis));
+    SB->copy_block(0, 0, bbasis, bbasis, S.get_submatrix(abasis, abasis, bbasis, bbasis));
+    SAmix->copy_block(0, 0, abasis, dimerbasis, S.get_submatrix(0, 0, abasis, dimerbasis));
+    SBmix->copy_block(0, 0, bbasis, dimerbasis, S.get_submatrix(abasis, 0, bbasis, dimerbasis));
+
+    auto SA_inv = make_shared<Matrix>(*SA);
+    SA_inv->inverse_symmetric();
+    auto SB_inv = make_shared<Matrix>(*SB);
+    SB_inv->inverse_symmetric();
+
+    // Forming projected coeff to A and B
+    auto projected_A = make_shared<const Matrix>(*SA_inv * *SAmix * *Lcoeff);
+    auto projected_B = make_shared<const Matrix>(*SB_inv * *SBmix * *Lcoeff);
+
+    // Get rid of redundancy in projected coeffs
+    shared_ptr<Matrix> reduced_MO_A;
+    shared_ptr<Matrix> reduced_MO_B;
     {
-      Overlap S(sgeom_);
-      const int abasis = bounds[0].second - bounds[0].first;
-      const int bbasis = bounds[1].second - bounds[1].first;
-      auto SA = make_shared<Matrix>(abasis, abasis);
-      auto SB = make_shared<Matrix>(bbasis, bbasis);
-      auto SAmix = make_shared<Matrix>(abasis, dimerbasis);
-      auto SBmix = make_shared<Matrix>(bbasis, dimerbasis);
-      SA->copy_block(0, 0, abasis, abasis, S.get_submatrix(0, 0, abasis, abasis));
-      SB->copy_block(0, 0, bbasis, bbasis, S.get_submatrix(abasis, abasis, bbasis, bbasis));
-      SAmix->copy_block(0, 0, abasis, dimerbasis, S.get_submatrix(0, 0, abasis, dimerbasis));
-      SBmix->copy_block(0, 0, bbasis, dimerbasis, S.get_submatrix(abasis, 0, bbasis, dimerbasis));
-
-      auto SA_inv = make_shared<Matrix>(*SA);
-      SA_inv->inverse_symmetric();
-      auto SB_inv = make_shared<Matrix>(*SB);
-      SA_inv->inverse_symmetric();
-
-      // Forming projected coeff to A and B
-      auto projected_A = make_shared<const Matrix>(*SA_inv * *SAmix * *Lcoeff);
-      auto projected_B = make_shared<const Matrix>(*SB_inv * *SBmix * *Lcoeff);
-
-      // Get rid of redundancy in projected coeffs
-      shared_ptr<Matrix> reduced_MO_A;
-      shared_ptr<Matrix> reduced_MO_B;
-      {
-        auto CSC = make_shared<Matrix>(*projected_A % *SA * *projected_A);
-        VectorB eig(projected_A->mdim());
-        CSC->diagonalize(eig);
-        auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
-        auto reduced_A = make_shared<Matrix>(*projected_A * *P);
-        reduced_MO_A = make_shared<Matrix>(dimerbasis, reduced_A->mdim());
-        reduced_MO_A->copy_block(0, 0, abasis, reduced_A->mdim(), reduced_A->data());
-      }
-      {
-        auto CSC = make_shared<Matrix>(*projected_B % *SB * *projected_B);
-        VectorB eig(projected_B->mdim());
-        CSC->diagonalize(eig);
-        auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
-        auto reduced_B = make_shared<Matrix>(*projected_B * *P);
-        reduced_MO_B = make_shared<Matrix>(dimerbasis, reduced_B->mdim());
-        reduced_MO_B->copy_block(abasis, 0, bbasis, reduced_B->mdim(), reduced_B->data());
-      }
-      auto reduced_MO_AB = reduced_MO_A->merge(reduced_MO_B);
-      assert(nlink == reduced_MO_AB->mdim());
+      auto CSC = make_shared<Matrix>(*projected_A % *SA * *projected_A);
+      VectorB eig(projected_A->mdim());
+      CSC->diagonalize(eig);
+      auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
+      auto reduced_A = make_shared<Matrix>(*projected_A * *P);
+      reduced_MO_A = make_shared<Matrix>(dimerbasis, reduced_A->mdim());
+      reduced_MO_A->copy_block(0, 0, abasis, reduced_A->mdim(), reduced_A->data());
+    }
+    {
+      auto CSC = make_shared<Matrix>(*projected_B % *SB * *projected_B);
+      VectorB eig(projected_B->mdim());
+      CSC->diagonalize(eig);
+      auto P = CSC->get_submatrix(0, CSC->mdim()/2, CSC->ndim(), CSC->mdim()/2);
+      auto reduced_B = make_shared<Matrix>(*projected_B * *P);
+      reduced_MO_B = make_shared<Matrix>(dimerbasis, reduced_B->mdim());
+      reduced_MO_B->copy_block(abasis, 0, bbasis, reduced_B->mdim(), reduced_B->data());
+    }
+    auto reduced_MO_AB = reduced_MO_A->merge(reduced_MO_B);
+    assert(nlink == reduced_MO_AB->mdim());
       
-      // normalization
-      {
-        auto csc = make_shared<Matrix>(*reduced_MO_AB % S * *reduced_MO_AB);
-        for (int j = 0; j != nlink; ++j) 
-          for_each(reduced_MO_AB->element_ptr(0, j), reduced_MO_AB->element_ptr(dimerbasis, j), [&j, &csc](double& p) { p /= sqrt(*csc->element_ptr(j, j)); });
-      }
-
-      auto out_coeff = new_coeff->clone();
-      // build out_coeff except for actLA and actLB part
-      // ...
-
-      int iactLA = nclosed + nactA;
-      int iactLB = nclosed + nactA + nlink/2 + nactB;
-      {
-        int countA = 0; int countB = 0;
-        for (int i = 0; i != nlink; ++i) {
-          const double sum_A = blas::dot_product(reduced_MO_AB->element_ptr(bounds[0].first, i), bounds[0].second - bounds[0].first,
-                                                 reduced_MO_AB->element_ptr(bounds[0].first, i));
-          const double sum_B = blas::dot_product(reduced_MO_AB->element_ptr(bounds[1].first, i), bounds[1].second - bounds[1].first,
-                                                 reduced_MO_AB->element_ptr(bounds[1].first, i));
-          cout << "sumA : " << sum_A << ", sumB : " << sum_B << endl;
-          if (sum_A > sum_B && abs(sum_A - sum_B) > region_thresh_) {
-            cout << "    - projected active orbital(" << i + 1 << ") is assigned to monomer A." << endl;
-            cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
-            copy_n(reduced_MO_AB->element_ptr(0, i), dimerbasis, out_coeff->element_ptr(0, iactLA++));
-            ++nactA; ++countA; 
-          } 
-          else if (sum_A < sum_B && abs(sum_A - sum_B) > region_thresh_) {
-            cout << "    - projected active orbital(" << i + 1 << ") is assigned to monomer B." << endl;
-            cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
-            copy_n(reduced_MO_AB->element_ptr(0, i), dimerbasis, out_coeff->element_ptr(0, iactLB++));
-            ++nactB; ++countB;
-          } 
-          else
-            throw runtime_error("projected active orbital still cannot be assigned to either fragment");
-        }
-        assert(countA == countB); // to make sure projection to both sides
-      }
-
-      // lowdin orthogonalization
-      auto tildex = make_shared<Matrix>(*out_coeff % S * *out_coeff);
-      tildex->inverse_half();
-      out_coeff = make_shared<Matrix>(*out_coeff * *tildex);
+    // normalization
+    {
+      auto csc = make_shared<Matrix>(*reduced_MO_AB % S * *reduced_MO_AB);
+      for (int j = 0; j != nlink; ++j) 
+        for_each(reduced_MO_AB->element_ptr(0, j), reduced_MO_AB->element_ptr(dimerbasis, j), [&j, &csc](double& p) { p /= sqrt(*csc->element_ptr(j, j)); });
     }
 
-#if 0 // Compare new orthogonal coeff with original coeff
-    auto compare = make_shared<Matrix>(*isolated_refs_.first->coeff() % S * *coeff);
-    cout << "Overlap between original and new coeff :" << endl;
-    for (int i = 0; i != compare->ndim(); ++i)
-      cout << "(" << i << ") = " << *compare->element_ptr(i,i) << endl;
-#endif
-
+    int iactLA = nclosed + nactA;
+    int iactLB = nclosed + nactA + nlink/2 + nactB;
+    {
+      int countA = 0; int countB = 0;
+      for (int i = 0; i != nlink; ++i) {
+        const double sum_A = blas::dot_product(reduced_MO_AB->element_ptr(bounds[0].first, i), bounds[0].second - bounds[0].first,
+                                               reduced_MO_AB->element_ptr(bounds[0].first, i));
+        const double sum_B = blas::dot_product(reduced_MO_AB->element_ptr(bounds[1].first, i), bounds[1].second - bounds[1].first,
+                                               reduced_MO_AB->element_ptr(bounds[1].first, i));
+        cout << "sumA : " << sum_A << ", sumB : " << sum_B << endl;
+        if (sum_A > sum_B && abs(sum_A - sum_B) > region_thresh_) {
+          cout << "    - projected active orbital(" << i + 1 << ") is assigned to monomer A." << endl;
+          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
+          copy_n(reduced_MO_AB->element_ptr(0, i), dimerbasis, out_coeff->element_ptr(0, iactLA++));
+          ++nactA; ++countA; 
+        } 
+        else if (sum_A < sum_B && abs(sum_A - sum_B) > region_thresh_) {
+          cout << "    - projected active orbital(" << i + 1 << ") is assigned to monomer B." << endl;
+          cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
+          copy_n(reduced_MO_AB->element_ptr(0, i), dimerbasis, out_coeff->element_ptr(0, iactLB++));
+          ++nactB; ++countB;
+        } 
+        else
+          throw runtime_error("projected active orbital still cannot be assigned to either fragment");
+      }
+      assert(countA == countB); // to make sure projection to both sides
+    }
   } 
 
+#if 0 // Compare new orthogonal coeff with original coeff
+    auto compare = make_shared<Matrix>(*sref_->coeff() % S * *out_coeff);
+    cout << "Overlap between original and new coeff :" << endl;
+    compare->print();
+#endif
+
+  // lowdin orthogonalization
+  auto tildex = make_shared<Matrix>(*out_coeff % S * *out_coeff);
+  tildex->inverse_half();
+  out_coeff = make_shared<Matrix>(*out_coeff * *tildex);
+
+  sref_ = make_shared<Reference>(sgeom_, make_shared<Coeff>(*out_coeff), nclosed, nact, nvirt);
 }
 
 
