@@ -147,9 +147,12 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
       }
       auto reduced_MO_AB = reduced_MO_A->merge(reduced_MO_B);
       assert(nlink == reduced_MO_AB->mdim());
+      
       // normalization
       {
-        
+        auto csc = make_shared<Matrix>(*reduced_MO_AB % S * *reduced_MO_AB);
+        for (int j = 0; j != nlink; ++j) 
+          for_each(reduced_MO_AB->element_ptr(0, j), reduced_MO_AB->element_ptr(dimerbasis, j), [&j, &csc](double& p) { p /= sqrt(*csc->element_ptr(j, j)); });
       }
 
       auto out_coeff = new_coeff->clone();
