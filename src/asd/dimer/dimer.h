@@ -92,6 +92,7 @@ class Dimer : public std::enable_shared_from_this<Dimer> {
     // ASD_Metal
     void set_active_metal(std::shared_ptr<const PTree> idata);
     std::shared_ptr<Matrix> pick_active(std::shared_ptr<const Matrix> control, std::shared_ptr<const Matrix> treatment) const;
+    std::shared_ptr<Matrix> form_semi_canonical_metal(std::shared_ptr<const PTree> idata = nullptr) const;
 
     // Calculations
     void scf(std::shared_ptr<const PTree> idata); ///< Driver for preparation of dimer for MultiExcitonHamiltonian or CI calculation

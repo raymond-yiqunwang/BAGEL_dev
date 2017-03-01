@@ -454,6 +454,14 @@ void Dimer::scf(const shared_ptr<const PTree> idata) {
     region_thresh_ = input_->get<double>("region_thresh", 0.4);
     set_active_metal(idata); 
 
+    // semi-canonicalize
+    cout << "  o Forming semi-canonical orbitals" << endl;
+    auto out_coeff = form_semi_canonical_metal();
+    
+    sref_ = make_shared<Reference>(*sref_, make_shared<Coeff>(move(*out_coeff)));
+    
     cout << "  o So far to here, to be continued..." << endl;
   }
 }
+
+
