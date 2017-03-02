@@ -459,8 +459,7 @@ void Dimer::scf(const shared_ptr<const PTree> idata) {
     auto out_coeff = form_semi_canonical_metal();
     
     sref_ = make_shared<Reference>(*sref_, make_shared<Coeff>(move(*out_coeff)));
-    
-    cout << "  o So far to here, to be continued..." << endl;
+    cout << "  o end of dimerize" << endl;
   }
 }
 

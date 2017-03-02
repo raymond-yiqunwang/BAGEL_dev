@@ -1,7 +1,7 @@
 //
 // BAGEL - Brilliantly Advanced General Electronic Structure Library
-// Filename: asd/dimer/dimer_metal.cc
-// Copyright (C) 2015 Toru Shiozaki
+// Filename: dimer_metal.cc
+// Copyright (C) 2017 Toru Shiozaki
 //
 // Author: Raymond Wang <raymondwang@u.northwestern.edu> 
 // Maintainer: Shiozaki Group
@@ -60,12 +60,12 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
     const double sum_A = blas::dot_product(coeff->element_ptr(bounds[0].first, amo), bounds[0].second - bounds[0].first, coeff->element_ptr(bounds[0].first, amo));
     const double sum_B = blas::dot_product(coeff->element_ptr(bounds[1].first, amo), bounds[1].second - bounds[1].first, coeff->element_ptr(bounds[1].first, amo));
     if (bounds.size() == 2) { // [A, B, 0]only two fragments, no bridging atoms
-      if (sum_A > sum_B && abs(sum_A - sum_B) > region_thresh_) {
+      if (sum_A > sum_B && fabs(sum_A - sum_B) > region_thresh_) {
         cout << "    - active orbital(" << amo + 1 << ") is assigned to monomer A." << endl;
         cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
         Alist.insert(amo);
       }
-      if (sum_A < sum_B && abs(sum_A - sum_B) > region_thresh_) {
+      if (sum_A < sum_B && fabs(sum_A - sum_B) > region_thresh_) {
         cout << "    - active orbital(" << amo + 1 << ") is assigned to monomer B." << endl;
         cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
         Blist.insert(amo);
@@ -183,13 +183,13 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
         const double sum_B = blas::dot_product(reduced_MO_AB->element_ptr(bounds[1].first, i), bounds[1].second - bounds[1].first,
                                                reduced_MO_AB->element_ptr(bounds[1].first, i));
         cout << "sumA : " << sum_A << ", sumB : " << sum_B << endl;
-        if (sum_A > sum_B && abs(sum_A - sum_B) > region_thresh_) {
+        if (sum_A > sum_B && fabs(sum_A - sum_B) > region_thresh_) {
           cout << "    - projected active orbital(" << i + 1 << ") is assigned to monomer A." << endl;
           cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
           copy_n(reduced_MO_AB->element_ptr(0, i), dimerbasis, out_coeff->element_ptr(0, iactLA++));
           ++nactA; ++countA; 
         } 
-        else if (sum_A < sum_B && abs(sum_A - sum_B) > region_thresh_) {
+        else if (sum_A < sum_B && fabs(sum_A - sum_B) > region_thresh_) {
           cout << "    - projected active orbital(" << i + 1 << ") is assigned to monomer B." << endl;
           cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
           copy_n(reduced_MO_AB->element_ptr(0, i), dimerbasis, out_coeff->element_ptr(0, iactLB++));

@@ -93,6 +93,8 @@ class Dimer : public std::enable_shared_from_this<Dimer> {
     void set_active_metal(std::shared_ptr<const PTree> idata);
     std::shared_ptr<Matrix> pick_active(std::shared_ptr<const Matrix> control, std::shared_ptr<const Matrix> treatment) const;
     std::shared_ptr<Matrix> form_semi_canonical_metal(std::shared_ptr<const PTree> idata = nullptr) const;
+    template <class VecType>
+    std::shared_ptr<DimerCISpace_base<VecType>> compute_cispace_metal(std::shared_ptr<const PTree> idata);
 
     // Calculations
     void scf(std::shared_ptr<const PTree> idata); ///< Driver for preparation of dimer for MultiExcitonHamiltonian or CI calculation
@@ -308,6 +310,74 @@ std::shared_ptr<DimerCISpace_base<VecType>> Dimer::compute_rcispace(const std::s
     out->template insert<0>(i);
 
   for (auto& i : run_calculations(spaces_B, embedded_refs_.second, ras_desc.second, "B"))
+    out->template insert<1>(i);
+
+  return out;
+}
+
+
+template <class VecType>
+std::shared_ptr<DimerCISpace_base<VecType>> Dimer::compute_cispace_metal(const std::shared_ptr<const PTree> idata) {
+  embed_refs();
+  std::pair<int,int> nelea {isolated_refs_.first->nclosed() - active_refs_.first->nclosed(), isolated_refs_.second->nclosed() - active_refs_.second->nclosed()};
+  std::pair<int,int> neleb = nelea;
+
+  auto d1 = std::make_shared<Determinants>(active_refs_.first->nact(), nelea.first, neleb.first, /*compress*/false, /*mute*/true);
+  auto d2 = std::make_shared<Determinants>(active_refs_.second->nact(), nelea.second, neleb.second, /*compress*/false, /*mute*/true);
+  auto out = std::make_shared<DimerCISpace_base<VecType>>(std::make_pair(d1, d2), nelea, neleb);
+
+  std::vector<std::vector<int>> spaces_A, spaces_B;
+  get_spaces(idata, spaces_A, spaces_B);
+
+  Timer castime;
+
+  std::shared_ptr<const PTree> fcidata = idata->get_child_optional("fci");
+  if (!fcidata) fcidata = std::make_shared<const PTree>();
+
+  auto run_calculations = [this, &fcidata, &castime]
+    (std::vector<std::vector<int>> spaces, std::shared_ptr<const Reference> eref, std::shared_ptr<const Reference> aref, std::string label) {
+    std::cout << "    Starting embedded CAS-CI calculations on monomer " << label << std::endl;
+    std::vector<std::shared_ptr<const VecType>> results;
+    for (auto& ispace : spaces) {
+      if (ispace.size() != 3) throw std::runtime_error("Spaces should specify \"charge\", \"spin\", and \"nstate\"");
+
+      std::shared_ptr<PTree> input_copy = std::make_shared<PTree>(*fcidata);
+      input_copy->erase("norb"); input_copy->put("norb", lexical_cast<std::string>(aref->nact()));
+
+      std::string method = input_copy->get<std::string>("algorithm", "hz");
+      std::set<std::string> kh_options = {"kh", "knowles", "handy"};
+      std::set<std::string> hz_options = {"hz", "harrison", "zarrabian"};
+      std::set<std::string> dist_options = {"dist", "parallel"};
+
+      if (std::find(kh_options.begin(), kh_options.end(), method) != kh_options.end()) {
+        using CiType = typename VecType::Ci;
+        std::vector<std::shared_ptr<CiType>> tmp;
+        std::shared_ptr<const Dvec> vecs = embedded_ci<KnowlesHandy, Dvec>(input_copy, eref, ispace.at(0), ispace.at(1), ispace.at(2), label);
+        for (auto& i : vecs->dvec())
+          tmp.push_back(std::make_shared<CiType>(*i));
+        results.push_back(std::make_shared<VecType>(tmp));
+      }
+      else if (std::find(hz_options.begin(), hz_options.end(), method) != hz_options.end()) {
+        using CiType = typename VecType::Ci;
+        std::vector<std::shared_ptr<CiType>> tmp;
+        std::shared_ptr<const Dvec> vecs = embedded_ci<HarrisonZarrabian, Dvec>(input_copy, eref, ispace.at(0), ispace.at(1), ispace.at(2), label);
+        for (auto& i : vecs->dvec())
+          tmp.push_back(std::make_shared<CiType>(*i));
+        results.push_back(std::make_shared<VecType>(tmp));
+      }
+      else
+        throw std::runtime_error("Unrecognized FCI type algorithm");
+
+      std::cout << "      - charge: " << ispace.at(0) << ", spin: " << ispace.at(1) << ", nstates: " << ispace.at(2)
+                                 << std::fixed << std::setw(10) << std::setprecision(2) << castime.tick() << std::endl;
+    }
+    return results;
+  };
+
+  for (auto& i : run_calculations(spaces_A, embedded_refs_.first, active_refs_.first, "A"))
+    out->template insert<0>(i);
+
+  for (auto& i : run_calculations(spaces_B, embedded_refs_.second, active_refs_.second, "B"))
     out->template insert<1>(i);
 
   return out;

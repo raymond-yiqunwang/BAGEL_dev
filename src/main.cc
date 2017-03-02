@@ -29,6 +29,7 @@
 #include <src/wfn/localization.h>
 #include <src/asd/construct_asd.h>
 #include <src/asd/orbital/construct_asd_orbopt.h>
+#include <src/asd/metal/construct_asd_metal.h>
 #include <src/asd/dmrg/rasd.h>
 #include <src/asd/multisite/multisite.h>
 #include <src/util/exception.h>
@@ -178,6 +179,9 @@ int main(int argc, char** argv) {
           auto asd = construct_ASD_OrbOpt(itree, dimer);
           asd->compute();
           ref = dimer->sref();
+      } else if (title == "asd_metal") {
+          auto asd = construct_ASD_Metal(itree, dimer);
+          asd->compute();
       } else if (title == "multisite") {
           vector<shared_ptr<const Reference>> site_refs;
           auto sitenames = itree->get_vector<string>("refs");
