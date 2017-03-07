@@ -90,22 +90,71 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
 
   // define fragments (regions) of the multimer
   vector<int> region_sizes = idata->get_vector<int>("region_sizes");
+  const int nregions(region_sizes.size());
   vector<pair<int, int>> basis_bounds;
-  int nbasis = 0;
-  int natoms = 0;
-  for (int& rsize : region_sizes) {
-    const int atombegin = natoms;
-    const int basisbegin = nbasis;
-    for (int iatom = atombegin; iatom != atombegin + rsize; ++iatom)
-      nbasis += geom_->atoms()[iatom]->nbasis();
+  {
+    int nbasis = 0;
+    int natoms = 0;
+    for (int& rsize : region_sizes) {
+      const int atombegin = natoms;
+      const int basisbegin = nbasis;
+      for (int iatom = atombegin; iatom != atombegin + rsize; ++iatom)
+        nbasis += geom_->atoms()[iatom]->nbasis();
 
-    natoms += rsize;
-    if (basisbegin != nbasis)
-      basis_bounds.emplace_back(basisbegin, nbasis);
+      natoms += rsize;
+      if (basisbegin != nbasis)
+        basis_bounds.emplace_back(basisbegin, nbasis);
+    }
+    if (natoms != count_if(geom_->atoms().begin(), geom_->atoms().end(), [](const shared_ptr<const Atom> a){return !a->dummy();}))
+      throw logic_error("All atoms must be assigned to regions");
   }
-  if (natoms != count_if(geom_->atoms().begin(), geom_->atoms().end(), [](const shared_ptr<const Atom> a){return !a->dummy();}))
-    throw logic_error("All atoms must be assigned to regions");
 
+  const int nclosed = active_ref_->nclosed();
+  const int nact = active_ref_->nact();
+  const int multimerbasis = active_ref_->geom()->nbasis();
+
+  auto new_coeff = active_ref_->coeff()->copy();
+  
+  Overlap S(geom_);
+
+  // project active orbitals to each fragement and do SVD
+  vector<int> actsizes = idata->get_vector<int>("act_sizes");
+  vector<int> fragbasis;
+  int basisoffset = 0;
+  int orboffset = 0;
+  auto actcoeff = active_ref_->coeff()->get_submatrix(0, nclosed, multimerbasis, nact);
+  auto tmp = actcoeff->clone();
+  for (int i = 0; i != nregions; ++i) {
+    const int nbasis = basis_bounds[i].second - basis_bounds[i].first;
+    auto Sfrag = make_shared<Matrix>(nbasis, nbasis);
+    auto Smix = make_shared<Matrix>(nbasis, multimerbasis);
+    Sfrag->copy_block(0, 0, nbasis, nbasis, S.get_submatrix(basisoffset, basisoffset, nbasis, nbasis));
+    Smix->copy_block(0, 0, nbasis, multimerbasis, S.get_submatrix(basisoffset, 0, nbasis, multimerbasis));
+
+    auto S_inv = make_shared<Matrix>(*Sfrag);
+    S_inv->inverse_symmetric();
+ 
+    // forming projected orbitals of current fragment
+    auto projected = make_shared<const Matrix>(*S_inv * *Smix * *actcoeff);
+
+    // get rid of redundancy
+    shared_ptr<Matrix> reduced;
+    {
+      auto CC = make_shared<Matrix>(*projected % *projected);
+      VectorB eig(projected->mdim());
+      CC->diagonalize(eig);
+      auto P = CC->get_submatrix(0, (CC->mdim() - actsizes[i]), CC->ndim(), actsizes[i]);
+      auto tmp = make_shared<const Matrix>(*projected * *P);
+      reduced = make_shared<Matrix>(multimerbasis, tmp->mdim());
+      reduced->copy_block(0, 0, nbasis, tmp->mdim(), tmp->data());
+    }
+    tmp->copy_block(0, orboffset, multimerbasis, actsizes[i], reduced->data());
+
+    fragbasis.emplace_back(nbasis);
+    basisoffset += nbasis;
+    orboffset += actsizes[i];
+  }
+  assert(orboffset == nact);
 
 
 
