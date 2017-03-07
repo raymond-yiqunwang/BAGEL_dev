@@ -64,8 +64,7 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
         cout << "    - active orbital(" << amo + 1 << ") is assigned to monomer A." << endl;
         cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
         Alist.insert(amo);
-      }
-      if (sum_A < sum_B && fabs(sum_A - sum_B) > region_thresh_) {
+      } else if (sum_A < sum_B && fabs(sum_A - sum_B) > region_thresh_) {
         cout << "    - active orbital(" << amo + 1 << ") is assigned to monomer B." << endl;
         cout << "      A(" << setw(6) << setprecision(3) << sum_A << "), B(" << setw(6) << setprecision(3) << sum_B << ")" << endl;
         Blist.insert(amo);
@@ -78,7 +77,7 @@ void Dimer::set_active_metal(shared_ptr<const PTree> idata) {
       // TODO deal with such system 
     }
   }
-  cout << "    - orbitals are assigned as : " << Alist.size() << "(A), " << Blist.size() << "(B) and " << Llist.size() << " bridging active orbitals." << endl;
+  cout << "    - orbitals are assigned as : " << Alist.size() << "(A), " << Blist.size() << "(B) and " << Llist.size() << " (bridging) active orbitals." << endl;
 
   active_refs_ = {isolated_refs_.first->set_active_metal(Alist, Llist), isolated_refs_.second->set_active_metal(Blist, Llist)};
 

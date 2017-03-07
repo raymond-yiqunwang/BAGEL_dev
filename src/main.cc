@@ -32,6 +32,7 @@
 #include <src/asd/metal/construct_asd_metal.h>
 #include <src/asd/dmrg/rasd.h>
 #include <src/asd/multisite/multisite.h>
+#include <src/asd_v2/multimer/multimer.h>
 #include <src/util/exception.h>
 #include <src/util/archive.h>
 #include <src/util/io/moldenout.h>
@@ -59,6 +60,7 @@ int main(int argc, char** argv) {
     shared_ptr<const Reference> ref;
     shared_ptr<Dimer> dimer;
     shared_ptr<MultiSite> multisite;
+    shared_ptr<Multimer> multimer;
 
     map<string, shared_ptr<const void>> saved;
     bool dodf = true;
@@ -147,6 +149,11 @@ int main(int argc, char** argv) {
         auto opt = make_shared<Force>(itree, geom, ref);
         opt->compute();
 
+      } else if (title == "multimer") {
+        multimer = make_shared<Multimer>(itree, geom);
+        
+        multimer->precompute(itree);
+        
       } else if (title == "dimerize") { // dimerize forms the dimer object, does a scf calculation, and then localizes
         const string form = itree->get<string>("form", "displace");
         if (form == "d" || form == "disp" || form == "displace") {
