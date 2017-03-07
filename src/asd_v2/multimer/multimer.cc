@@ -24,18 +24,22 @@
 
 #include <src/asd_v2/multimer/multimer.h>
 #include <src/scf/hf/rhf.h>
+#include <src/util/io/moldenout.h>
 
 using namespace std;
 using namespace bagel;
 
 // construct Multimer class and perform rhf
-Multimer::Multimer(shared_ptr<const PTree> input, shared_ptr<const Geometry> geom) : input_(input), geom_(geom) {
+Multimer::Multimer(shared_ptr<const PTree> input, shared_ptr<const Geometry> geom) : geom_(geom) {
   
   // SCF
-  auto HFinfo = input->get_child_optional("hf") ? input->get_child_optional("hf") : make_shared<PTree>();
+  auto HFinfo = input->get_child("hf") ? input->get_child("hf") : make_shared<PTree>();
   auto rhf = dynamic_pointer_cast<RHF>(construct_method("hf", HFinfo, geom_, rhf_ref_));
   rhf->compute();
   rhf_ref_ = rhf->conv_to_ref();
+MoldenOut out("out.molden");
+out << geom_;
+out << rhf_ref_;
 
 }
 
@@ -139,13 +143,13 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
     // get rid of redundancy
     shared_ptr<Matrix> reduced;
     {
-      auto CC = make_shared<Matrix>(*projected % *projected);
+      auto CC = make_shared<Matrix>(*projected % *Sfrag *  *projected);
       VectorB eig(projected->mdim());
       CC->diagonalize(eig);
       auto P = CC->get_submatrix(0, (CC->mdim() - actsizes[i]), CC->ndim(), actsizes[i]);
-      auto tmp = make_shared<const Matrix>(*projected * *P);
-      reduced = make_shared<Matrix>(multimerbasis, tmp->mdim());
-      reduced->copy_block(basisoffset, 0, nbasis, tmp->mdim(), tmp->data());
+      auto temp = make_shared<const Matrix>(*projected * *P);
+      reduced = make_shared<Matrix>(multimerbasis, temp->mdim());
+      reduced->copy_block(basisoffset, 0, nbasis, temp->mdim(), temp->data());
     }
     tmp->copy_block(0, orboffset, multimerbasis, actsizes[i], reduced->data());
 
@@ -170,7 +174,11 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
   tildex->inverse_half();
   new_coeff = make_shared<Matrix>(*new_coeff * *tildex);
 
-  active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
+  ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
+
+MoldenOut out("MoldenOut.molden");
+out << geom_;
+out << ref_;
 }
 
 
