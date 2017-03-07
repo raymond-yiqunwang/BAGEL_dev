@@ -111,14 +111,13 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
 
   const int nclosed = active_ref_->nclosed();
   const int nact = active_ref_->nact();
+  const int nvirt = active_ref_->nvirt();
   const int multimerbasis = active_ref_->geom()->nbasis();
 
-  auto new_coeff = active_ref_->coeff()->copy();
-  
   Overlap S(geom_);
 
   // project active orbitals to each fragement and do SVD
-  vector<int> actsizes = idata->get_vector<int>("act_sizes");
+  vector<int> actsizes = idata->get_vector<int>("active_sizes");
   vector<int> fragbasis;
   int basisoffset = 0;
   int orboffset = 0;
@@ -146,7 +145,7 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
       auto P = CC->get_submatrix(0, (CC->mdim() - actsizes[i]), CC->ndim(), actsizes[i]);
       auto tmp = make_shared<const Matrix>(*projected * *P);
       reduced = make_shared<Matrix>(multimerbasis, tmp->mdim());
-      reduced->copy_block(0, 0, nbasis, tmp->mdim(), tmp->data());
+      reduced->copy_block(basisoffset, 0, nbasis, tmp->mdim(), tmp->data());
     }
     tmp->copy_block(0, orboffset, multimerbasis, actsizes[i], reduced->data());
 
@@ -156,7 +155,22 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
   }
   assert(orboffset == nact);
 
+  // normalization
+  {
+    auto csc = make_shared<Matrix>(*tmp % S * *tmp);
+    for (int i = 0; i != nact; ++i)
+      for_each(tmp->element_ptr(0, i), tmp->element_ptr(multimerbasis, i), [&i, &csc] (double& p) { p /= sqrt(*csc->element_ptr(i, i)); });
+  }
+  
+  auto new_coeff = active_ref_->coeff()->copy();
+  new_coeff->copy_block(0, nclosed, multimerbasis, nact, tmp->data());
 
+  // lowdin orthogonalization
+  auto tildex = make_shared<Matrix>(*new_coeff % S * *new_coeff);
+  tildex->inverse_half();
+  new_coeff = make_shared<Matrix>(*new_coeff * *tildex);
 
-
+  active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
 }
+
+

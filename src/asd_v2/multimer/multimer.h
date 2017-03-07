@@ -57,6 +57,8 @@ class Multimer : public std::enable_shared_from_this<Multimer> {
     // utility functions
     void precompute(std::shared_ptr<const PTree> idata);
 
+    std::shared_ptr<const Reference> ref() const { return active_ref_; } // TODO modify
+
 };
 
 } // end of namespace TODO --delete

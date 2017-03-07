@@ -153,6 +153,8 @@ int main(int argc, char** argv) {
         multimer = make_shared<Multimer>(itree, geom);
         
         multimer->precompute(itree);
+
+        ref = multimer->ref();
         
       } else if (title == "dimerize") { // dimerize forms the dimer object, does a scf calculation, and then localizes
         const string form = itree->get<string>("form", "displace");
