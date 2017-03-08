@@ -41,9 +41,9 @@ class Multimer : public std::enable_shared_from_this<Multimer> {
     std::shared_ptr<const Reference> rhf_ref_;
     std::shared_ptr<const Reference> active_ref_;
 
-//    const double active_thresh_;
-//    const double region_thresh_;
-//    const bool print_orbitals_;
+    double active_thresh_;
+//  double region_thresh_;
+//  bool print_orbitals_;
 
     // reorder MO coeff to closed - active - virtual
     void set_active(std::shared_ptr<const PTree> idata);

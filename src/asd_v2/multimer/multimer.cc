@@ -69,35 +69,42 @@ void Multimer::set_active(shared_ptr<const PTree> idata) {
   for (auto& s : *isp) { RefActList.insert(lexical_cast<int>(s->data())-1); };
   const int nactive = RefActList.size();
 
-  // active orbitals with small basis
-  auto prev_coeff = prev_ref_->coeff();
-  auto prev_active = make_shared<Matrix>(prev_coeff->ndim(), nactive);
-  int pos = 0;
-  for (auto& iact : RefActList)
-    copy_n(prev_coeff->element_ptr(0, iact), prev_coeff->ndim(), prev_active->element_ptr(0, pos++));
-
-  // pick orbitals with maximum overlap with small active orbitals
-  auto coeff = rhf_ref_->coeff();
-  const MixedBasis<OverlapBatch> mix(prev_ref_->geom(), geom_);
-  auto overlap = make_shared<const Matrix>(*coeff % mix * *prev_active);
-  vector<pair<int, double>> actinfo;
-  for (int j = 0; j != nactive; ++j) {
-    double max = 0.0;
-    int index = 0;
-    for (int i = 0; i != overlap->ndim(); ++i) {
-      index = (fabs(*overlap->element_ptr(i, j)) > max) ? i : index;
-      max = (fabs(*overlap->element_ptr(i, j)) > max) ? fabs(*overlap->element_ptr(i, j)) : max;
-    }
-    actinfo.emplace_back(index, max);
-  }
+  // picl active orbitals from reference actorbs
   set<int> ActList;
-  for (auto& act : actinfo)
-    ActList.insert(act.first);
-  int iter = 0;
-  for (auto& amo : RefActList) {
-    cout << "    * reference orbital #" << amo + 1 << " has largest overlap with #" << actinfo[iter].first + 1 
-                                  << " orbital in new basis with overlap " << actinfo[iter].second << endl;
-    ++iter;
+  {
+    cout << "  o Forming multimer active orbitals from reference active list" << endl;
+    // active orbitals with small basis
+    auto prev_coeff = prev_ref_->coeff();
+    auto prev_active = make_shared<Matrix>(prev_coeff->ndim(), nactive);
+    int pos = 0;
+    for (auto& iact : RefActList)
+      copy_n(prev_coeff->element_ptr(0, iact), prev_coeff->ndim(), prev_active->element_ptr(0, pos++));
+  
+    // pick orbitals with maximum overlap with small active orbitals
+    auto coeff = rhf_ref_->coeff();
+    const MixedBasis<OverlapBatch> mix(geom_, prev_ref_->geom());
+    auto overlap = make_shared<const Matrix>(*prev_active % mix * *coeff);
+    
+    multimap<double, int> norms;
+    for (int i = 0; i != overlap->mdim(); ++i) {
+      const double norm = blas::dot_product(overlap->element_ptr(0, i), overlap->ndim(), overlap->element_ptr(0, i));
+      norms.emplace(norm, i);
+    }
+
+    active_thresh_ = idata->get<double>("active_thresh", 0.5);
+    double max_overlap, min_overlap;
+    {
+      auto end = norms.rbegin(); advance(end, nactive);
+      end = find_if(end, norms.rend(), [this] (const pair<double, int>& p) { return p.first < active_thresh_; });
+      for_each(norms.rbegin(), end, [&ActList] (const pair<double, int>& p) { ActList.emplace(p.second); });
+      auto mnmx = minmax_element(norms.rbegin(), end);
+      tie(min_overlap, max_overlap) = make_tuple(mnmx.first->first, mnmx.second->first);
+    }
+
+    const int Alist_size = ActList.size();
+    cout << "   - size of candidate space : " << Alist_size << endl;
+    cout << "   - largest overlap with reference actorb : " << max_overlap << ", smallest : " << min_overlap << endl;
+
   }
 
   // build reordered coeff matrix
@@ -119,7 +126,8 @@ void Multimer::set_active(shared_ptr<const PTree> idata) {
     int iactive = nclosed;
     int ivirt = nclosed + nactive;
 
-    auto cp = [&coeff, &reordered_coeff, &multimerbasis] (const int i, int& pos) { copy_n(coeff->element_ptr(0, i), multimerbasis, reordered_coeff->element_ptr(0, pos)); ++pos; };
+    auto cp = [&coeff, &reordered_coeff, &multimerbasis] (const int i, int& pos) 
+                                                         { copy_n(coeff->element_ptr(0, i), multimerbasis, reordered_coeff->element_ptr(0, pos)); ++pos; };
   
     for (int i = 0; i != multimerbasis; ++i) {
       if (ActList.find(i) != ActList.end()) cp(i, iactive);
