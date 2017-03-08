@@ -37,9 +37,11 @@ Multimer::Multimer(shared_ptr<const PTree> input, shared_ptr<const Geometry> geo
   auto rhf = dynamic_pointer_cast<RHF>(construct_method("hf", HFinfo, geom_, rhf_ref_));
   rhf->compute();
   rhf_ref_ = rhf->conv_to_ref();
-MoldenOut out("out.molden");
-out << geom_;
-out << rhf_ref_;
+#if 1  
+  MoldenOut out("out.molden");
+  out << geom_;
+  out << rhf_ref_;
+#endif
 
 }
 
@@ -176,9 +178,11 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
 
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
 
-MoldenOut out("MoldenOut.molden");
-out << geom_;
-out << ref_;
+#if 0
+  MoldenOut out("MoldenOut.molden");
+  out << geom_;
+  out << ref_;
+#endif
 }
 
 
