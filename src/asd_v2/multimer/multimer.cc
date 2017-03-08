@@ -44,8 +44,8 @@ Multimer::Multimer(shared_ptr<const PTree> input, shared_ptr<const Reference> re
   rhf->compute();
   rhf_ref_ = rhf->conv_to_ref();
 
-#if 0  
-  MoldenOut out("out.molden");
+#if 1  
+  MoldenOut out("rhf_large.molden");
   out << geom_;
   out << rhf_ref_;
 #endif
@@ -65,22 +65,22 @@ void Multimer::precompute(shared_ptr<const PTree> idata) {
 void Multimer::set_active(shared_ptr<const PTree> idata) {
   
   auto isp = idata->get_child("multimer_active");
-  set<int> ActList;
-  for (auto& s : *isp) { ActList.insert(lexical_cast<int>(s->data())-1); };
-  const int nactive = ActList.size();
+  set<int> RefActList;
+  for (auto& s : *isp) { RefActList.insert(lexical_cast<int>(s->data())-1); };
+  const int nactive = RefActList.size();
 
   // active orbitals with small basis
   auto prev_coeff = prev_ref_->coeff();
   auto prev_active = make_shared<Matrix>(prev_coeff->ndim(), nactive);
   int pos = 0;
-  for (auto& iact : ActList)
+  for (auto& iact : RefActList)
     copy_n(prev_coeff->element_ptr(0, iact), prev_coeff->ndim(), prev_active->element_ptr(0, pos++));
 
   // pick orbitals with maximum overlap with small active orbitals
   auto coeff = rhf_ref_->coeff();
   const MixedBasis<OverlapBatch> mix(prev_ref_->geom(), geom_);
   auto overlap = make_shared<const Matrix>(*coeff % mix * *prev_active);
-  vector<pair<int, double>> info;
+  vector<pair<int, double>> actinfo;
   for (int j = 0; j != nactive; ++j) {
     double max = 0.0;
     int index = 0;
@@ -88,17 +88,19 @@ void Multimer::set_active(shared_ptr<const PTree> idata) {
       index = (fabs(*overlap->element_ptr(i, j)) > max) ? i : index;
       max = (fabs(*overlap->element_ptr(i, j)) > max) ? fabs(*overlap->element_ptr(i, j)) : max;
     }
-    info.emplace_back(index, max);
+    actinfo.emplace_back(index, max);
   }
-  vector<int> alist;
-  for (auto& i : ActList)
-    alist.push_back(i);
-  for (int i = 0; i != nactive; ++i)
-    cout << "reference orbital #" << alist[i] + 1 << " has largest overlap with #" << info[i].first + 1 
-                                  << " orbital in new basis with overlap " << info[i].second << endl;
+  set<int> ActList;
+  for (auto& act : actinfo)
+    ActList.insert(act.first);
+  int iter = 0;
+  for (auto& amo : RefActList) {
+    cout << "    * reference orbital #" << amo + 1 << " has largest overlap with #" << actinfo[iter].first + 1 
+                                  << " orbital in new basis with overlap " << actinfo[iter].second << endl;
+    ++iter;
+  }
 
-
-
+  // build reordered coeff matrix
   const int multimerbasis = geom_->nbasis();
   const int nclosed_HF = rhf_ref_->nclosed();
   
@@ -109,7 +111,7 @@ void Multimer::set_active(shared_ptr<const PTree> idata) {
     else --nvirt;
   }
 
-  auto reorder_coeff = make_shared<Matrix>(multimerbasis, multimerbasis);
+  auto reordered_coeff = make_shared<Matrix>(multimerbasis, multimerbasis);
   { 
     auto coeff = rhf_ref_->coeff();
 
@@ -117,7 +119,7 @@ void Multimer::set_active(shared_ptr<const PTree> idata) {
     int iactive = nclosed;
     int ivirt = nclosed + nactive;
 
-    auto cp = [&coeff, &reorder_coeff, &multimerbasis] (const int i, int& pos) { copy_n(coeff->element_ptr(0, i), multimerbasis, reorder_coeff->element_ptr(0, pos)); ++pos; };
+    auto cp = [&coeff, &reordered_coeff, &multimerbasis] (const int i, int& pos) { copy_n(coeff->element_ptr(0, i), multimerbasis, reordered_coeff->element_ptr(0, pos)); ++pos; };
   
     for (int i = 0; i != multimerbasis; ++i) {
       if (ActList.find(i) != ActList.end()) cp(i, iactive);
@@ -126,7 +128,7 @@ void Multimer::set_active(shared_ptr<const PTree> idata) {
     }
   }
 
-  active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*reorder_coeff)), nclosed, nactive, nvirt);
+  active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*reordered_coeff)), nclosed, nactive, nvirt);
 }
 
 void Multimer::project_active(shared_ptr<const PTree> idata) {
@@ -209,15 +211,16 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
   new_coeff->copy_block(0, nclosed, multimerbasis, nact, tmp->data());
 
   // lowdin orthogonalization
-  cout << "    *** If linear dependency is detected, you shall try to find better active orbitals ***   " << endl;
+  cout << endl;
+  cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
   auto tildex = make_shared<Matrix>(*new_coeff % S * *new_coeff);
   tildex->inverse_half();
   new_coeff = make_shared<Matrix>(*new_coeff * *tildex);
 
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
 
-#if 0
-  MoldenOut out("MoldenOut.molden");
+#if 1
+  MoldenOut out("projected.molden");
   out << geom_;
   out << ref_;
 #endif
