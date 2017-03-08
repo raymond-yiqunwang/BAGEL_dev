@@ -25,25 +25,32 @@
 #include <src/asd_v2/multimer/multimer.h>
 #include <src/scf/hf/rhf.h>
 #include <src/util/io/moldenout.h>
+#include <src/integral/os/overlapbatch.h>
+#include <src/mat1e/mixedbasis.h>
 
 using namespace std;
 using namespace bagel;
 
 // construct Multimer class and perform rhf
-Multimer::Multimer(shared_ptr<const PTree> input, shared_ptr<const Geometry> geom) : geom_(geom) {
-  
-  // SCF
+Multimer::Multimer(shared_ptr<const PTree> input, shared_ptr<const Reference> ref) : prev_ref_(ref) {
+
+  cout << " ===== Constructing Multimer Geometry ===== " << endl;
+  const shared_ptr<const PTree> moldata = input->get_child("molecule");
+  geom_ = make_shared<Geometry>(*ref->geom(), moldata);
+
+  // direct rhf with larger basis
   auto HFinfo = input->get_child("hf") ? input->get_child("hf") : make_shared<PTree>();
-  auto rhf = dynamic_pointer_cast<RHF>(construct_method("hf", HFinfo, geom_, rhf_ref_));
+  auto rhf = dynamic_pointer_cast<RHF>(construct_method("hf", HFinfo, geom_, nullptr));
   rhf->compute();
   rhf_ref_ = rhf->conv_to_ref();
-#if 1  
+
+#if 0  
   MoldenOut out("out.molden");
   out << geom_;
   out << rhf_ref_;
 #endif
-
 }
+
 
 // preparation for ASD-DMRG
 void Multimer::precompute(shared_ptr<const PTree> idata) {
@@ -57,14 +64,44 @@ void Multimer::precompute(shared_ptr<const PTree> idata) {
 
 void Multimer::set_active(shared_ptr<const PTree> idata) {
   
-  const int multimerbasis = geom_->nbasis();
-  const int nclosed_HF = rhf_ref_->nclosed();
-  
   auto isp = idata->get_child("multimer_active");
   set<int> ActList;
   for (auto& s : *isp) { ActList.insert(lexical_cast<int>(s->data())-1); };
+  const int nactive = ActList.size();
 
-  int nactive = ActList.size();
+  // active orbitals with small basis
+  auto prev_coeff = prev_ref_->coeff();
+  auto prev_active = make_shared<Matrix>(prev_coeff->ndim(), nactive);
+  int pos = 0;
+  for (auto& iact : ActList)
+    copy_n(prev_coeff->element_ptr(0, iact), prev_coeff->ndim(), prev_active->element_ptr(0, pos++));
+
+  // pick orbitals with maximum overlap with small active orbitals
+  auto coeff = rhf_ref_->coeff();
+  const MixedBasis<OverlapBatch> mix(prev_ref_->geom(), geom_);
+  auto overlap = make_shared<const Matrix>(*coeff % mix * *prev_active);
+  vector<pair<int, double>> info;
+  for (int j = 0; j != nactive; ++j) {
+    double max = 0.0;
+    int index = 0;
+    for (int i = 0; i != overlap->ndim(); ++i) {
+      index = (fabs(*overlap->element_ptr(i, j)) > max) ? i : index;
+      max = (fabs(*overlap->element_ptr(i, j)) > max) ? fabs(*overlap->element_ptr(i, j)) : max;
+    }
+    info.emplace_back(index, max);
+  }
+  vector<int> alist;
+  for (auto& i : ActList)
+    alist.push_back(i);
+  for (int i = 0; i != nactive; ++i)
+    cout << "reference orbital #" << alist[i] + 1 << " has largest overlap with #" << info[i].first + 1 
+                                  << " orbital in new basis with overlap " << info[i].second << endl;
+
+
+
+  const int multimerbasis = geom_->nbasis();
+  const int nclosed_HF = rhf_ref_->nclosed();
+  
   int nclosed = nclosed_HF;
   int nvirt = multimerbasis - nclosed;
   for (auto& amo : ActList) {
@@ -172,6 +209,7 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
   new_coeff->copy_block(0, nclosed, multimerbasis, nact, tmp->data());
 
   // lowdin orthogonalization
+  cout << "    *** If linear dependency is detected, you shall try to find better active orbitals ***   " << endl;
   auto tildex = make_shared<Matrix>(*new_coeff % S * *new_coeff);
   tildex->inverse_half();
   new_coeff = make_shared<Matrix>(*new_coeff * *tildex);
@@ -185,4 +223,30 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
 #endif
 }
 
+/*
+// TODO test which is more efficient
+  auto tmpcoeff = construct_projected_coeff(geom_, ref);
+  auto tmpref = make_shared<const Reference>(geom_, make_shared<const Coeff>(move(*tmpcoeff)), ref->nclosed(), ref->nact(), ref->nvirt());
 
+  auto HFinfo = input->get_child("hf") ? input->get_child("hf") : make_shared<PTree>();
+  auto rhf = dynamic_pointer_cast<RHF>(construct_method("hf", HFinfo, geom_, tmpref));
+  rhf->compute();
+*/
+
+/*
+shared_ptr<const Matrix> Multimer::construct_projected_coeff(shared_ptr<const Geometry> geomin, shared_ptr<const Reference> ref) {
+
+  const Overlap Snew(geomin);
+  Overlap Snew_inv = Snew;
+  Snew_inv.inverse_symmetric();
+  MixedBasis<OverlapBatch> mixed(ref->geom(), geomin);
+  auto out = make_shared<Coeff>(Snew_inv * mixed * *ref->coeff());
+
+  // orthonormalize
+  Matrix csc = *out % Snew * *out;
+  csc.inverse_half();
+  *out *= csc;
+
+  return out;
+}
+*/

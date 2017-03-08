@@ -30,10 +30,10 @@ using namespace bagel;
 
 namespace bagel {
   
-shared_ptr<ASD_Metal_base> construct_ASD_Metal(shared_ptr<const PTree> itree, shared_ptr<const Geometry> geom) {
+shared_ptr<ASD_Metal_base> construct_ASD_Metal(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) {
 
   shared_ptr<const PTree> multimer_info = itree->get_child("multimer");
-  auto multimer = make_shared<Multimer>(multimer_info, geom);
+  auto multimer = make_shared<Multimer>(multimer_info, ref);
   multimer->precompute(multimer_info);
 
   shared_ptr<ASD_Metal_base> out;

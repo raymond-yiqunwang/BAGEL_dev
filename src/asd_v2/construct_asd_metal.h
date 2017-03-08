@@ -28,7 +28,7 @@
 #include <src/asd_v2/asd_metal_base.h>
 
 namespace bagel {
-  extern std::shared_ptr<ASD_Metal_base> construct_ASD_Metal(std::shared_ptr<const PTree> itree, std::shared_ptr<const Geometry> geom);
+  extern std::shared_ptr<ASD_Metal_base> construct_ASD_Metal(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> ref);
 }
 
 #endif
