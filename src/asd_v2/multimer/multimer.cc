@@ -62,82 +62,123 @@ void Multimer::precompute(shared_ptr<const PTree> idata) {
 }
 
 
+// pick active orbitals from reference actorbs
 void Multimer::set_active(shared_ptr<const PTree> idata) {
   
+  cout << "  o Forming multimer active orbitals from reference active list" << endl;
+
   auto isp = idata->get_child("multimer_active");
   set<int> RefActList;
   for (auto& s : *isp) { RefActList.insert(lexical_cast<int>(s->data())-1); };
   const int nactive = RefActList.size();
 
-  // picl active orbitals from reference actorbs
-  set<int> ActList;
-  {
-    cout << "  o Forming multimer active orbitals from reference active list" << endl;
-    // active orbitals with small basis
-    auto prev_coeff = prev_ref_->coeff();
-    auto prev_active = make_shared<Matrix>(prev_coeff->ndim(), nactive);
-    int pos = 0;
-    for (auto& iact : RefActList)
-      copy_n(prev_coeff->element_ptr(0, iact), prev_coeff->ndim(), prev_active->element_ptr(0, pos++));
+  // active orbitals with small basis
+  auto prev_coeff = prev_ref_->coeff();
+  auto prev_active = make_shared<Matrix>(prev_coeff->ndim(), nactive);
+  int pos = 0;
+  for (auto& iact : RefActList) {
+    copy_n(prev_coeff->element_ptr(0, iact), prev_coeff->ndim(), prev_active->element_ptr(0, pos++));
+  }
+
+  // pick active orbitals with maximum overlap with small active orbitals from closed and virtual sets, respectively
+  auto coeff = rhf_ref_->coeff();
+  const MixedBasis<OverlapBatch> mix(geom_, prev_ref_->geom());
+
+  const int multimerbasis = geom_->nbasis();
+  const int nclosed_HF = rhf_ref_->nclosed();
+  const int nclosed = nclosed_HF - nactive/2;
+  const int nvirt = multimerbasis - nclosed - nactive;
+  int closed_position = 0;
+  int active_position = nclosed;
+  int virt_position = nclosed + nactive;
+
+  auto out_coeff = make_shared<Matrix>(multimerbasis, multimerbasis);
+
+  // now deal with active orbitals
+  // tuple information:
+  // matrix --> reference active orbitals
+  // pair   --> bounds to construct subspace
+  // int    --> number of active orbitals to form
+  // bool   --> closed(true) / virtual(false)
+  vector<tuple<pair<int, int>, int, bool>> svd_info;
+
+  svd_info.emplace_back(make_pair(0         ,    nclosed_HF), nactive/2,  true);
+  svd_info.emplace_back(make_pair(nclosed_HF, multimerbasis), nactive/2, false);
+
+  for (auto& subset : svd_info) {
+    pair<int, int> bounds = get<0>(subset);
+    const int nsubactive = get<1>(subset);
+    const bool closed = get<2>(subset);
+
+    auto subcoeff = coeff->slice_copy(bounds.first, bounds.second);
+    auto overlap = make_shared<const Matrix>(*prev_active % mix * *subcoeff);
   
-    // pick orbitals with maximum overlap with small active orbitals
-    auto coeff = rhf_ref_->coeff();
-    const MixedBasis<OverlapBatch> mix(geom_, prev_ref_->geom());
-    auto overlap = make_shared<const Matrix>(*prev_active % mix * *coeff);
-    
     multimap<double, int> norms;
     for (int i = 0; i != overlap->mdim(); ++i) {
       const double norm = blas::dot_product(overlap->element_ptr(0, i), overlap->ndim(), overlap->element_ptr(0, i));
       norms.emplace(norm, i);
     }
-
+  
+    set<int> subActList;
     active_thresh_ = idata->get<double>("active_thresh", 0.5);
     double max_overlap, min_overlap;
     {
-      auto end = norms.rbegin(); advance(end, nactive);
+      auto end = norms.rbegin(); advance(end, nsubactive);
       end = find_if(end, norms.rend(), [this] (const pair<double, int>& p) { return p.first < active_thresh_; });
-      for_each(norms.rbegin(), end, [&ActList] (const pair<double, int>& p) { ActList.emplace(p.second); });
+      for_each(norms.rbegin(), end, [&subActList] (const pair<double, int>& p) { subActList.emplace(p.second); });
       auto mnmx = minmax_element(norms.rbegin(), end);
       tie(min_overlap, max_overlap) = make_tuple(mnmx.first->first, mnmx.second->first);
     }
-
-    const int Alist_size = ActList.size();
-    cout << "   - size of candidate space : " << Alist_size << endl;
+    const int sublist_size = subActList.size();
+    cout << "   - size of " << (closed ? "closed " : "virtual ") << "candidate space : " << sublist_size << endl;
     cout << "   - largest overlap with reference actorb : " << max_overlap << ", smallest : " << min_overlap << endl;
 
-  }
+    if (sublist_size != nsubactive) {
+      cout << "  o Performing SVD in candidate space" << endl;
+      Matrix subspace(multimerbasis, sublist_size);
 
-  // build reordered coeff matrix
-  const int multimerbasis = geom_->nbasis();
-  const int nclosed_HF = rhf_ref_->nclosed();
+      int ip = 0;
+      for (auto& imo : subActList)
+        copy_n(rhf_ref_->coeff()->element_ptr(0, imo), multimerbasis, subspace.element_ptr(0, ip++));
   
-  int nclosed = nclosed_HF;
-  int nvirt = multimerbasis - nclosed;
-  for (auto& amo : ActList) {
-    if (amo < nclosed_HF) --nclosed;
-    else --nvirt;
-  }
+      // by default active orbitals should be orthonormal, but here a general method is implemented
+      Overlap SAO_prev(prev_ref_->geom());
+      Matrix SMO_prev(*prev_active % SAO_prev * *prev_active);
+      SMO_prev.inverse_symmetric();
 
-  auto reordered_coeff = make_shared<Matrix>(multimerbasis, multimerbasis);
-  { 
-    auto coeff = rhf_ref_->coeff();
+      Matrix projector(SMO_prev * (*prev_active % mix * subspace));
+      vector<double> singulars(sublist_size, 0.0);
+      shared_ptr<Matrix> V, U;
+      tie(ignore, V) = projector.svd(singulars.data());
+      cout << "   - largest singular value : " << singulars[0] << ", smallest : " << singulars[nsubactive - 1] << endl;
 
-    int iclosed = 0;
-    int iactive = nclosed;
-    int ivirt = nclosed + nactive;
+      subspace = subspace ^ *V;
 
-    auto cp = [&coeff, &reordered_coeff, &multimerbasis] (const int i, int& pos) 
-                                                         { copy_n(coeff->element_ptr(0, i), multimerbasis, reordered_coeff->element_ptr(0, pos)); ++pos; };
-  
-    for (int i = 0; i != multimerbasis; ++i) {
-      if (ActList.find(i) != ActList.end()) cp(i, iactive);
-      else if (i < nclosed_HF) cp(i, iclosed);
-      else cp(i, ivirt);
+      // fill in closed / virtual orbitals
+      for (int i = 0; i != subcoeff->mdim(); ++i) {
+        if (subActList.find(i) == subActList.end())
+          copy_n(subspace.element_ptr(0, i), multimerbasis, out_coeff->element_ptr(0, (closed ? closed_position++ : virt_position++)));
+      }
+
+      // fill in active orbitals
+      copy_n(subspace.data(), multimerbasis * nsubactive, out_coeff->element_ptr(0, active_position));
+      active_position += nsubactive;
+
+      // non-active orbitals in subActList
+      for (int i = nsubactive; i != sublist_size; ++i) {
+        copy_n(subspace.element_ptr(0, i), multimerbasis, out_coeff->element_ptr(0, (closed ? closed_position++ : virt_position++)));
+      }
+    } else {
+      for (int i = 0; i != subcoeff->mdim(); ++i) {
+        if (subActList.find(i) != subActList.end()) copy_n(subcoeff->element_ptr(0, i), multimerbasis, out_coeff->element_ptr(0, active_position++));
+        else copy_n(subcoeff->element_ptr(0, i), multimerbasis, out_coeff->element_ptr(0, (closed ? closed_position++ : virt_position++)));
+      }
     }
   }
 
-  active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*reordered_coeff)), nclosed, nactive, nvirt);
+  active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nactive, nvirt);
 }
+
 
 void Multimer::project_active(shared_ptr<const PTree> idata) {
 
@@ -234,30 +275,4 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
 #endif
 }
 
-/*
-// TODO test which is more efficient
-  auto tmpcoeff = construct_projected_coeff(geom_, ref);
-  auto tmpref = make_shared<const Reference>(geom_, make_shared<const Coeff>(move(*tmpcoeff)), ref->nclosed(), ref->nact(), ref->nvirt());
 
-  auto HFinfo = input->get_child("hf") ? input->get_child("hf") : make_shared<PTree>();
-  auto rhf = dynamic_pointer_cast<RHF>(construct_method("hf", HFinfo, geom_, tmpref));
-  rhf->compute();
-*/
-
-/*
-shared_ptr<const Matrix> Multimer::construct_projected_coeff(shared_ptr<const Geometry> geomin, shared_ptr<const Reference> ref) {
-
-  const Overlap Snew(geomin);
-  Overlap Snew_inv = Snew;
-  Snew_inv.inverse_symmetric();
-  MixedBasis<OverlapBatch> mixed(ref->geom(), geomin);
-  auto out = make_shared<Coeff>(Snew_inv * mixed * *ref->coeff());
-
-  // orthonormalize
-  Matrix csc = *out % Snew * *out;
-  csc.inverse_half();
-  *out *= csc;
-
-  return out;
-}
-*/
