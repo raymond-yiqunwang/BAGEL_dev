@@ -27,6 +27,7 @@
 #include <src/util/io/moldenout.h>
 #include <src/integral/os/overlapbatch.h>
 #include <src/mat1e/mixedbasis.h>
+#include <src/scf/hf/fock.h>
 
 using namespace std;
 using namespace bagel;
@@ -35,16 +36,16 @@ using namespace bagel;
 Multimer::Multimer(shared_ptr<const PTree> input, shared_ptr<const Reference> ref) : prev_ref_(ref) {
 
   cout << " ===== Constructing Multimer Geometry ===== " << endl;
-  const shared_ptr<const PTree> moldata = input->get_child("molecule");
+  const shared_ptr<const PTree> moldata = input->get_child("basis_info");
   geom_ = make_shared<Geometry>(*ref->geom(), moldata);
 
   // direct rhf with larger basis
-  auto HFinfo = input->get_child("hf") ? input->get_child("hf") : make_shared<PTree>();
+  auto HFinfo = input->get_child("hf_info") ? input->get_child("hf_info") : make_shared<PTree>();
   auto rhf = dynamic_pointer_cast<RHF>(construct_method("hf", HFinfo, geom_, nullptr));
   rhf->compute();
   rhf_ref_ = rhf->conv_to_ref();
 
-#if 1  
+#if 0 
   MoldenOut out("rhf_large.molden");
   out << geom_;
   out << rhf_ref_;
@@ -59,13 +60,15 @@ void Multimer::precompute(shared_ptr<const PTree> idata) {
   set_active(idata);
   // project active orbitals to fragments
   project_active(idata);
+  // canonicalize active orbitals in sub spaces
+  canonicalize();
 }
 
 
 // pick active orbitals from reference actorbs
 void Multimer::set_active(shared_ptr<const PTree> idata) {
   
-  cout << "  o Forming multimer active orbitals from reference active list" << endl;
+  cout << "    o Forming multimer active orbitals from reference active list" << endl << endl;
 
   auto isp = idata->get_child("multimer_active");
   set<int> RefActList;
@@ -130,11 +133,12 @@ void Multimer::set_active(shared_ptr<const PTree> idata) {
       tie(min_overlap, max_overlap) = make_tuple(mnmx.first->first, mnmx.second->first);
     }
     const int sublist_size = subActList.size();
-    cout << "   - size of " << (closed ? "closed " : "virtual ") << "candidate space : " << sublist_size << endl;
-    cout << "   - largest overlap with reference actorb : " << max_overlap << ", smallest : " << min_overlap << endl;
+    cout << "      - size of " << (closed ? "closed " : "virtual ") << "candidate space : " << sublist_size << endl;
+    cout << "      - largest overlap with reference actorb : " << max_overlap << ", smallest : " << min_overlap << endl << endl;
 
+    // TODO check this part
     if (sublist_size != nsubactive) {
-      cout << "  o Performing SVD in candidate space" << endl;
+      cout << "        o Performing SVD in " << (closed ? "closed" : "virtual") << " candidate space" << endl;
       Matrix subspace(multimerbasis, sublist_size);
 
       int ip = 0;
@@ -143,14 +147,15 @@ void Multimer::set_active(shared_ptr<const PTree> idata) {
   
       // by default active orbitals should be orthonormal, but here a general method is implemented
       Overlap SAO_prev(prev_ref_->geom());
-      Matrix SMO_prev(*prev_active % SAO_prev * *prev_active);
-      SMO_prev.inverse_symmetric();
+      Matrix SMO_prev_inv(*prev_active % SAO_prev * *prev_active);
+      SMO_prev_inv.inverse_symmetric();
 
-      Matrix projector(SMO_prev * (*prev_active % mix * subspace));
+      Matrix projector(SMO_prev_inv * (*prev_active % mix * subspace));
       vector<double> singulars(sublist_size, 0.0);
-      shared_ptr<Matrix> V, U;
+      shared_ptr<Matrix> V;
       tie(ignore, V) = projector.svd(singulars.data());
-      cout << "   - largest singular value : " << singulars[0] << ", smallest : " << singulars[nsubactive - 1] << endl;
+      cout << "          - largest used singular value : " << singulars[0] << ", smallest : " << singulars[nsubactive - 1] << endl;
+      cout << "          - largest ignored singular value : " << singulars[nsubactive] << endl << endl;
 
       subspace = subspace ^ *V;
 
@@ -212,7 +217,6 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
 
   // project active orbitals to each fragement and do SVD
   vector<int> actsizes = idata->get_vector<int>("active_sizes");
-  vector<int> fragbasis;
   int basisoffset = 0;
   int orboffset = 0;
   auto actcoeff = active_ref_->coeff()->get_submatrix(0, nclosed, multimerbasis, nact);
@@ -243,7 +247,6 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
     }
     tmp->copy_block(0, orboffset, multimerbasis, actsizes[i], reduced->data());
 
-    fragbasis.emplace_back(nbasis);
     basisoffset += nbasis;
     orboffset += actsizes[i];
   }
@@ -260,19 +263,73 @@ void Multimer::project_active(shared_ptr<const PTree> idata) {
   new_coeff->copy_block(0, nclosed, multimerbasis, nact, tmp->data());
 
   // lowdin orthogonalization
-  cout << endl;
-  cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
   auto tildex = make_shared<Matrix>(*new_coeff % S * *new_coeff);
   tildex->inverse_half();
   new_coeff = make_shared<Matrix>(*new_coeff * *tildex);
+  cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
 
+  // update multimer information
+  active_sizes_ = actsizes;
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
 
-#if 1
+#if 0
   MoldenOut out("projected.molden");
   out << geom_;
   out << ref_;
 #endif
+}
+
+
+void Multimer::canonicalize() {
+
+  auto out_coeff = ref_->coeff()->copy();
+  
+  const int multimerbasis = ref_->geom()->nbasis();
+  const int nclosed = ref_->nclosed();
+  const int nact = ref_->nact();
+//  const int nocc = nclosed + nact;
+
+  auto clo_coeff = ref_->coeff()->slice_copy(0, nclosed);
+  auto clo_density = ref_->coeff()->form_density_rhf(nclosed);
+  auto closed_fock = make_shared<const Fock<1>>(geom_, ref_->hcore(), clo_density, clo_coeff);
+
+  auto act_coeff = ref_->coeff()->slice_copy(nclosed, nclosed + nact);
+  auto act_density = make_shared<const Matrix>(*act_coeff ^ *act_coeff);
+  auto fock = make_shared<const Fock<1>>(geom_, closed_fock, act_density, act_coeff);
+
+  // canonicalize closed orbitals
+  {
+    auto clo_subspace = ref_->coeff()->slice_copy(0, nclosed);
+    auto subfock = make_shared<Matrix>(*clo_subspace % *fock * *clo_subspace);
+    VectorB eigs(nclosed);
+    subfock->diagonalize(eigs);
+    clo_subspace = make_shared<Matrix>(*clo_subspace * *subfock);
+    copy_n(clo_subspace->data(), multimerbasis * nclosed, out_coeff->element_ptr(0, 0));
+  }
+
+  // canonicalize active orbitals in each fragment
+  {
+    int offset = nclosed;
+    for (int i = 0; i != active_sizes_.size(); ++i) {
+      const int norb = active_sizes_[0];
+      auto subspace = ref_->coeff()->slice_copy(offset, offset + norb);
+      auto subfock = make_shared<Matrix>(*subspace % *fock * *subspace);
+      VectorB eigs(norb);
+      subfock->diagonalize(eigs);
+      subspace = make_shared<Matrix>(*subspace * *subfock);
+      copy_n(subspace->data(), multimerbasis * norb, out_coeff->element_ptr(0, offset));
+      offset += norb;
+    }
+  }
+
+  ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nact, ref_->nvirt());
+
+#if 1
+  MoldenOut out("canonicalized.molden");
+  out << geom_;
+  out << ref_;
+#endif
+
 }
 
 

@@ -1,6 +1,6 @@
 //
 // BAGEL - Brilliantly Advanced General Electronic Structure Library
-// Filename: construct_asd_matal.cc
+// Filename: multimer_cispace.h 
 // Copyright (C) 2017 Raymond Wang 
 //
 // Author: Raymond Wang <raymondwang@u.northwestern.edu>
@@ -22,26 +22,17 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include <src/asd_v2/construct_asd_metal.h>
-#include <src/asd_v2/multimer/multimer.h>
+#ifndef __SRC_ASD_V2_MULTIMER_MULTIMER_CISPACE_H
+#define __SRC_ASD_V2_MULTIMER_MULTIMER_CISPACE_H
 
-using namespace std;
-using namespace bagel;
+#include<???>
 
 namespace bagel {
-  
-shared_ptr<ASD_Metal_base> construct_ASD_Metal(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) {
-
-  shared_ptr<const PTree> multimer_info = itree->get_child("multimer");
-  auto multimer = make_shared<Multimer>(multimer_info, ref);
-  multimer->precompute(multimer_info);
-
-  shared_ptr<ASD_Metal_base> out;
 
 
-  return out;
+
+
+
+
+
 }
-  
-}
-
-
