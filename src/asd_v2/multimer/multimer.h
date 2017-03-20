@@ -34,7 +34,7 @@ namespace bagel {
 
 class Multimer : public std::enable_shared_from_this<Multimer> {
   protected:
-    std::shared_ptr<const Geometry> geom_; // only super geometry is provided for generality
+    std::shared_ptr<const Geometry> geom_; 
     
     const std::shared_ptr<const Reference> prev_ref_;
     std::shared_ptr<const Reference> ref_;
@@ -42,17 +42,18 @@ class Multimer : public std::enable_shared_from_this<Multimer> {
     std::shared_ptr<const Reference> active_ref_;
 
     double active_thresh_;
-//  double region_thresh_;
-//  bool print_orbitals_;
+    std::vector<int> active_sizes_;
 
     // reorder MO coeff to closed - active - virtual
     void set_active(std::shared_ptr<const PTree> idata);
     // project active orbitals to fragments
     void project_active(std::shared_ptr<const PTree> idata);
+    // canonicalize in sub-active spaces
+    void canonicalize();
     
     // compute CI space
-//    template <class VecType>
-//    std::shared_ptr<MultimerCISpace<<VecType>> compute_cispace(std::shared_ptr<const PTree> idata);
+    template <class VecType>
+    std::shared_ptr<MultimerCISpace<<VecType>> compute_cispace(std::shared_ptr<const PTree> idata);
 
   public:
     // constructor
