@@ -21,4 +21,4 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-shared_ptr<MultimerCISpace<<VecType>> compute_cispace(std::shared_ptr<const PTree> idata);
+//shared_ptr<MultimerCISpace<<VecType>> compute_cispace(std::shared_ptr<const PTree> idata);

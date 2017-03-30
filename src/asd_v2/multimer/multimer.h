@@ -52,8 +52,8 @@ class Multimer : public std::enable_shared_from_this<Multimer> {
     void canonicalize();
     
     // compute CI space
-    template <class VecType>
-    std::shared_ptr<MultimerCISpace<<VecType>> compute_cispace(std::shared_ptr<const PTree> idata);
+//    template <class VecType>
+//    std::shared_ptr<MultimerCISpace<<VecType>> compute_cispace(std::shared_ptr<const PTree> idata);
 
   public:
     // constructor
