@@ -22,24 +22,27 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef __SRC_ASD_V2_ASD_METAL_BASE_H
-#define __SRC_ASD_V2_ASD_METAL_BASE_H
+#ifndef __SRC_ASD_V2_CASD_DMRG_H
+#define __SRC_ASD_V2_CASD_DMRG_H
 
-#include <src/asd_v2/multimer/multimer.h>
+#include <src/asd_v2/asd_dmrg_base.h>
 
 namespace bagel {
 
-class ASD_Metal_base {
+class CASD_DMRG : public ASD_DMRG_base {
   protected:
-    std::shared_ptr<const Multimer> multimer_;
-
+/*    std::shared_ptr<ASD_DMRG_Block1> compute_first_block(std::vector<std::shared_ptr<PTree>> inputs, std::shared_ptr<const Reference> ref);
+    std::shared_ptr<ASD_DMRG_Block1> grow_block(std::vector<std::shared_ptr<PTree>> inputs, std::shared_ptr<const Reference> ref,
+                                                  std::shared_ptr<ASD_DMRG_Block1> left, const int site);
+    std::shared_ptr<ASD_DMRG_Block1> decimate_block(std::shared_ptr<PTree> input, std::shared_ptr<const Reference> ref,
+                                                      std::shared_ptr<ASD_DMRG_Block1> system, std::shared_ptr<ASD_DMRG_Block1> environment, const int site);
+*/
   public:
-    // constructors
-    ASD_Metal_base(const std::shared_ptr<const PTree> itree, std::shared_ptr<const Geometry> geom);
+    // constructor
+    CASD_DMRG(const std::shared_ptr<const PTree> itree, std::shared_ptr<const Multimer> multimer) : ASD_DMRG_base(itree, multimer) { };
 
-    // utility functions
-    std::shared_ptr<const Multimer> multimer() const { return multimer_; }
-    
+  private:
+
 };
 
 }

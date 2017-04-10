@@ -287,15 +287,12 @@ void Multimer::canonicalize() {
   const int multimerbasis = ref_->geom()->nbasis();
   const int nclosed = ref_->nclosed();
   const int nact = ref_->nact();
-//  const int nocc = nclosed + nact;
 
-  auto clo_coeff = ref_->coeff()->slice_copy(0, nclosed);
-  auto clo_density = ref_->coeff()->form_density_rhf(nclosed);
-  auto closed_fock = make_shared<const Fock<1>>(geom_, ref_->hcore(), clo_density, clo_coeff);
-
-  auto act_coeff = ref_->coeff()->slice_copy(nclosed, nclosed + nact);
-  auto act_density = make_shared<const Matrix>(*act_coeff ^ *act_coeff);
-  auto fock = make_shared<const Fock<1>>(geom_, closed_fock, act_density, act_coeff);
+  // projected active orbitals are partially occupied, modify density matrix accordingly
+  auto density_coeff = ref_->coeff()->slice_copy(0, nclosed + nact);
+  blas::scale_n(sqrt(0.5), density_coeff->element_ptr(0, nclosed), multimerbasis * nact);
+  auto density = density_coeff->form_density_rhf(nclosed + nact);
+  auto fock = make_shared<const Fock<1>>(geom_, ref_->hcore(), density, density_coeff);
 
   // canonicalize closed orbitals
   {

@@ -59,7 +59,6 @@ int main(int argc, char** argv) {
     shared_ptr<const Reference> ref;
     shared_ptr<Dimer> dimer;
     shared_ptr<MultiSite> multisite;
-    shared_ptr<Multimer> multimer;
 
     map<string, shared_ptr<const void>> saved;
     bool dodf = true;
@@ -150,10 +149,13 @@ int main(int argc, char** argv) {
 
       } else if (title == "asd_metal") {
 
-        if (static_cast<bool>(ref))
-          auto asd = construct_ASD_Metal(itree, ref);
+        if (static_cast<bool>(ref)) {
+          auto asd_metal = construct_ASD_Metal(itree, ref);
+          asd_metal->compute();
+        }
         else
-          throw runtime_error("ASD needs a reference rhf calculation");
+          throw runtime_error("ASD_METAL needs a reference rhf calculation");
+
       } else if (title == "dimerize") { // dimerize forms the dimer object, does a scf calculation, and then localizes
         const string form = itree->get<string>("form", "displace");
         if (form == "d" || form == "disp" || form == "displace") {

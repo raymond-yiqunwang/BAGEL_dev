@@ -1,6 +1,6 @@
 //
 // BAGEL - Brilliantly Advanced General Electronic Structure Library
-// Filename: multimer_cispace.h 
+// Filename: asd_metal_base.cc
 // Copyright (C) 2017 Raymond Wang 
 //
 // Author: Raymond Wang <raymondwang@u.northwestern.edu>
@@ -22,17 +22,8 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef __SRC_ASD_V2_MULTIMER_MULTIMER_CISPACE_H
-#define __SRC_ASD_V2_MULTIMER_MULTIMER_CISPACE_H
+#include <src/asd_v2/casd_dmrg.h>
 
-//#include<???>
+using namespace std;
+using namespace bagel;
 
-namespace bagel {
-
-
-
-
-
-
-
-}

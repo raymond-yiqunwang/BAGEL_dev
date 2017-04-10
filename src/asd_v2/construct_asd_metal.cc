@@ -22,22 +22,31 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include <src/asd_v2/construct_asd_metal.h>
-#include <src/asd_v2/multimer/multimer.h>
+#include <src/asd_v2/casd_dmrg.h>
 
 using namespace std;
 using namespace bagel;
 
 namespace bagel {
   
-shared_ptr<ASD_Metal_base> construct_ASD_Metal(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) {
+// Since we project the total active space to fragments, FCI should be a better starting point than RASCI TODO --delete
+shared_ptr<ASD_DMRG_base> construct_ASD_Metal(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) {
 
+  // construct multimer first
   shared_ptr<const PTree> multimer_info = itree->get_child("multimer");
   auto multimer = make_shared<Multimer>(multimer_info, ref);
   multimer->precompute(multimer_info);
 
-  shared_ptr<ASD_Metal_base> out;
+  shared_ptr<ASD_DMRG_base> out;
+  string method = itree->get<string>("method", "cas");
 
+  if (method == "cas" || method == "fci") {
+    out = make_shared<CASD_DMRG>(itree, multimer);
+  } else if (method == "ras") {
+    // TODO RAS version of ASD_DMRG_METAL
+  } else {
+    throw logic_error("Unrecognized method for ASD_METAL");
+  }
 
   return out;
 }

@@ -1,6 +1,6 @@
 //
 // BAGEL - Brilliantly Advanced General Electronic Structure Library
-// Filename: multimer.h 
+// Filename: asd_dmrg_compute.cc 
 // Copyright (C) 2017 Raymond Wang 
 //
 // Author: Raymond Wang <raymondwang@u.northwestern.edu>
@@ -21,4 +21,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-//shared_ptr<MultimerCISpace<<VecType>> compute_cispace(std::shared_ptr<const PTree> idata);
+
+//#include <memory>
+#include <src/util/timer.h>
+#include <src/asd_v2/asd_dmrg_base.h>
+
+using namespace std;
+using namespace bagel;
+
+void ASD_DMRG_base::compute() {
+
+  cout << endl;
+  cout << "    o computing ASD_DMRG_METAL .." << endl;
+
+} // end of compute function TODO --delete

@@ -1,6 +1,6 @@
 //
 // BAGEL - Brilliantly Advanced General Electronic Structure Library
-// Filename: asd_metal_base.cc
+// Filename: asd_dmrg_base.cc
 // Copyright (C) 2017 Raymond Wang 
 //
 // Author: Raymond Wang <raymondwang@u.northwestern.edu>
@@ -22,11 +22,29 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include <src/asd_v2/asd_metal_base.h>
+#include <src/asd_v2/asd_dmrg_base.h>
 
 using namespace std;
 using namespace bagel;
 
-ASD_Metal_base::ASD_Metal_base(const shared_ptr<const PTree> itree, const shared_ptr<const Geometry> geom) {
-  
+ASD_DMRG_base::ASD_DMRG_base(const std::shared_ptr<const PTree> input, std::shared_ptr<const Multimer> multimer) : input_(input), multimer_(multimer) {
+  nsites_ = multimer->nsites();
+  nstate_ = input_->get<int>("nstate", 1);
+  ntrunc_ = input_->get<int>("ntrunc");
+  thresh_ = input_->get<int>("thresh", 1.0e-6);
+  maxiter_ = input_->get<int>("maxiter", 50);
+
+  // TODO add perturbation
+  // perturb = input_->get<double>("perturb", 0.001);
+  // perturb_thresh_ = input_->get<double>("perturb_thresh", 0.0001);
+  // perturb_min = input_->get<double>("perturb_min", 1.0e-5);
+
+  auto weighinput = input_->get_child_optional("weights");
+  if (weighinput)
+    weights_ = input_->get_vector<double>("weights", nstate_);
+  else
+    weights_.resize(nstate_, 1.0/static_cast<double>(nstate_));
+
+  energies_.resize(nstate_);
+  sweep_energies_.resize(nstate_);
 }

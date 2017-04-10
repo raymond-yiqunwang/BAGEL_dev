@@ -25,10 +25,10 @@
 #ifndef __SRC_ASD_V2_CONSTRUCT_ASD_METAL_H
 #define __SRC_ASD_V2_CONSTRUCT_ASD_METAL_H
 
-#include <src/asd_v2/asd_metal_base.h>
+#include <src/asd_v2/asd_dmrg_base.h>
 
 namespace bagel {
-  extern std::shared_ptr<ASD_Metal_base> construct_ASD_Metal(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> ref);
+  extern std::shared_ptr<ASD_DMRG_base> construct_ASD_Metal(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> ref);
 }
 
 #endif
