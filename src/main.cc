@@ -29,9 +29,9 @@
 #include <src/wfn/localization.h>
 #include <src/asd/construct_asd.h>
 #include <src/asd/orbital/construct_asd_orbopt.h>
+#include <src/asd/dmrg/construct_asd_metal.h>
 #include <src/asd/dmrg/rasd.h>
 #include <src/asd/multisite/multisite.h>
-#include <src/asd_v2/construct_asd_metal.h>
 #include <src/util/exception.h>
 #include <src/util/archive.h>
 #include <src/util/io/moldenout.h>
@@ -147,15 +147,6 @@ int main(int argc, char** argv) {
         auto opt = make_shared<Force>(itree, geom, ref);
         opt->compute();
 
-      } else if (title == "asd_metal") {
-
-        if (static_cast<bool>(ref)) {
-          auto asd_metal = construct_ASD_Metal(itree, ref);
-          asd_metal->compute();
-        }
-        else
-          throw runtime_error("ASD_METAL needs a reference rhf calculation");
-
       } else if (title == "dimerize") { // dimerize forms the dimer object, does a scf calculation, and then localizes
         const string form = itree->get<string>("form", "displace");
         if (form == "d" || form == "disp" || form == "displace") {
@@ -203,6 +194,9 @@ int main(int argc, char** argv) {
             throw runtime_error("multisite must be called before asd_dmrg");
           auto asd = make_shared<RASD>(itree, multisite);
           asd->compute();
+      } else if (title == "asd_metal") {
+          auto asd_metal = construct_ASD_METAL(itree, ref);
+          asd_metal->compute();
       } else if (title == "localize") {
         if (ref == nullptr) throw runtime_error("Localize needs a reference");
 

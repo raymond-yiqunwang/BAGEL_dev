@@ -158,8 +158,6 @@ AC_CONFIG_FILES([Makefile
                  src/asd/metal/Makefile
                  src/asd/orbital/Makefile
                  src/asd/Makefile
-                 src/asd_v2/Makefile
-                 src/asd_v2/multimer/Makefile
                  src/wfn/Makefile
                  src/grad/Makefile
                  src/integral/Makefile

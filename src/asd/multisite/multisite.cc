@@ -74,6 +74,10 @@ MultiSite::MultiSite(shared_ptr<const PTree> input, vector<shared_ptr<const Refe
                                  accumulate(isolated_refs_.begin(), isolated_refs_.end(), 0, [] (int x, shared_ptr<const Reference> r) { return x + r->nvirt(); }));
 }
 
+MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) {
+
+}
+
 shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bool> meanfield) const {
   assert(meanfield.size()==nsites_ && site<nsites_ && site>=0);
 

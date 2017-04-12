@@ -50,11 +50,14 @@ class MultiSite {
     std::vector<std::pair<int, int>> virt_bounds_; ///< list of [start, end) pairs for the virtual spaces of each site
     std::vector<std::pair<int, int>> occ_act_bounds_; ///< list of [start, end) pairs for all of the occupied active orbitals (orbitals occupied in a HF sense)
 
-    const int nsites_;
+//    const int nsites_; # TODO better to be const
+    int nsites_;
 
   public:
     // Constructors
     MultiSite(std::shared_ptr<const PTree> input, std::vector<std::shared_ptr<const Reference>> refs); ///< Conjoins the provided Reference objects
+
+    MultiSite(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> ref);
 
     int nsites() const { return nsites_; }
 
@@ -74,6 +77,8 @@ class MultiSite {
     void localize(std::shared_ptr<const PTree> idata, std::shared_ptr<const Matrix> fock);
 
     void scf(std::shared_ptr<const PTree> idata); ///< Driver for preparation of sites for ASD_DMRG
+
+    void precompute(std::shared_ptr<const PTree> info);
 
     /// Creates a Reference object for an ASD calculation
     std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield) const;
