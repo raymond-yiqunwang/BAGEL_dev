@@ -34,32 +34,53 @@ namespace bagel {
 
 /// Contains references for isolated sites in the ASD_DMRG algorithm.
 class MultiSite {
-  protected:
+  protected: // Raymond version
     std::shared_ptr<const PTree> input_;
+    std::shared_ptr<const Geometry> geom_;
 
+    std::shared_ptr<const Reference> ref_;
+    std::shared_ptr<const Reference> rhf_ref_;
+    std::shared_ptr<const Reference> prev_ref_;
+    std::shared_ptr<const Reference> active_ref_;
+
+    double active_thresh_; // overlap threshold for inclusion in the active space
+    std::vector<int> active_sizes_;
+
+    // reorder MO coeff to closed - active - virtual
+    void set_active_metal();
+    // project active orbitals to fragments
+    void project_active();
+    // canonicalize in sub-active spaces
+    void canonicalize();
+
+    int nsites_; // TODO better to be const
+
+  protected:
     std::vector<std::shared_ptr<const Reference>> isolated_refs_; ///< Reference objects of the isolated monomers BEFORE active spaces have been chosen
     std::vector<std::shared_ptr<const Reference>> active_refs_;   ///< Reference objects of the isolated monomers AFTER the active spaces have been chosen
 
     std::vector<std::shared_ptr<const Geometry>> geoms_; ///< hold onto original geometry objects for nbasis and natom information
 
     std::shared_ptr<const Reference> sref_; ///< Super-reference, i.e., Reference of whole multisite system
-    double active_thresh_;                  ///< overlap threshold for inclusion in the active space
 
     std::vector<std::pair<int, int>> closed_bounds_; ///< list of [start, end) pairs for the closed spaces of each site
     std::vector<std::pair<int, int>> active_bounds_; ///< list of [start, end) pairs for the active spaces of each site
     std::vector<std::pair<int, int>> virt_bounds_; ///< list of [start, end) pairs for the virtual spaces of each site
     std::vector<std::pair<int, int>> occ_act_bounds_; ///< list of [start, end) pairs for all of the occupied active orbitals (orbitals occupied in a HF sense)
 
-//    const int nsites_; # TODO better to be const
-    int nsites_;
+//    const int nsites_; 
+
+  public: // Raymond version
+    // constructor
+    MultiSite(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> ref);
+
+    void precompute();
+
+    int nsites() const { return nsites_; }
 
   public:
     // Constructors
     MultiSite(std::shared_ptr<const PTree> input, std::vector<std::shared_ptr<const Reference>> refs); ///< Conjoins the provided Reference objects
-
-    MultiSite(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> ref);
-
-    int nsites() const { return nsites_; }
 
     // Return functions
     std::vector<std::shared_ptr<const Reference>> isolated_refs() const { return isolated_refs_; }
@@ -77,8 +98,6 @@ class MultiSite {
     void localize(std::shared_ptr<const PTree> idata, std::shared_ptr<const Matrix> fock);
 
     void scf(std::shared_ptr<const PTree> idata); ///< Driver for preparation of sites for ASD_DMRG
-
-    void precompute(std::shared_ptr<const PTree> info);
 
     /// Creates a Reference object for an ASD calculation
     std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield) const;

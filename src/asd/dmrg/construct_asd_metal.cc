@@ -34,7 +34,7 @@ shared_ptr<RASD> construct_ASD_METAL(shared_ptr<const PTree> itree, shared_ptr<c
   
   shared_ptr<const PTree> multisite_info = itree->get_child("multisite");
   auto multisite = make_shared<MultiSite>(multisite_info, ref);
-  multisite->precompute(multisite_info);
+  multisite->precompute();
 
   auto out = make_shared<RASD>(itree, multisite);
 
