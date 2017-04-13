@@ -231,6 +231,7 @@ void MultiSite::project_active() {
 
   // define fragments (regions) of the multimer
   vector<int> region_sizes = input_->get_vector<int>("region_sizes");
+  nsites_ = region_sizes.size();
   const int nregions(region_sizes.size());
   vector<pair<int, int>> basis_bounds;
   {
@@ -337,7 +338,7 @@ void MultiSite::canonicalize() {
   auto fock = make_shared<const Fock<1>>(geom_, ref_->hcore(), density, density_coeff);
 
   // canonicalize closed orbitals
-  {
+  if (nclosed != 0) {
     auto clo_subspace = ref_->coeff()->slice_copy(0, nclosed);
     auto subfock = make_shared<Matrix>(*clo_subspace % *fock * *clo_subspace);
     VectorB eigs(nclosed);
@@ -372,33 +373,64 @@ void MultiSite::canonicalize() {
 }
 
 
-shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bool> meanfield) const {
+shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bool> meanfield, bool metal) const {
+
   assert(meanfield.size()==nsites_ && site<nsites_ && site>=0);
+  if (!metal) {
+    vector<shared_ptr<const MatView>> closed_orbitals = {make_shared<MatView>(sref_->coeff()->slice(0, sref_->nclosed()))};
+    const int act_start = accumulate(active_refs_.begin(), active_refs_.begin() + site, sref_->nclosed(),
+                                      [] (int x, shared_ptr<const Reference> r) { return x + r->nact(); });
+    const int act_fence = act_start + active_refs_[site]->nact();
+    const MatView active_orbitals = sref_->coeff()->slice(act_start, act_fence);
 
-  vector<shared_ptr<const MatView>> closed_orbitals = {make_shared<MatView>(sref_->coeff()->slice(0, sref_->nclosed()))};
-  const int act_start = accumulate(active_refs_.begin(), active_refs_.begin() + site, sref_->nclosed(),
-                                    [] (int x, shared_ptr<const Reference> r) { return x + r->nact(); });
-  const int act_fence = act_start + active_refs_[site]->nact();
-  const MatView active_orbitals = sref_->coeff()->slice(act_start, act_fence);
+    int current = sref_->nclosed();
+    for (int i = 0; i < nsites_; ++i) {
+      if (meanfield[i] && i!=site)
+        closed_orbitals.push_back(make_shared<const MatView>(sref_->coeff()->slice(current, current+isolated_refs_[i]->nclosed()-active_refs_[i]->nclosed())));
+      current += active_refs_[i]->nact();
+    }
 
-  int current = sref_->nclosed();
-  for (int i = 0; i < nsites_; ++i) {
-    if (meanfield[i] && i!=site)
-      closed_orbitals.push_back(make_shared<const MatView>(sref_->coeff()->slice(current, current+isolated_refs_[i]->nclosed()-active_refs_[i]->nclosed())));
-    current += active_refs_[i]->nact();
+    const int nclosed = accumulate(closed_orbitals.begin(), closed_orbitals.end(), 0, [] (int x, shared_ptr<const MatView> m) { return x + m->mdim(); });
+    const int nact = active_orbitals.mdim();
+
+    auto out = make_shared<Matrix>(sref_->geom()->nbasis(), nclosed+nact);
+
+    current = 0;
+    closed_orbitals.push_back(make_shared<MatView>(active_orbitals));
+    for (auto& orbitals : closed_orbitals) {
+      copy_n(orbitals->data(), orbitals->size(), out->element_ptr(0, current));
+      current += orbitals->mdim();
+    }
+
+    return make_shared<Reference>(sref_->geom(), make_shared<Coeff>(move(*out)), nclosed, nact, 0);
+
+  } else {// Raymond version
+    const int nact = active_sizes_[site];
+    const int nclosed = ref_->nclosed() + ref_->nact() - nact;
+    auto out = make_shared<Matrix>(ref_->geom()->nbasis(), nclosed + nact);
+
+    // TODO embedded partially occupied active orbitals should be modified
+    vector<shared_ptr<const Matrix>> closed_orbital_list = {make_shared<Matrix>(ref_->coeff()->slice(0, ref_->nclosed()))};
+    int current = ref_->nclosed();
+    for (int i = 0; i != nsites_; ++i) {
+      if (meanfield[i] && i != site)
+        closed_orbital_list.push_back(make_shared<const Matrix>(ref_->coeff()->slice(current, current+active_sizes_[i])));
+      current += active_sizes_[i];
+    }
+
+    int act_start = ref_->nclosed();
+    for (int i = 0; i != site; ++i) act_start += active_sizes_[i];
+    const Matrix active_orbital = ref_->coeff()->slice(act_start, act_start + nact);
+    closed_orbital_list.push_back(make_shared<Matrix>(active_orbital));
+
+    current = 0;
+    for (auto& orbitals : closed_orbital_list) {
+      copy_n(orbitals->data(), orbitals->size(), out->element_ptr(0, current));
+      current += orbitals->mdim();
+    }
+
+    return make_shared<Reference>(ref_->geom(), make_shared<Coeff>(move(*out)), nclosed, nact, 0);
+  
   }
 
-  const int nclosed = accumulate(closed_orbitals.begin(), closed_orbitals.end(), 0, [] (int x, shared_ptr<const MatView> m) { return x + m->mdim(); });
-  const int nact = active_orbitals.mdim();
-
-  auto out = make_shared<Matrix>(sref_->geom()->nbasis(), nclosed+nact);
-
-  current = 0;
-  closed_orbitals.push_back(make_shared<MatView>(active_orbitals));
-  for (auto& orbitals : closed_orbitals) {
-    copy_n(orbitals->data(), orbitals->size(), out->element_ptr(0, current));
-    current += orbitals->mdim();
-  }
-
-  return make_shared<Reference>(sref_->geom(), make_shared<Coeff>(move(*out)), nclosed, nact, 0);
 }

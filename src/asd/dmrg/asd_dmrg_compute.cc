@@ -33,14 +33,18 @@ using namespace bagel;
 void ASD_DMRG::compute() {
   Timer dmrg_timer;
 
+  // Raymond version
+  bool metal = input_->get<bool>("metal", false);
   shared_ptr<DMRG_Block1> left_block, right_block;
 
   // Seed lattice
   cout << " ===== Start growing DMRG chain =====" << endl;
   {
-    shared_ptr<const Reference> ref = multisite_->build_reference(0, vector<bool>(nsites_, true));
+    //shared_ptr<const Reference> ref = multisite_->build_reference(0, vector<bool>(nsites_, true));
+    shared_ptr<const Reference> ref = multisite_->build_reference(0, vector<bool>(nsites_, true), metal);
     // CI calculation on site 1 with all other sites at meanfield
     left_block = compute_first_block(prepare_growing_input(0), ref);
+cout << "compute first block succeed" << endl;
     left_blocks_.push_back(left_block);
     cout << "  " << print_progress(0, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
   }

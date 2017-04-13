@@ -78,6 +78,9 @@ class MultiSite {
 
     int nsites() const { return nsites_; }
 
+    /// Creates a Reference object for an ASD calculation
+    std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield, bool metal = false) const;
+
   public:
     // Constructors
     MultiSite(std::shared_ptr<const PTree> input, std::vector<std::shared_ptr<const Reference>> refs); ///< Conjoins the provided Reference objects
@@ -99,8 +102,6 @@ class MultiSite {
 
     void scf(std::shared_ptr<const PTree> idata); ///< Driver for preparation of sites for ASD_DMRG
 
-    /// Creates a Reference object for an ASD calculation
-    std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield) const;
 };
 
 }

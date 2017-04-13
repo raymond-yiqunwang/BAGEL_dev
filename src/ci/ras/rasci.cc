@@ -79,8 +79,15 @@ void RASCI::common_init() {
   // nspin is #unpaired electron 0:singlet, 1:doublet, 2:triplet, ... (i.e., Molpro convention).
   const int nspin = idata_->get<int>("nspin", 0);
   if ((geom_->nele()+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified");
-  nelea_ = (geom_->nele()+nspin-charge)/2 - ncore_;
-  neleb_ = (geom_->nele()-nspin-charge)/2 - ncore_;
+// Raymond version TODO put the switch somewhere else in the future
+  bool metal = idata_->get<bool>("metal", false);
+  if (!metal) {
+    nelea_ = (geom_->nele()+nspin-charge)/2 - ncore_;
+    neleb_ = (geom_->nele()-nspin-charge)/2 - ncore_;
+  } else {
+    nelea_ = (geom_->nele()+nspin-charge)/2 - ncore_/2;
+    neleb_ = (geom_->nele()-nspin-charge)/2 - ncore_/2;
+  }
 
   // TODO allow for zero electron (quick return)
   if (nelea_ < 0 || neleb_ < 0) throw runtime_error("#electrons cannot be negative in RASCI");
@@ -260,8 +267,9 @@ void RASCI::compute() {
   // find determinants that have small diagonal energies
   if (nguess_ <= nstate_)
     generate_guess(nelea_-neleb_, nstate_, cc_);
-  else
+  else {
     model_guess(cc_);
+  }
   pdebug.tick_print("guess generation");
 
   // nuclear energy retrieved from geometry

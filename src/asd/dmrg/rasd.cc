@@ -42,11 +42,14 @@ RASD::RASD(const shared_ptr<const PTree> input, shared_ptr<MultiSite> multisite)
 void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
   auto restricted = input_->get_child("restricted");
 
-  auto read = [&input] (const shared_ptr<const PTree> inp, int current) {
+  // Raymond version switch
+  bool metal = input_->get<bool>("metal", false);
+  auto read = [&input, &metal] (const shared_ptr<const PTree> inp, int current) {
     array<int, 3> nras = inp->get_array<int, 3>("orbitals");
     input->put("max_holes", inp->get<string>("max_holes"));
     input->put("max_particles", inp->get<string>("max_particles"));
 
+    input->put("metal", metal);
     input->erase("active");
     auto parent = std::make_shared<PTree>();
     for (int i = 0; i < 3; ++i) {
@@ -57,9 +60,9 @@ void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
       parent->push_back(tmp);
     }
     input->add_child("active", parent);
-#ifdef DEBUG
-    //cout << "RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
-#endif
+//#ifdef DEBUG
+    cout << "*DEBUGGING*  RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
+//#endif
   };
 
   if (restricted->size() == 1)
@@ -150,20 +153,23 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
   map<BlockKey, shared_ptr<const Matrix>> spinmap;
   Timer rastime;
 
-  bool append = false;
+//  bool append = false;
 
   for (auto& inp : inputs) {
     // finish preparing the input
     inp->put("nclosed", ref->nclosed());
+cout << "*DEBUGGING*  nclosed in first block : " << ref->nclosed() << endl;
     read_restricted(inp, 0);
     const int spin = inp->get<int>("nspin");
     const int charge = inp->get<int>("charge");
     {
-      Muffle hide_cout("asd_dmrg.log", append);
-      append = true;
+      //Muffle hide_cout("asd_dmrg.log", append);
+      //append = true;
       // RAS calculations
       auto ras = make_shared<RASCI>(inp, ref->geom(), ref);
+cout << "*DEBUGGING*  RAS built, to be computed" << endl;
       ras->compute();
+cout << "*DEBUGGING*  ras calculation done" << endl;
       shared_ptr<const RASDvec> civecs = ras->civectors();
       shared_ptr<const Matrix> hamiltonian_2e = compute_sigma2e(civecs, ras->jop());
       shared_ptr<const Matrix> spinmatrix = compute_spin(civecs);
