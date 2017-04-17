@@ -82,8 +82,6 @@ vector<shared_ptr<PTree>> ASD_DMRG::prepare_growing_input(const int site) const 
     throw runtime_error("Must specify either one \"space\" object or one per site");
 
   auto space_iter = space->begin();
-cout << "*DEBUGGING*  space size : " << space->size() << endl;
-cout << "*DEBUGGING*  nsites : " << nsites_ << endl;
   if (space->size() == nsites_)
     advance(space_iter, site);
 

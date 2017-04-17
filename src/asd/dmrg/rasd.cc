@@ -44,12 +44,14 @@ void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
 
   // Raymond version switch
   bool metal = input_->get<bool>("metal", false);
-  auto read = [&input, &metal] (const shared_ptr<const PTree> inp, int current) {
+  vector<int> active_electrons = input_->get_vector<int>("active_electrons");
+  auto read = [&input, &site, &metal, &active_electrons] (const shared_ptr<const PTree> inp, int current) {
     array<int, 3> nras = inp->get_array<int, 3>("orbitals");
     input->put("max_holes", inp->get<string>("max_holes"));
     input->put("max_particles", inp->get<string>("max_particles"));
 
     input->put("metal", metal);
+    input->put("active_electrons", active_electrons[site]);
     input->erase("active");
     auto parent = std::make_shared<PTree>();
     for (int i = 0; i < 3; ++i) {
@@ -60,9 +62,9 @@ void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
       parent->push_back(tmp);
     }
     input->add_child("active", parent);
-//#ifdef DEBUG
+#ifdef DEBUG
     cout << "*DEBUGGING*  RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
-//#endif
+#endif
   };
 
   if (restricted->size() == 1)
@@ -158,7 +160,6 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
   for (auto& inp : inputs) {
     // finish preparing the input
     inp->put("nclosed", ref->nclosed());
-cout << "*DEBUGGING*  nclosed in first block : " << ref->nclosed() << endl;
     read_restricted(inp, 0);
     const int spin = inp->get<int>("nspin");
     const int charge = inp->get<int>("charge");
@@ -167,9 +168,7 @@ cout << "*DEBUGGING*  nclosed in first block : " << ref->nclosed() << endl;
       //append = true;
       // RAS calculations
       auto ras = make_shared<RASCI>(inp, ref->geom(), ref);
-cout << "*DEBUGGING*  RAS built, to be computed" << endl;
       ras->compute();
-cout << "*DEBUGGING*  ras calculation done" << endl;
       shared_ptr<const RASDvec> civecs = ras->civectors();
       shared_ptr<const Matrix> hamiltonian_2e = compute_sigma2e(civecs, ras->jop());
       shared_ptr<const Matrix> spinmatrix = compute_spin(civecs);
@@ -222,6 +221,10 @@ cout << "*DEBUGGING*  ras calculation done" << endl;
                                     << fixed << setw(10) << setprecision(2) << rastime.tick() << endl;
   }
 
+  cout << endl << "  ---------------------------  " << endl;
+  cout << "      First Block Summary" << endl;
+  cout << "  ---------------------------  " << endl;
+
   GammaForestASD<RASDvec> forest(states);
   rastime.tick_print("construct forest");
   forest.compute();
@@ -241,14 +244,17 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
   shared_ptr<const DimerJop> jop;
 
   Timer growtime(2);
+  // Raymond version switch
+  const bool metal = input_->get<bool>("metal", false);
   for (auto& inp : inputs) {
     // finish preparing the input
     const int charge = inp->get<int>("charge");
     const int spin = inp->get<int>("nspin");
     inp->put("nclosed", ref->nclosed());
+    inp->put("metal", metal);
     read_restricted(inp, site);
     {
-      Muffle hide_cout("asd_dmrg.log", true);
+      //Muffle hide_cout("asd_dmrg.log", true);
       // ProductRAS calculations
       auto prod_ras = make_shared<ProductRASCI>(inp, ref, left);
       prod_ras->compute();

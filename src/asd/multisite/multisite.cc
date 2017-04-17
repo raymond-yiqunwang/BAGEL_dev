@@ -363,7 +363,7 @@ void MultiSite::canonicalize() {
   }
 
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nact, ref_->nvirt());
-
+  
 #if 1
   MoldenOut out("canonicalized.molden");
   out << geom_;
@@ -413,8 +413,12 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
     vector<shared_ptr<const Matrix>> closed_orbital_list = {make_shared<Matrix>(ref_->coeff()->slice(0, ref_->nclosed()))};
     int current = ref_->nclosed();
     for (int i = 0; i != nsites_; ++i) {
-      if (meanfield[i] && i != site)
-        closed_orbital_list.push_back(make_shared<const Matrix>(ref_->coeff()->slice(current, current+active_sizes_[i])));
+      if (meanfield[i] && i != site) {
+        auto scale_coeff = ref_->coeff()->slice_copy(current, current+active_sizes_[i]);
+        blas::scale_n(sqrt(0.5), scale_coeff->data(), scale_coeff->size());
+        //closed_orbital_list.push_back(make_shared<const Matrix>(ref_->coeff()->slice(current, current+active_sizes_[i])));
+        closed_orbital_list.push_back(scale_coeff);
+      }
       current += active_sizes_[i];
     }
 
@@ -428,7 +432,7 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
       copy_n(orbitals->data(), orbitals->size(), out->element_ptr(0, current));
       current += orbitals->mdim();
     }
-
+    
     return make_shared<Reference>(ref_->geom(), make_shared<Coeff>(move(*out)), nclosed, nact, 0);
   
   }
