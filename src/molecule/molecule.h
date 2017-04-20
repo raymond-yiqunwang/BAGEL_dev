@@ -48,6 +48,9 @@ class Molecule {
     int lmax_;
     int aux_lmax_;
 
+    // FMM
+    bool dofmm_;
+
     // these two offsets are in principle redundant information (can be derived from Shells);
     std::vector<std::vector<int>> offsets_;
     std::vector<std::vector<int>> aux_offsets_;
@@ -76,11 +79,8 @@ class Molecule {
     // external magnetic field
     std::array<double,3> magnetic_field_;
 
-    // FMM
-    bool dofmm_;
-
     // Computes the nuclear repulsion energy.
-    double compute_nuclear_repulsion();
+    double compute_nuclear_repulsion(const bool skip_self_interaction = true);
 
     // Constructor helpers
     void common_init1();
@@ -92,7 +92,7 @@ class Molecule {
     template<class Archive>
     void serialize(Archive& ar, const unsigned int) {
       ar & spherical_ & aux_merged_ & nbasis_ & nele_ & nfrc_ & naux_ & lmax_ & aux_lmax_ & offsets_ & aux_offsets_ & basisfile_ & auxfile_
-         & atoms_ & aux_atoms_ & nuclear_repulsion_ & symmetry_ & plist_ & nirrep_ & gamma_ & external_ & magnetic_field_;
+         & atoms_ & aux_atoms_ & nuclear_repulsion_ & symmetry_ & plist_ & nirrep_ & gamma_ & external_ & magnetic_field_ & dofmm_;
     }
 
   public:

@@ -483,6 +483,7 @@ AtomMap::AtomMap () {
   nuclear_exponents.emplace("hn", 1.1905722195E+08);
   nuclear_exponents.emplace("mt", 1.1878724932E+08);
 
+  averaged_masses.emplace("q", 0.0);
   averaged_masses.emplace("h", 1.008);
   averaged_masses.emplace("he", 4.00);
   averaged_masses.emplace("li", 6.94);
@@ -537,6 +538,48 @@ AtomMap::AtomMap () {
   averaged_masses.emplace("te", 127.60);
   averaged_masses.emplace("i", 126.90);
   averaged_masses.emplace("xe", 131.29);
+  averaged_masses.emplace("cs", 132.91);
+  averaged_masses.emplace("ba", 137.33);
+  averaged_masses.emplace("la", 138.91);
+  averaged_masses.emplace("ce", 140.12);
+  averaged_masses.emplace("pr", 140.91);
+  averaged_masses.emplace("nd", 144.24);
+  averaged_masses.emplace("pm", 144.91);
+  averaged_masses.emplace("sm", 150.36);
+  averaged_masses.emplace("eu", 151.96);
+  averaged_masses.emplace("gd", 157.25);
+  averaged_masses.emplace("tb", 158.93);
+  averaged_masses.emplace("dy", 162.50);
+  averaged_masses.emplace("ho", 164.93);
+  averaged_masses.emplace("er", 167.26);
+  averaged_masses.emplace("tm", 168.93);
+  averaged_masses.emplace("yb", 173.05);
+  averaged_masses.emplace("lu", 174.97);
+  averaged_masses.emplace("hf", 178.49);
+  averaged_masses.emplace("ta", 180.95);
+  averaged_masses.emplace("w", 183.84);
+  averaged_masses.emplace("re", 186.21);
+  averaged_masses.emplace("os", 190.23);
+  averaged_masses.emplace("ir", 192.22);
+  averaged_masses.emplace("pt", 195.08);
+  averaged_masses.emplace("au", 196.97);
+  averaged_masses.emplace("hg", 200.59);
+  averaged_masses.emplace("tl", 204.38);
+  averaged_masses.emplace("pb", 207.20);
+  averaged_masses.emplace("bi", 208.98);
+  averaged_masses.emplace("po", 208.98);
+  averaged_masses.emplace("at", 209.99);
+  averaged_masses.emplace("rn", 222.02);
+  averaged_masses.emplace("fr", 223.02);
+  averaged_masses.emplace("ra", 226.03);
+  averaged_masses.emplace("ac", 227.03);
+  averaged_masses.emplace("th", 232.04);
+  averaged_masses.emplace("pa", 231.04);
+  averaged_masses.emplace("u", 238.03);
+  averaged_masses.emplace("np", 237.05);
+  averaged_masses.emplace("pu", 244.06);
+  averaged_masses.emplace("am", 243.06);
+  averaged_masses.emplace("cm", 247.04);
 
   angmap.emplace("s", 0);
   angmap.emplace("p", 1);
@@ -545,8 +588,8 @@ AtomMap::AtomMap () {
   angmap.emplace("g", 4);
   angmap.emplace("h", 5);
   angmap.emplace("i", 6);
+  angmap.emplace("j", 7);
 // Since they are not implemented yet
-//angmap.emplace("j", 7);
 //angmap.emplace("k", 8);
 //angmap.emplace("l", 9);
 
@@ -906,6 +949,10 @@ int AtomMap::angular_number(const string input) const {
   auto miter = angmap.find(input);
   stringstream ss; ss << "Unknown angular number in a basis set file. Requested: " << input << endl;
   if (miter == angmap.end()) throw runtime_error(ss.str());
+#ifndef COMPILE_J_ORB
+  if (input == "j")
+    throw runtime_error("j-orbitals requested in a basis set file.  BAGEL must be compiled with the -DCOMPILE_J_ORB flag to use this.");
+#endif
   return miter->second;
 }
 

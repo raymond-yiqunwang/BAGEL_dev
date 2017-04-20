@@ -164,7 +164,10 @@ class FCI_base : public Method {
     // rdm ci derivatives
     virtual std::shared_ptr<Dvec> rdm1deriv(const int istate) const = 0;
     virtual std::shared_ptr<Dvec> rdm2deriv(const int istate) const = 0;
-    virtual std::shared_ptr<Matrix> rdm3deriv(const int istate, std::shared_ptr<const Matrix> fock, const size_t offset, const size_t size) const = 0;
+    virtual std::shared_ptr<Matrix> rdm2deriv_offset(const int istate, const size_t dsize, const size_t offset, const bool parallel = true) const = 0;
+    virtual std::tuple<std::shared_ptr<Matrix>,std::shared_ptr<Matrix>,std::shared_ptr<Matrix>>
+      rdm3deriv(const int istate, std::shared_ptr<const Matrix> fock, const size_t offset, const size_t size, std::shared_ptr<const Matrix> fock_ebra_in) const = 0;
+
     // 4RDM derivative is precontracted by an Fock operator
     virtual std::tuple<std::shared_ptr<Matrix>,std::shared_ptr<Matrix>>
       rdm34deriv(const int istate, std::shared_ptr<const Matrix> fock, const size_t offset, const size_t size) const = 0;
@@ -184,7 +187,7 @@ class FCI_base : public Method {
     std::shared_ptr<const RDM<1>> rdm1_av() const { return rdm1_av_; }
     std::shared_ptr<const RDM<2>> rdm2_av() const { return rdm2_av_; }
 
-    virtual std::pair<std::shared_ptr<Matrix>, VectorB> natorb_convert();
+    virtual std::pair<std::shared_ptr<Matrix>, VectorB> natorb_convert(const bool sort_by_coeff);
 
     virtual std::shared_ptr<const CIWfn> conv_to_ciwfn() const = 0;
     virtual std::shared_ptr<const Reference> conv_to_ref() const = 0;
