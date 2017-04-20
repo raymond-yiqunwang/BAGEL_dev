@@ -47,8 +47,6 @@ void ASD_DMRG::compute() {
     left_blocks_.push_back(left_block);
     cout << "  " << print_progress(0, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
   }
-// debugging
-throw runtime_error("let's stop here");
 
   // Grow lattice
   for (int site = 1; site < nsites_-1; ++site) {

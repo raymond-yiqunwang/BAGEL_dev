@@ -44,14 +44,15 @@ void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
 
   // Raymond version switch
   bool metal = input_->get<bool>("metal", false);
-  vector<int> active_electrons = input_->get_vector<int>("active_electrons");
+  vector<int> active_electrons;
+  if (metal) active_electrons = input_->get_vector<int>("active_electrons");
   auto read = [&input, &site, &metal, &active_electrons] (const shared_ptr<const PTree> inp, int current) {
     array<int, 3> nras = inp->get_array<int, 3>("orbitals");
     input->put("max_holes", inp->get<string>("max_holes"));
     input->put("max_particles", inp->get<string>("max_particles"));
 
     input->put("metal", metal);
-    input->put("active_electrons", active_electrons[site]);
+    if (metal) input->put("active_electrons", active_electrons[site]);
     input->erase("active");
     auto parent = std::make_shared<PTree>();
     for (int i = 0; i < 3; ++i) {
