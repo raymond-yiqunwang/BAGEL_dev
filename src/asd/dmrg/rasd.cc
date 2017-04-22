@@ -44,15 +44,17 @@ void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
 
   // Raymond version switch
   bool metal = input_->get<bool>("metal", false);
-  vector<int> active_electrons;
-  if (metal) active_electrons = input_->get_vector<int>("active_electrons");
-  auto read = [&input, &site, &metal, &active_electrons] (const shared_ptr<const PTree> inp, int current) {
+  //vector<int> active_electrons;
+  //if (metal) active_electrons = input_->get_vector<int>("active_electrons");
+  //auto read = [&input, &site, &metal, &active_electrons] (const shared_ptr<const PTree> inp, int current) {
+  auto read = [&input, &site, &metal] (const shared_ptr<const PTree> inp, int current) {
     array<int, 3> nras = inp->get_array<int, 3>("orbitals");
     input->put("max_holes", inp->get<string>("max_holes"));
     input->put("max_particles", inp->get<string>("max_particles"));
 
     input->put("metal", metal);
-    if (metal) input->put("active_electrons", active_electrons[site]);
+    //if (metal) input->put("active_electrons", active_electrons[site]);
+    //if (metal) input->put("total_active_electrons", accumulate(active_electrons.begin(), (active_electrons.begin() + site + 1), 0));
     input->erase("active");
     auto parent = std::make_shared<PTree>();
     for (int i = 0; i < 3; ++i) {
@@ -245,14 +247,11 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
   shared_ptr<const DimerJop> jop;
 
   Timer growtime(2);
-  // Raymond version switch
-  const bool metal = input_->get<bool>("metal", false);
   for (auto& inp : inputs) {
     // finish preparing the input
     const int charge = inp->get<int>("charge");
     const int spin = inp->get<int>("nspin");
     inp->put("nclosed", ref->nclosed());
-    inp->put("metal", metal);
     read_restricted(inp, site);
     {
       //Muffle hide_cout("asd_dmrg.log", true);
@@ -333,9 +332,10 @@ shared_ptr<DMRG_Block1> RASD::decimate_block(shared_ptr<PTree> input, shared_ptr
   input->put("nclosed", ref->nclosed());
   read_restricted(input, site);
   {
-    Muffle hide_cout("asd_dmrg.log", true);
+    //Muffle hide_cout("asd_dmrg.log", true);
     // ProductRAS calculations
     if (!system) {
+cout << "decimation without system" << endl;
       auto prod_ras = make_shared<ProductRASCI>(input, ref, environment);
       prod_ras->compute();
       decimatetime.tick_print("ProductRASCI calculation");
@@ -367,6 +367,7 @@ shared_ptr<DMRG_Block1> RASD::decimate_block(shared_ptr<PTree> input, shared_ptr
       return out;
     }
     else {
+cout << "decimation with system" << endl;
       auto block_pair = make_shared<DMRG_Block2>(system, environment);
       decimatetime.tick_print("Build double block");
       auto prod_ras = make_shared<ProductRASCI>(input, ref, block_pair);

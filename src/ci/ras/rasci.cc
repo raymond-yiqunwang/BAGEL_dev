@@ -85,9 +85,11 @@ void RASCI::common_init() {
     nelea_ = (geom_->nele()+nspin-charge)/2 - ncore_;
     neleb_ = (geom_->nele()-nspin-charge)/2 - ncore_;
   } else {
-    const int active_electrons = idata_->get<int>("active_electrons");
-    nelea_ = (active_electrons + nspin - charge) / 2;
-    neleb_ = active_electrons - charge - nelea_;
+    nelea_ = (geom_->nele()+nspin-charge)/2 - ncore_/2;
+    neleb_ = (geom_->nele()-nspin-charge)/2 - ncore_/2;
+    //const int active_electrons = idata_->get<int>("total_active_electrons");
+    //nelea_ = (active_electrons + nspin - charge) / 2;
+    //neleb_ = active_electrons - charge - nelea_;
   }
 
   // TODO allow for zero electron (quick return)

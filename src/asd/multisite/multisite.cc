@@ -405,36 +405,34 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
     return make_shared<Reference>(sref_->geom(), make_shared<Coeff>(move(*out)), nclosed, nact, 0);
 
   } else {// Raymond version
-    const int nact = active_sizes_[site];
-    const int nclosed = ref_->nclosed() + ref_->nact() - nact;
-    auto out = make_shared<Matrix>(ref_->geom()->nbasis(), nclosed + nact);
 
-    // TODO embedded partially occupied active orbitals should be modified
-    vector<shared_ptr<const Matrix>> closed_orbital_list = {make_shared<Matrix>(ref_->coeff()->slice(0, ref_->nclosed()))};
+    int act_start = ref_->nclosed();
+    for (int i = 0; i != site; ++i) act_start += active_sizes_[i];
+    const int nact = active_sizes_[site];
+    const Matrix active_orbitals = ref_->coeff()->slice(act_start, act_start + nact);
+
+    vector<shared_ptr<const Matrix>> closed_orbitals = {make_shared<Matrix>(ref_->coeff()->slice(0, ref_->nclosed()))};
     int current = ref_->nclosed();
     for (int i = 0; i != nsites_; ++i) {
       if (meanfield[i] && i != site) {
-        auto scale_coeff = ref_->coeff()->slice_copy(current, current+active_sizes_[i]);
+        auto scale_coeff = ref_->coeff()->slice_copy(current, current + active_sizes_[i]);
         blas::scale_n(sqrt(0.5), scale_coeff->data(), scale_coeff->size());
-        //closed_orbital_list.push_back(make_shared<const Matrix>(ref_->coeff()->slice(current, current+active_sizes_[i])));
-        closed_orbital_list.push_back(scale_coeff);
+        closed_orbitals.push_back(scale_coeff);
       }
       current += active_sizes_[i];
     }
 
-    int act_start = ref_->nclosed();
-    for (int i = 0; i != site; ++i) act_start += active_sizes_[i];
-    const Matrix active_orbital = ref_->coeff()->slice(act_start, act_start + nact);
-    closed_orbital_list.push_back(make_shared<Matrix>(active_orbital));
+    const int nclosed = accumulate(closed_orbitals.begin(), closed_orbitals.end(), 0, [] (int x, shared_ptr<const Matrix> m) { return x + m->mdim(); });
 
+    auto out = make_shared<Matrix>(ref_->geom()->nbasis(), nclosed + nact);
     current = 0;
-    for (auto& orbitals : closed_orbital_list) {
+    closed_orbitals.push_back(make_shared<Matrix>(active_orbitals));
+    for (auto& orbitals : closed_orbitals) {
       copy_n(orbitals->data(), orbitals->size(), out->element_ptr(0, current));
       current += orbitals->mdim();
     }
-    
+
     return make_shared<Reference>(ref_->geom(), make_shared<Coeff>(move(*out)), nclosed, nact, 0);
-  
   }
 
 }

@@ -54,9 +54,7 @@ void ASD_DMRG::compute() {
     fill_n(meanfield.begin(), site, false);
     //shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield);
     shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield, metal);
-cout << "*DEBUGGING*  one iteration, reference built, grow block next" << endl;
     left_block = grow_block(prepare_growing_input(site), ref, left_block, site);
-cout << "*DEBUGGING*  when you see this, grow_block should have no bugs" << endl;
     left_blocks_.push_back(left_block);
     cout << "  " << print_progress(site, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
   }
