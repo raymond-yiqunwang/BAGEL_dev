@@ -78,7 +78,6 @@ void ProductRASCI::construct_denom() {
         }
       }
       pure_ras.emplace(sec.first, civec);
-cout << "emplace pure_ras" << endl;
     }
     tasks.compute();
   }

@@ -85,12 +85,10 @@ ProductRASCI::ProductRASCI(shared_ptr<const PTree> input, shared_ptr<const Refer
     nelea_ = (ref_->geom()->nele()+nspin-charge)/2 - ncore_;
     neleb_ = (ref_->geom()->nele()-nspin-charge)/2 - ncore_;
   } else {
-    nelea_ = (ref_->geom()->nele()+nspin-charge)/2 - ncore_/2;
-    neleb_ = (ref_->geom()->nele()-nspin-charge)/2 - ncore_/2;
-    //const int active_electrons = input_->get<int>("total_active_electrons");
-    //nelea_ = (active_electrons + nspin - charge) / 2;
-    //neleb_ = active_electrons - charge - nelea_;
-cout << "na = " << nelea_ << ", nb = " << neleb_ << endl;
+    const int active_electrons = input_->get<int>("total_active_electrons");
+    nelea_ = (active_electrons + nspin - charge) / 2;
+    neleb_ = active_electrons - charge - nelea_;
+cout << "in ProductRASCI : na = " << nelea_ << ", nb = " << neleb_ << endl;
   }
   
   // TODO allow for zero electron (quick return)

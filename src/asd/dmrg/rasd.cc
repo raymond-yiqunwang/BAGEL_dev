@@ -39,22 +39,23 @@ using namespace bagel;
 
 RASD::RASD(const shared_ptr<const PTree> input, shared_ptr<MultiSite> multisite) : ASD_DMRG(input, multisite) { }
 
-void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
+void RASD::read_restricted(shared_ptr<PTree> input, const int site, bool fix) const {
   auto restricted = input_->get_child("restricted");
 
   // Raymond version switch
   bool metal = input_->get<bool>("metal", false);
-  //vector<int> active_electrons;
-  //if (metal) active_electrons = input_->get_vector<int>("active_electrons");
-  //auto read = [&input, &site, &metal, &active_electrons] (const shared_ptr<const PTree> inp, int current) {
-  auto read = [&input, &site, &metal] (const shared_ptr<const PTree> inp, int current) {
+  vector<int> active_electrons;
+  if (metal) active_electrons = input_->get_vector<int>("active_electrons");
+  auto read = [&input, &fix, &site, &metal, &active_electrons] (const shared_ptr<const PTree> inp, int current) {
     array<int, 3> nras = inp->get_array<int, 3>("orbitals");
     input->put("max_holes", inp->get<string>("max_holes"));
     input->put("max_particles", inp->get<string>("max_particles"));
 
     input->put("metal", metal);
     //if (metal) input->put("active_electrons", active_electrons[site]);
-    //if (metal) input->put("total_active_electrons", accumulate(active_electrons.begin(), (active_electrons.begin() + site + 1), 0));
+    if (metal)
+      input->put("total_active_electrons", fix ? accumulate(active_electrons.begin(), active_electrons.end(), 0) : accumulate(active_electrons.begin(), (active_electrons.begin() + site + 1), 0));
+
     input->erase("active");
     auto parent = std::make_shared<PTree>();
     for (int i = 0; i < 3; ++i) {
@@ -158,7 +159,7 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
   map<BlockKey, shared_ptr<const Matrix>> spinmap;
   Timer rastime;
 
-//  bool append = false;
+  bool append = false;
 
   for (auto& inp : inputs) {
     // finish preparing the input
@@ -167,8 +168,8 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
     const int spin = inp->get<int>("nspin");
     const int charge = inp->get<int>("charge");
     {
-      //Muffle hide_cout("asd_dmrg.log", append);
-      //append = true;
+      Muffle hide_cout("asd_dmrg.log", append);
+      append = true;
       // RAS calculations
       auto ras = make_shared<RASCI>(inp, ref->geom(), ref);
       ras->compute();
@@ -254,7 +255,7 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
     inp->put("nclosed", ref->nclosed());
     read_restricted(inp, site);
     {
-      //Muffle hide_cout("asd_dmrg.log", true);
+      Muffle hide_cout("asd_dmrg.log", true);
       // ProductRAS calculations
       auto prod_ras = make_shared<ProductRASCI>(inp, ref, left);
       prod_ras->compute();
@@ -330,9 +331,10 @@ shared_ptr<DMRG_Block1> RASD::decimate_block(shared_ptr<PTree> input, shared_ptr
   Timer decimatetime(2);
   // assume the input is already fully formed, this may be revisited later
   input->put("nclosed", ref->nclosed());
-  read_restricted(input, site);
+  const bool fix_act_ele = true;
+  read_restricted(input, site, fix_act_ele);
   {
-    //Muffle hide_cout("asd_dmrg.log", true);
+    Muffle hide_cout("asd_dmrg.log", true);
     // ProductRAS calculations
     if (!system) {
 cout << "decimation without system" << endl;

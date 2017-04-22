@@ -78,18 +78,19 @@ void RASCI::common_init() {
 
   // nspin is #unpaired electron 0:singlet, 1:doublet, 2:triplet, ... (i.e., Molpro convention).
   const int nspin = idata_->get<int>("nspin", 0);
-  if ((geom_->nele()+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified");
+  //if ((geom_->nele()+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified");
 // Raymond version TODO put the switch somewhere else in the future
   bool metal = idata_->get<bool>("metal", false);
   if (!metal) {
+    if ((geom_->nele()+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified");
     nelea_ = (geom_->nele()+nspin-charge)/2 - ncore_;
     neleb_ = (geom_->nele()-nspin-charge)/2 - ncore_;
   } else {
-    nelea_ = (geom_->nele()+nspin-charge)/2 - ncore_/2;
-    neleb_ = (geom_->nele()-nspin-charge)/2 - ncore_/2;
-    //const int active_electrons = idata_->get<int>("total_active_electrons");
-    //nelea_ = (active_electrons + nspin - charge) / 2;
-    //neleb_ = active_electrons - charge - nelea_;
+    const int active_electrons = idata_->get<int>("total_active_electrons");
+    nelea_ = (active_electrons + nspin - charge) / 2;
+    neleb_ = active_electrons - charge - nelea_;
+cout << "nelea_ = " << nelea_ << endl;
+cout << "neleb_ = " << neleb_ << endl;
   }
 
   // TODO allow for zero electron (quick return)

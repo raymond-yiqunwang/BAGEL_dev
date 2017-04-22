@@ -51,7 +51,7 @@ void ASD_DMRG::compute() {
   // Grow lattice
   for (int site = 1; site < nsites_-1; ++site) {
     vector<bool> meanfield(nsites_, true);
-    fill_n(meanfield.begin(), site, false);
+//    fill_n(meanfield.begin(), site, false);
     //shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield);
     shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield, metal);
     left_block = grow_block(prepare_growing_input(site), ref, left_block, site);
@@ -74,7 +74,7 @@ void ASD_DMRG::compute() {
       left_block = left_blocks_[site-1];
       right_block = (site == nsites_-1) ? nullptr : right_blocks_[nsites_ - site - 2];
       //shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
-      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal);
+      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, metal), metal);
 
       right_block = decimate_block(prepare_sweeping_input(site), ref, right_block, left_block, site);
       right_blocks_[nsites_ - site - 1] = right_block;
@@ -86,7 +86,7 @@ void ASD_DMRG::compute() {
       left_block = (site == 0) ? nullptr : left_blocks_[site-1];
       right_block = right_blocks_[nsites_ - site - 2];
       //shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
-      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal);
+      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, metal), metal);
 
       left_block = decimate_block(prepare_sweeping_input(site), ref, left_block, right_block, site);
       left_blocks_[site] = left_block;
