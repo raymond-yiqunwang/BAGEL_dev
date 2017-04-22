@@ -31,6 +31,8 @@
 #include <src/asd/gamma_forest.h>
 #include <src/asd/dmrg/block_key.h>
 
+#define DEBUG
+
 namespace bagel {
 
 template <class VecType>
@@ -76,9 +78,10 @@ class GammaForestASD : public GammaForest<VecType, 1> {
           for (auto& bra : monomer_states) {
             if (BlockKey(new_nelea, new_neleb)==bra.first) {
 #ifdef DEBUG
+std::cout << " *DEBUGGING* gamma_forest_asd.h" << std::endl;
               std::cout << "inserting: <" << bra.first.nelea << ", " << bra.first.neleb << "|";
               for (auto opiter = coupling.begin(); opiter != coupling.end(); ++opiter)
-                std::cout << is_alpha(*opiter) ? "(A)" : "(B)" << is_creation(*opiter) ? "^t" : "";
+                std::cout << (is_alpha(*opiter) ? "(A)" : "(B)") << (is_creation(*opiter) ? "^t" : "");
               std::cout << "|" << ket.first.nelea << ", " << ket.first.neleb << ">" << std::endl;
 #endif
               sparselist_.emplace_back(coupling, BlockInfo(bra.first.nelea, bra.first.neleb, bra.second->ij()), BlockInfo(ket.first.nelea, ket.first.neleb, ket.second->ij()));
@@ -96,5 +99,7 @@ class GammaForestASD : public GammaForest<VecType, 1> {
 };
 
 }
+
+#undef DEBUG
 
 #endif

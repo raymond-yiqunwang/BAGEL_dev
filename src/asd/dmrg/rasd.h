@@ -42,7 +42,7 @@ class RASD : public ASD_DMRG {
     RASD(const std::shared_ptr<const PTree> input, std::shared_ptr<MultiSite> multisite);
 
   private:
-    void read_restricted(std::shared_ptr<PTree> input, const int site, bool fix = false) const;
+    void read_restricted(std::shared_ptr<PTree> input, const int site) const;
 
     /// diagonalize site RDM
     std::map<BlockKey, std::shared_ptr<const RASDvec>> diagonalize_site_RDM(const std::vector<std::shared_ptr<ProductRASCivec>>& civecs, const double perturbation = 0.0) const;

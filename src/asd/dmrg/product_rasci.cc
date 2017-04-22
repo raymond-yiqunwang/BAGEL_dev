@@ -84,6 +84,8 @@ ProductRASCI::ProductRASCI(shared_ptr<const PTree> input, shared_ptr<const Refer
   if (!metal) {
     nelea_ = (ref_->geom()->nele()+nspin-charge)/2 - ncore_;
     neleb_ = (ref_->geom()->nele()-nspin-charge)/2 - ncore_;
+cout << "!metal ProductRASCI : na = " << nelea_ << ", nb = " << neleb_ << endl;
+cout << "ncore = " << ncore_ << "nele = " << ref_->geom()->nele() << endl;
   } else {
     const int active_electrons = input_->get<int>("total_active_electrons");
     nelea_ = (active_electrons + nspin - charge) / 2;

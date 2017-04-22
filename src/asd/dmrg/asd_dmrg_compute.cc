@@ -35,6 +35,7 @@ void ASD_DMRG::compute() {
 
   // Raymond version
   bool metal = input_->get<bool>("metal", false);
+cout << endl << " o Are we using ASD_METAL algorithm ? : " << metal << endl << endl;
   shared_ptr<DMRG_Block1> left_block, right_block;
 
   // Seed lattice
@@ -51,7 +52,7 @@ void ASD_DMRG::compute() {
   // Grow lattice
   for (int site = 1; site < nsites_-1; ++site) {
     vector<bool> meanfield(nsites_, true);
-//    fill_n(meanfield.begin(), site, false);
+    fill_n(meanfield.begin(), site, false);
     //shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield);
     shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield, metal);
     left_block = grow_block(prepare_growing_input(site), ref, left_block, site);
@@ -70,11 +71,11 @@ void ASD_DMRG::compute() {
                                                                           << setw(16) << "dE average" <<  endl;
   for (int iter = 0; iter < maxiter_; ++iter) {
   // Start sweeping backwards
+    cout << "Start sweeping backwards..." << endl;
     for (int site = nsites_-1; site > 0; --site) {
       left_block = left_blocks_[site-1];
       right_block = (site == nsites_-1) ? nullptr : right_blocks_[nsites_ - site - 2];
-      //shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
-      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, metal), metal);
+      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal);
 
       right_block = decimate_block(prepare_sweeping_input(site), ref, right_block, left_block, site);
       right_blocks_[nsites_ - site - 1] = right_block;
@@ -82,16 +83,17 @@ void ASD_DMRG::compute() {
     }
 
   // Sweep forwards
+    cout << "Start sweeping forwards..." << endl;
     for (int site = 0; site < nsites_-1; ++site) {
       left_block = (site == 0) ? nullptr : left_blocks_[site-1];
       right_block = right_blocks_[nsites_ - site - 2];
-      //shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
-      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, metal), metal);
+      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal);
 
       left_block = decimate_block(prepare_sweeping_input(site), ref, left_block, right_block, site);
       left_blocks_[site] = left_block;
       cout << "  " << print_progress(site, ">>", ">>") << setw(16) << dmrg_timer.tick() << endl;
     }
+    cout << "end of a back-forward sweeping iteration" << endl;
 
     bool conv = (perturb_ < perturb_min_);
     bool drop_perturb = true;
