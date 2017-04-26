@@ -113,6 +113,8 @@ void CASSCF::common_init() {
   // nocc from the input. If not present, full valence active space is generated.
   nact_ = idata_->get<int>("nact", 0);
   nact_ = idata_->get<int>("nact_cas", nact_);
+  // FCI algorithm
+  fci_algorithm_ = idata_->get<string>("fci_algorithm", ((nact_ > 9) && (mpi__->size() >= 8)) ? "parallel" : "knowles");
 
   // nclosed from the input. If not present, full core space is generated.
   nclosed_ = idata_->get<int>("nclosed", -1);
@@ -143,7 +145,19 @@ void CASSCF::common_init() {
   if (nact_) {
     auto idata = make_shared<PTree>(*idata_);
     idata->erase("active");
-    fci_ = make_shared<KnowlesHandy>(idata, geom_, ref_, nclosed_, nact_, /*nstates to be read from idata*/-1, /*store*/true);
+    if (fci_algorithm_ == "knowles" || fci_algorithm_ == "kh" || fci_algorithm_ == "handy") {
+      cout << "    * Using serial Knowles-Handy algorithm in FCI." << endl;
+      fci_ = make_shared<KnowlesHandy>(idata, geom_, ref_, nclosed_, nact_, /*nstates to be read from idata*/-1, /*store*/true);
+    } else if (fci_algorithm_ == "harrison" || fci_algorithm_ == "zarrabian" || fci_algorithm_ == "hz") {
+      cout << "    * Using serial Harrison-Zarrabian algorithm in FCI." << endl;
+      fci_ = make_shared<HarrisonZarrabian>(idata, geom_, ref_, nclosed_, nact_, /*nstates to be read from idata*/-1, /*store*/true);
+#ifdef HAVE_MPI_H
+    } else if (fci_algorithm_ == "parallel" || fci_algorithm_ == "dist") {
+      cout << "    * Using parallel algorithm in FCI." << endl;
+      fci_ = make_shared<DistFCI>(idata, geom_, ref_, nclosed_, nact_, /*nstates to be read from idata*/-1, /*store*/true);
+#endif
+    } else
+      throw runtime_error("Unknown FCI algorithm specified. " + fci_algorithm_);
   }
   muffle_->unmute();
 
