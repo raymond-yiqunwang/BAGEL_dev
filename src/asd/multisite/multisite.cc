@@ -394,9 +394,6 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
     const int nact = active_orbitals.mdim();
 
     auto out = make_shared<Matrix>(sref_->geom()->nbasis(), nclosed+nact);
-cout << endl;
-cout << "After building reference, mdim of Coeff = " << out->mdim() << endl;
-cout << endl;
 
     current = 0;
     closed_orbitals.push_back(make_shared<MatView>(active_orbitals));

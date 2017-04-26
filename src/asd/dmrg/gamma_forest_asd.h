@@ -31,7 +31,7 @@
 #include <src/asd/gamma_forest.h>
 #include <src/asd/dmrg/block_key.h>
 
-#define DEBUG
+//#define DEBUG
 
 namespace bagel {
 
@@ -83,6 +83,7 @@ std::cout << " *DEBUGGING* gamma_forest_asd.h" << std::endl;
               for (auto opiter = coupling.begin(); opiter != coupling.end(); ++opiter)
                 std::cout << (is_alpha(*opiter) ? "(A)" : "(B)") << (is_creation(*opiter) ? "^t" : "");
               std::cout << "|" << ket.first.nelea << ", " << ket.first.neleb << ">" << std::endl;
+#undef DEBUG
 #endif
               sparselist_.emplace_back(coupling, BlockInfo(bra.first.nelea, bra.first.neleb, bra.second->ij()), BlockInfo(ket.first.nelea, ket.first.neleb, ket.second->ij()));
               this->template insert<0>(bra.second, block_tag(bra.first), ket.second, block_tag(ket.first), coupling);
@@ -100,6 +101,5 @@ std::cout << " *DEBUGGING* gamma_forest_asd.h" << std::endl;
 
 }
 
-#undef DEBUG
 
 #endif
