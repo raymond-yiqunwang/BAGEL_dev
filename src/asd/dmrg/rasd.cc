@@ -66,7 +66,7 @@ void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
     }
     input->add_child("active", parent);
 #ifdef DEBUG
-    cout << "*DEBUGGING*  RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
+    //cout << "RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
 #endif
   };
 
@@ -158,6 +158,8 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
   map<BlockKey, shared_ptr<const Matrix>> spinmap;
   Timer rastime;
 
+  bool append = false;
+
   for (auto& inp : inputs) {
     // finish preparing the input
     inp->put("nclosed", ref->nclosed());
@@ -165,7 +167,8 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
     const int spin = inp->get<int>("nspin");
     const int charge = inp->get<int>("charge");
     {
-      //Muffle hide_cout("asd_dmrg.log", /*append*/false);
+      Muffle hide_cout("asd_dmrg.log", append);
+      append = true;
       // RAS calculations
       auto ras = make_shared<RASCI>(inp, ref->geom(), ref);
       ras->compute();
@@ -205,7 +208,6 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
 
       for (int i = 0; i < spin; ++i) {
         shared_ptr<RASDvec> tmpvec = civecs->spin_lower();
-        cout << " o Performing spin-lowing operation" << endl;
         for (auto& vec : tmpvec->dvec()) {
           vec->normalize();
 #ifdef HAVE_MPI_H
@@ -221,10 +223,6 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
     cout << "      - charge: " << charge << ", nspin: " << spin << ", nstates: " << nstates
                                     << fixed << setw(10) << setprecision(2) << rastime.tick() << endl;
   }
-
-  cout << endl << "  ---------------------------  " << endl;
-  cout << "      First Block Summary" << endl;
-  cout << "  ---------------------------  " << endl;
 
   GammaForestASD<RASDvec> forest(states);
   rastime.tick_print("construct forest");
@@ -252,7 +250,7 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
     inp->put("nclosed", ref->nclosed());
     read_restricted(inp, site);
     {
-      //Muffle hide_cout("asd_dmrg.log", true);
+      Muffle hide_cout("asd_dmrg.log", true);
       // ProductRAS calculations
       auto prod_ras = make_shared<ProductRASCI>(inp, ref, left);
       prod_ras->compute();
