@@ -48,16 +48,16 @@ SMITH_Info<DataType>::SMITH_Info(shared_ptr<const Reference> o, const shared_ptr
 
   maxiter_ = idata->get<int>("maxiter", 50);
   maxtile_ = idata->get<int>("maxtile", 10);
-  cimaxtile_ = idata->get<int>("cimaxtile", 10);
+  cimaxtile_ = idata->get<int>("cimaxtile", (ciwfn()->civectors()->size() > 10000) ? 100 : 10);
 
   do_ms_   = idata->get<bool>("ms",  true);
-  do_xms_  = idata->get<bool>("xms", false);
+  do_xms_  = idata->get<bool>("xms", true);
   if (do_xms_ && (method_ == "casa" || method_ == "mrci")) {
     cout << "    * XMS rotation is only appropriate for CASPT2, and will not be used with " << method_ << endl;
     do_xms_ = false;
   }
 
-  sssr_    = idata->get<bool>("sssr", false);
+  sssr_    = idata->get<bool>("sssr", true);
   shift_diag_  = idata->get<bool>("shift_diag", true);
   block_diag_fock_ = idata->get<bool>("block_diag_fock", false);
 
@@ -87,6 +87,18 @@ SMITH_Info<DataType>::SMITH_Info(shared_ptr<const Reference> o, const shared_ptr
   davidson_subspace_ = idata->get<int>("davidson_subspace", 10);
   thresh_overlap_ = idata->get<double>("thresh_overlap", 1.0e-9);
 
+  // enable restart capability
+  restart_ = idata->get<bool>("restart", false);
+  restart_each_iter_ = idata->get<bool>("restart_each_iter", restart_);
+  state_begin_ = 0;
+  restart_iter_ = 0;
+
+  // Restart with MRCI would require us to load amplitudes from previous iterations into DavidsonDiag
+  // TODO maybe implement this in the future
+  if (restart_ && to_lower(method_) == "mrci")
+    throw runtime_error("Restarting is currently only available in SMITH for relativistic perturbation theory methods, not MRCI.");
+
+  // save inputs for pseudospin module
   aniso_data_ = idata->get_child_optional("aniso");
   external_rdm_ = idata->get<string>("external_rdm", "");
   if (external_rdm_.empty() && !ciwfn()->civectors())
@@ -242,5 +254,8 @@ shared_ptr<const Reference>  SMITH_Info<DataType>::extract_ref(const vector<int>
 template class SMITH_Info<double>;
 template class SMITH_Info<complex<double>>;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+BOOST_CLASS_EXPORT_IMPLEMENT(SMITH_Info<double>)
+BOOST_CLASS_EXPORT_IMPLEMENT(SMITH_Info<complex<double>>)
 
 #endif

@@ -66,7 +66,7 @@ shared_ptr<GradFile> Force::compute() {
     }
   }
   auto cinput = make_shared<PTree>(**m);
-  cinput->put("gradient", true);
+  cinput->put("_gradient", true);
 
   numerical_ = idata_->get<bool>("numerical", false);
   if (geom_->dkh()) {
@@ -88,24 +88,28 @@ shared_ptr<GradFile> Force::compute() {
       auto force = make_shared<GradEval<UHF>>(cinput, geom_, ref_, target);
       out = force->compute();
       ref = force->ref();
+      force_dipole_ = force->dipole();
 
     } else if (method == "rohf") {
 
       auto force = make_shared<GradEval<ROHF>>(cinput, geom_, ref_, target);
       out = force->compute();
       ref = force->ref();
+      force_dipole_ = force->dipole();
 
     } else if (method == "hf") {
 
       auto force = make_shared<GradEval<RHF>>(cinput, geom_, ref_, target);
       out = force->compute();
       ref = force->ref();
+      force_dipole_ = force->dipole();
 
     } else if (method == "ks") {
 
       auto force = make_shared<GradEval<KS>>(cinput, geom_, ref_, target);
       out = force->compute();
       ref = force->ref();
+      force_dipole_ = force->dipole();
 
     } else if (method == "dhf") {
 
@@ -118,6 +122,7 @@ shared_ptr<GradFile> Force::compute() {
       auto force = make_shared<GradEval<MP2Grad>>(cinput, geom_, ref_, target, maxziter);
       out = force->compute();
       ref = force->ref();
+      force_dipole_ = force->dipole();
 
     } else if (method == "casscf" && jobtitle == "nacme") {
 
@@ -136,6 +141,7 @@ shared_ptr<GradFile> Force::compute() {
       auto force = make_shared<GradEval<CASSCF>>(cinput, geom_, ref_, target, maxziter);
       out = force->compute();
       ref = force->ref();
+      force_dipole_ = force->dipole();
 
     } else if (method == "caspt2" && jobtitle == "nacme") {
 
@@ -148,6 +154,7 @@ shared_ptr<GradFile> Force::compute() {
       auto force = make_shared<GradEval<CASPT2Grad>>(cinput, geom_, ref_, target, maxziter);
       out = force->compute();
       ref = force->ref();
+      force_dipole_ = force->dipole();
 
     }
     else {
@@ -160,7 +167,7 @@ shared_ptr<GradFile> Force::compute() {
 
   if (numerical_) {
 
-    const double dx = idata_->get<double>("diffsize", 1.0e-3);
+    const double dx = idata_->get<double>("dx", 1.0e-3);
 
     if (jobtitle == "force") {
 

@@ -127,9 +127,7 @@ void Opt::hessian_update_psb(shared_ptr<GradFile> y, shared_ptr<GradFile> s, sha
 shared_ptr<XYZFile> Opt::get_step() {
   auto displ = make_shared<XYZFile>(dispsize_);
 
-  if (algorithm_ == "steep")
-    displ = get_step_steep();
-  else if (algorithm_ == "nr")
+  if (algorithm_ == "nr")
     displ = get_step_nr();
   else if (algorithm_ == "rfo")
     displ = get_step_rfo();
@@ -141,19 +139,6 @@ shared_ptr<XYZFile> Opt::get_step() {
     else
       displ = get_step_ef();
   }
-
-  return displ;
-}
-
-shared_ptr<XYZFile> Opt::get_step_steep() {
-  // Steepest descent step
-  auto displ = make_shared<XYZFile>(dispsize_);
-  copy_n(grad_->data(), size_, displ->data());
-  displ->scale(-1.0);
-
-  double stepnorm = displ->norm();
-  if (stepnorm > (maxstep_))
-    displ->scale(maxstep_/stepnorm);
 
   return displ;
 }
@@ -388,6 +373,7 @@ shared_ptr<XYZFile> Opt::iterate_displ() {
   shared_ptr<Geometry> currentv = make_shared<Geometry>(*current_);
   auto displ = make_shared<XYZFile>(*displ_);
   auto dqc = make_shared<XYZFile>(*displ_);
+  bool flag = false;
   shared_ptr<const XYZFile> qc = current_->xyz();
   qc = qc->transform(bmat_[0], true);
   cout << endl << "  === Displacement transformation iteration === " << endl << endl;
@@ -401,10 +387,17 @@ shared_ptr<XYZFile> Opt::iterate_displ() {
     auto qdiff = make_shared<XYZFile>(currentv->natom());
     *qdiff = *qcurrent - *qc;
     *displ = *dqc - *qdiff;
+    if (displ->norm() > 0.1 || i == (maxiter_ - 1)) {
+      cout << "  * Calculated displacement too large, switching to first-order" << endl;
+      flag = true;
+      break;
+    }
     cout << setw(7) << i << setprecision(10) << setw(15) << displ->norm() << setw(10) << setprecision(2) << timer.tick() << endl;
     if (displ->norm() < 1.0e-8) break;
   }
-  *displ = *(currentv->xyz()) - *(current_->xyz());
+
+  if (flag) displ = displ_->transform(bmat_[1], false);
+  else     *displ = *(currentv->xyz()) - *(current_->xyz());
   cout << endl << endl;
   return displ;
 }
