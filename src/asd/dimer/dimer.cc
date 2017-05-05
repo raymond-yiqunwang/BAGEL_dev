@@ -161,7 +161,7 @@ shared_ptr<const Matrix> Dimer::construct_coeff(const bool linked) {
   else
     projected = isolated_refs_.first->coeff(); //so far, members of isolated_refs_ are the same
 
-  // orthonormalize the "projected" coefficients TODO Raymond debug, check if it is necessary for linked..
+  // orthonormalize the "projected" coefficients
   Overlap S(sgeom_);
   Matrix S_invhalf = (*projected) % S * (*projected);
   S_invhalf.inverse_half();

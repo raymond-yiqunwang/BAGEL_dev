@@ -313,28 +313,8 @@ void Dimer::set_active(const shared_ptr<const PTree> idata, const bool localize_
     }
   }
 
-#if 0
-  nvirt_ = {nexternA - nactvirtA, nexternB - nactvirtB}; // Raymond debug
-  sref_ = make_shared<Reference>(sgeom_, make_shared<Coeff>(*out_coeff), nclosed, nact, nvirt_.first + nvirt_.second); // Raymond debug
-#else
-  nvirt_ = {nexternA - nactA, nexternB - nactB}; // TODO : Check this line, Raymond debug
-  sref_ = make_shared<Reference>(sgeom_, make_shared<Coeff>(*out_coeff), nclosed, nact, nexternA+nexternB - (nclosed+nact)); // Check this line, Raymond debug
-#endif
-
-cout << "===========================================" << endl;
-cout << "Shane's code calculated nvirt_ as nexternA - nactA" << endl;
-cout << "nexternA: " << nexternA << endl; // Raymond debug
-cout << "nactA: " << nactA << endl; // Raymond debug
-cout << "I think it should be nexternA - nactvirtA" << endl;
-cout << "nactvirtA: " << nactvirtA << endl; // Raymond debug
-//cout << "dimer nvirt_: " << nvirt_.first << ", " << nvirt_.second << endl; // Raymond debug
-cout << "Let's check the dimensionality: " << endl;
-cout << "Coeff->mdim(): " << out_coeff->mdim() << endl;
-cout << "nclosed: " << sref_->nclosed() << endl; // Raymond debug
-cout << "nact: " << sref_->nact() << endl; // Raymond debug
-cout << "Shane's nvirt: " << nexternA+nexternB - (nclosed+nact) << endl; // Raymond debug
-cout << "My nvirt: " << nexternA - nactvirtA + nexternB - nactvirtB << endl; // Raymond debug
-cout << "===========================================" << endl;
+  nvirt_ = {nexternA - nactA, nexternB - nactB};
+  sref_ = make_shared<Reference>(sgeom_, make_shared<Coeff>(*out_coeff), nclosed, nact, nexternA+nexternB - (nclosed+nact));
 }
 
 
@@ -436,31 +416,5 @@ void Dimer::scf(const shared_ptr<const PTree> idata) {
       mfs << sgeom_;
       mfs << sref_;
     }
-  } else if (scheme == "metal") {
-    //localize
-    shared_ptr<const PTree> localize_data = idata->get_child_optional("localization");
-    if (!localize_data) localize_data = make_shared<const PTree>();
-
-    string localizemethod = localize_data->get<string>("algorithm", "pm");
-    shared_ptr<OrbitalLocalization> localization;
-    if (localizemethod == "pm" || localizemethod == "pipek" || localizemethod == "mezey" || localizemethod == "pipek-mezey")
-      localization = make_shared<PMLocalization>(localize_data, sref_);
-    else throw runtime_error("Unsupported orbital localization method");
-
-    shared_ptr<const Coeff> new_coeff = make_shared<const Coeff>(*localization->localize());
-    sref_ = make_shared<const Reference>(*sref_, new_coeff); // new sref_ with localized orbitals
-
-    active_thresh_ = input_->get<double>("active_thresh", 0.5);
-    region_thresh_ = input_->get<double>("region_thresh", 0.4);
-    set_active_metal(idata); 
-
-    // semi-canonicalize
-    cout << "  o Forming semi-canonical orbitals" << endl;
-    auto out_coeff = form_semi_canonical_metal();
-    
-    sref_ = make_shared<Reference>(*sref_, make_shared<Coeff>(move(*out_coeff)));
-    cout << "  o end of dimerize" << endl;
   }
 }
-
-

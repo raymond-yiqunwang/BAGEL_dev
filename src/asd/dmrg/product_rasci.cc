@@ -76,23 +76,12 @@ ProductRASCI::ProductRASCI(shared_ptr<const PTree> input, shared_ptr<const Refer
   // additional charge
   const int charge = input_->get<int>("charge", 0);
 
-  // Raymond version switch
-  const bool metal = input_->get<bool>("metal", false);
   // nspin is #unpaired electron 0:singlet, 1:doublet, 2:triplet, ... (i.e., Molpro convention).
   const int nspin = input_->get<int>("nspin", 0);
   if ((ref_->geom()->nele()+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified");
-  if (!metal) {
-    nelea_ = (ref_->geom()->nele()+nspin-charge)/2 - ncore_;
-    neleb_ = (ref_->geom()->nele()-nspin-charge)/2 - ncore_;
-cout << "!metal ProductRASCI : na = " << nelea_ << ", nb = " << neleb_ << endl;
-cout << "ncore = " << ncore_ << "nele = " << ref_->geom()->nele() << endl;
-  } else {
-    const int active_electrons = input_->get<int>("total_active_electrons");
-    nelea_ = (active_electrons + nspin - charge) / 2;
-    neleb_ = active_electrons - charge - nelea_;
-cout << "in ProductRASCI : na = " << nelea_ << ", nb = " << neleb_ << endl;
-  }
-  
+  nelea_ = (ref_->geom()->nele()+nspin-charge)/2 - ncore_;
+  neleb_ = (ref_->geom()->nele()-nspin-charge)/2 - ncore_;
+
   // TODO allow for zero electron (quick return)
   if (nelea_ < 0 || neleb_ < 0) throw runtime_error("#electrons cannot be negative in ProductRASCI");
 

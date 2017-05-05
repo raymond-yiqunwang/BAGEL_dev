@@ -42,18 +42,10 @@ RASD::RASD(const shared_ptr<const PTree> input, shared_ptr<MultiSite> multisite)
 void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
   auto restricted = input_->get_child("restricted");
 
-  // Raymond version switch
-  bool metal = input_->get<bool>("metal", false);
-  vector<int> active_electrons;
-  if (metal) active_electrons = input_->get_vector<int>("active_electrons");
-  auto read = [&input, &site, &metal, &active_electrons] (const shared_ptr<const PTree> inp, int current) {
+  auto read = [&input] (const shared_ptr<const PTree> inp, int current) {
     array<int, 3> nras = inp->get_array<int, 3>("orbitals");
     input->put("max_holes", inp->get<string>("max_holes"));
     input->put("max_particles", inp->get<string>("max_particles"));
-
-    input->put("metal", metal);
-    if (metal)
-      input->put("total_active_electrons", accumulate(active_electrons.begin(), (active_electrons.begin() + site + 1), 0));
 
     input->erase("active");
     auto parent = std::make_shared<PTree>();
