@@ -151,11 +151,14 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
   Timer rastime;
 
   bool append = false;
+  const bool metal = input_->get<bool>("metal", false);
 
   for (auto& inp : inputs) {
     // finish preparing the input
     inp->put("nclosed", ref->nclosed());
+    inp->put("metal", metal);
     read_restricted(inp, 0);
+    if (metal) inp->put("nactele", multisite_->active_electrons(0));
     const int spin = inp->get<int>("nspin");
     const int charge = inp->get<int>("charge");
     {
@@ -233,6 +236,8 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
   map<BlockKey, shared_ptr<const Matrix>> spinmap;
 
   shared_ptr<const DimerJop> jop;
+  
+  const bool metal = input_->get<bool>("metal", false);
 
   Timer growtime(2);
   for (auto& inp : inputs) {
@@ -240,7 +245,14 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
     const int charge = inp->get<int>("charge");
     const int spin = inp->get<int>("nspin");
     inp->put("nclosed", ref->nclosed());
+    inp->put("metal", metal);
     read_restricted(inp, site);
+    if (metal) {
+      int nactele = 0;
+      for (int i = 0; i != site + 1; ++i)
+        nactele += multisite_->active_electrons(i);
+      inp->put("nactele", nactele);
+    }
     {
       Muffle hide_cout("asd_dmrg.log", true);
       // ProductRAS calculations
@@ -315,10 +327,18 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
 }
 
 shared_ptr<DMRG_Block1> RASD::decimate_block(shared_ptr<PTree> input, shared_ptr<const Reference> ref, shared_ptr<DMRG_Block1> system, shared_ptr<DMRG_Block1> environment, const int site) {
+  const bool metal = input_->get<bool>("metal", false);
   Timer decimatetime(2);
   // assume the input is already fully formed, this may be revisited later
   input->put("nclosed", ref->nclosed());
+  input->put("metal", metal);
   read_restricted(input, site);
+  if (metal) {
+    int nactele = 0;
+    for (auto& i : multisite_->active_electrons())
+      nactele += i;
+    input->put("nactele", nactele);
+  }
   {
     Muffle hide_cout("asd_dmrg.log", true);
     // ProductRAS calculations

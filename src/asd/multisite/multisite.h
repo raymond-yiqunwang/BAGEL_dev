@@ -45,6 +45,7 @@ class MultiSite {
 
     double active_thresh_; // overlap threshold for inclusion in the active space
     std::vector<int> active_sizes_;
+    std::vector<int> active_electrons_;
 
     // reorder MO coeff to closed - active - virtual
     void set_active_metal();
@@ -77,6 +78,8 @@ class MultiSite {
     void precompute();
 
     int nsites() const { return nsites_; }
+    std::vector<int> active_electrons() const { return active_electrons_; }
+    int active_electrons(int i) const { return active_electrons_[i]; }
 
     /// Creates a Reference object for an ASD calculation
     std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield, bool metal = false) const;

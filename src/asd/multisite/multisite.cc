@@ -120,19 +120,21 @@ void MultiSite::set_active_metal() {
   // active orbitals with small basis
   auto prev_coeff = prev_ref_->coeff();
   auto prev_active = make_shared<Matrix>(prev_coeff->ndim(), nactive);
-  int pos = 0;
+  const int prev_nclosed = prev_ref_->nclosed();
+  int pos = 0; int prev_nactclo = 0;
   for (auto& iact : RefActList) {
+    if (iact < prev_nclosed) { ++prev_nactclo; }
     copy_n(prev_coeff->element_ptr(0, iact), prev_coeff->ndim(), prev_active->element_ptr(0, pos++));
   }
 
   // pick active orbitals with maximum overlap with small active orbitals from closed and virtual sets, respectively
   auto coeff = rhf_ref_->coeff();
   const MixedBasis<OverlapBatch> mix(geom_, prev_ref_->geom());
-
   const int multisitebasis = geom_->nbasis();
   const int nclosed_HF = rhf_ref_->nclosed();
-  const int nclosed = nclosed_HF - nactive/2;
+  const int nclosed = nclosed_HF - prev_nactclo;
   const int nvirt = multisitebasis - nclosed - nactive;
+
   int closed_position = 0;
   int active_position = nclosed;
   int virt_position = nclosed + nactive;
@@ -147,8 +149,8 @@ void MultiSite::set_active_metal() {
   // bool   --> closed(true) / virtual(false)
   vector<tuple<pair<int, int>, int, bool>> svd_info;
 
-  svd_info.emplace_back(make_pair(0         ,    nclosed_HF), nactive/2,  true);
-  svd_info.emplace_back(make_pair(nclosed_HF, multisitebasis), nactive/2, false);
+  svd_info.emplace_back(make_pair(0         ,    nclosed_HF), prev_nactclo,  true);
+  svd_info.emplace_back(make_pair(nclosed_HF, multisitebasis), nactive - prev_nactclo, false);
 
   for (auto& subset : svd_info) {
     pair<int, int> bounds = get<0>(subset);
@@ -177,8 +179,16 @@ void MultiSite::set_active_metal() {
     const int sublist_size = subActList.size();
     cout << "      - size of " << (closed ? "closed " : "virtual ") << "candidate space : " << sublist_size << endl;
     cout << "      - largest overlap with reference actorb : " << max_overlap << ", smallest : " << min_overlap << endl << endl;
+    
+    for (int i = 0; i != subcoeff->mdim(); ++i) {
+      if (subActList.find(i) != subActList.end()) copy_n(subcoeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, active_position++));
+      else copy_n(subcoeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, (closed ? closed_position++ : virt_position++)));
+    }   
 
-    // TODO check this part
+    if (sublist_size != nsubactive)
+      throw runtime_error("currently SVD is disabled, try higher active_thresh");
+/*
+    // TODO currently disable SVD, may turn on when necessary
     if (sublist_size != nsubactive) {
       cout << "        o Performing SVD in " << (closed ? "closed" : "virtual") << " candidate space" << endl;
       Matrix subspace(multisitebasis, sublist_size);
@@ -220,7 +230,8 @@ void MultiSite::set_active_metal() {
         if (subActList.find(i) != subActList.end()) copy_n(subcoeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, active_position++));
         else copy_n(subcoeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, (closed ? closed_position++ : virt_position++)));
       }   
-    }   
+    }
+*/
   }
 
   active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nactive, nvirt);
@@ -229,10 +240,10 @@ void MultiSite::set_active_metal() {
 
 void MultiSite::project_active() {
 
-  // define fragments (regions) of the multimer
+  // define fragments (regions) of the multisite
+  active_electrons_ = input_->get_vector<int>("active_electrons");
   vector<int> region_sizes = input_->get_vector<int>("region_sizes");
   nsites_ = region_sizes.size();
-  const int nregions(region_sizes.size());
   vector<pair<int, int>> basis_bounds;
   {
     int nbasis = 0;
@@ -264,7 +275,7 @@ void MultiSite::project_active() {
   int orboffset = 0;
   auto actcoeff = active_ref_->coeff()->get_submatrix(0, nclosed, multimerbasis, nact);
   auto tmp = actcoeff->clone();
-  for (int i = 0; i != nregions; ++i) {
+  for (int i = 0; i != nsites_; ++i) {
     const int nbasis = basis_bounds[i].second - basis_bounds[i].first;
     auto Sfrag = make_shared<Matrix>(nbasis, nbasis);
     auto Smix = make_shared<Matrix>(nbasis, multimerbasis);
@@ -298,8 +309,10 @@ void MultiSite::project_active() {
   // normalization
   {
     auto csc = make_shared<Matrix>(*tmp % S * *tmp);
-    for (int i = 0; i != nact; ++i)
-      for_each(tmp->element_ptr(0, i), tmp->element_ptr(multimerbasis, i), [&i, &csc] (double& p) { p /= sqrt(*csc->element_ptr(i, i)); });
+    for (int i = 0; i != nact; ++i) {
+      const double denom = sqrt(*csc->element_ptr(i, i));
+      for_each(tmp->element_ptr(0, i), tmp->element_ptr(multimerbasis, i), [&i, &denom, &csc] (double& p) { p /= denom; });
+    }
   }
   
   auto new_coeff = active_ref_->coeff()->copy();
@@ -330,14 +343,15 @@ void MultiSite::canonicalize() {
   const int multimerbasis = ref_->geom()->nbasis();
   const int nclosed = ref_->nclosed();
   const int nact = ref_->nact();
+  const int nactele = ref_->geom()->nele() - 2*nclosed;
 
   // projected active orbitals are partially occupied, modify density matrix accordingly
   auto density_coeff = ref_->coeff()->slice_copy(0, nclosed + nact);
-  blas::scale_n(sqrt(0.5), density_coeff->element_ptr(0, nclosed), multimerbasis * nact);
+  blas::scale_n(sqrt(0.5*nactele/nact), density_coeff->element_ptr(0, nclosed), multimerbasis * nact);
   auto density = density_coeff->form_density_rhf(nclosed + nact);
   auto fock = make_shared<const Fock<1>>(geom_, ref_->hcore(), density, density_coeff);
 
-  // canonicalize closed orbitals
+  // canonicalize closed orbitals TODO which is not necessary
   if (nclosed != 0) {
     auto clo_subspace = ref_->coeff()->slice_copy(0, nclosed);
     auto subfock = make_shared<Matrix>(*clo_subspace % *fock * *clo_subspace);
@@ -415,8 +429,10 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
     int current = ref_->nclosed();
     for (int i = 0; i != nsites_; ++i) {
       if (meanfield[i] && i != site) {
+        const int nele = active_electrons_[i];
+        const int norb = active_sizes_[i];
         auto scale_coeff = ref_->coeff()->slice_copy(current, current + active_sizes_[i]);
-        blas::scale_n(sqrt(0.5), scale_coeff->data(), scale_coeff->size());
+        blas::scale_n(sqrt(0.5*nele/norb), scale_coeff->data(), scale_coeff->size());
         closed_orbitals.push_back(scale_coeff);
       }
       current += active_sizes_[i];

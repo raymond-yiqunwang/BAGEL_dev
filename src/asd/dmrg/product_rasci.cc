@@ -78,9 +78,19 @@ ProductRASCI::ProductRASCI(shared_ptr<const PTree> input, shared_ptr<const Refer
 
   // nspin is #unpaired electron 0:singlet, 1:doublet, 2:triplet, ... (i.e., Molpro convention).
   const int nspin = input_->get<int>("nspin", 0);
-  if ((ref_->geom()->nele()+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified");
-  nelea_ = (ref_->geom()->nele()+nspin-charge)/2 - ncore_;
-  neleb_ = (ref_->geom()->nele()-nspin-charge)/2 - ncore_;
+  const bool metal = input_->get<bool>("metal", false);
+  if (!metal) {
+    if ((ref_->geom()->nele()+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified");
+    nelea_ = (ref_->geom()->nele()+nspin-charge)/2 - ncore_;
+    neleb_ = (ref_->geom()->nele()-nspin-charge)/2 - ncore_;
+  } else {
+    const int nactele = input_->get<int>("nactele");
+    nelea_ = (nactele + nspin - charge) / 2;
+    neleb_ = nactele - charge - nelea_;
+    assert(neleb_ == (nactele - nspin - charge)/2);
+    cout << "In ProdRASCI, nactele = " << nactele << endl;
+    cout << "nelea = " << nelea_ << ", neleb = " << neleb_ << endl;
+  }
 
   // TODO allow for zero electron (quick return)
   if (nelea_ < 0 || neleb_ < 0) throw runtime_error("#electrons cannot be negative in ProductRASCI");
