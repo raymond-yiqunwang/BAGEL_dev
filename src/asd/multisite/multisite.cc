@@ -340,14 +340,19 @@ void MultiSite::project_active() {
   dgels_("N", N, M, M, adata, N, bdata, N, work.get(), lwork, info);
   if (info != 0) throw runtime_error("dgels failed in projecting coeff");
   
-  auto solution = actcopy->get_submatrix(0, 0, M, M);
-  tmp = make_shared<Matrix>(*actcoeff * *solution);
+  auto solution = tmp->get_submatrix(0, 0, M, M);
+  actcoeff = make_shared<Matrix>(*actcoeff * *solution);
+
+  // Lowdin orthogonalization within active subspace
+  {
+    auto tildex = make_shared<Matrix>(*actcoeff % S * *actcoeff);
+    tildex->inverse_half();
+    actcoeff = make_shared<Matrix>(*actcoeff * *tildex);
+    cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
+  }
 
   auto new_coeff = active_ref_->coeff()->copy();
-  new_coeff->copy_block(0, nclosed, multimerbasis, nact, tmp->data());
-
-  auto test = make_shared<Matrix>(*new_coeff % S * *new_coeff);
-  test->print();
+  new_coeff->copy_block(0, nclosed, multimerbasis, nact, actcoeff->data());
 
   // update multimer information
   active_sizes_ = actsizes;
