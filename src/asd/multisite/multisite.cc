@@ -35,6 +35,17 @@
 using namespace std;
 using namespace bagel;
 
+extern "C" {
+  void dgels_(const char* trans, const int* m, const int* n, const int* nrhs, double* a, const int* lda,
+              double* b, const int* ldb, double* work, const int* lwork, int* info);
+}
+
+namespace {
+  void dgels_(const char* trans, const int m, const int n, const int nrhs, double* a, const int lda, 
+              double* b, const int ldb, double* work, const int lwork, int& info) {
+    ::dgels_(trans, &m, &n, &nrhs, a, &lda, b, &ldb, work, &lwork, &info); }
+}
+
 MultiSite::MultiSite(shared_ptr<const PTree> input, vector<shared_ptr<const Reference>> refs) : input_(input), nsites_(refs.size()) {
   // build the super geometry
   const shared_ptr<const PTree> mdata = input_->get_child_optional("molecule");
@@ -305,7 +316,7 @@ void MultiSite::project_active() {
     orboffset += actsizes[i];
   }
   assert(orboffset == nact);
-
+  
   // normalization
   {
     auto csc = make_shared<Matrix>(*tmp % S * *tmp);
@@ -314,15 +325,29 @@ void MultiSite::project_active() {
       for_each(tmp->element_ptr(0, i), tmp->element_ptr(multimerbasis, i), [&i, &denom, &csc] (double& p) { p /= denom; });
     }
   }
+
+  // DGELS is used to obtain the transformation matrix, projected orbitals cannot have linear dependancy
+  int N = actcoeff->ndim();
+  int M = actcoeff->mdim();
+  assert(N > M);
+  assert(M == tmp->mdim());
+  int lwork = 10 * N;
+  unique_ptr<double[]> work(new double[lwork]);
+  auto actcopy = actcoeff->copy();
+  double* adata = actcopy->data();
+  double* bdata = tmp->data();
+  int info = 0;
+  dgels_("N", N, M, M, adata, N, bdata, N, work.get(), lwork, info);
+  if (info != 0) throw runtime_error("dgels failed in projecting coeff");
   
+  auto solution = actcopy->get_submatrix(0, 0, M, M);
+  tmp = make_shared<Matrix>(*actcoeff * *solution);
+
   auto new_coeff = active_ref_->coeff()->copy();
   new_coeff->copy_block(0, nclosed, multimerbasis, nact, tmp->data());
 
-  // lowdin orthogonalization
-  auto tildex = make_shared<Matrix>(*new_coeff % S * *new_coeff);
-  tildex->inverse_half();
-  new_coeff = make_shared<Matrix>(*new_coeff * *tildex);
-  cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
+  auto test = make_shared<Matrix>(*new_coeff % S * *new_coeff);
+  test->print();
 
   // update multimer information
   active_sizes_ = actsizes;
