@@ -317,7 +317,7 @@ void MultiSite::project_active() {
   }
   assert(orboffset == nact);
   
-  // normalization
+  // normalize projected orbitals TODO check if necessary
   {
     auto csc = make_shared<Matrix>(*tmp % S * *tmp);
     for (int i = 0; i != nact; ++i) {
@@ -326,6 +326,7 @@ void MultiSite::project_active() {
     }
   }
 
+  // Now we want to solve min|| Act_coeff * x - tmp|| so that we will not change the active subspace
   // DGELS is used to obtain the transformation matrix, projected orbitals cannot have linear dependancy
   int N = actcoeff->ndim();
   int M = actcoeff->mdim();
@@ -341,8 +342,17 @@ void MultiSite::project_active() {
   if (info != 0) throw runtime_error("dgels failed in projecting coeff");
   
   auto solution = tmp->get_submatrix(0, 0, M, M);
+
+  // Lowdin orthogonalization for transformation matrix
+  {
+    auto tildeX = make_shared<Matrix>(*solution % *solution);
+    tildeX->inverse_half();
+    solution = make_shared<Matrix>(*solution * *tildeX);
+  }
+
   actcoeff = make_shared<Matrix>(*actcoeff * *solution);
 
+/*  
   // Lowdin orthogonalization within active subspace
   {
     auto tildex = make_shared<Matrix>(*actcoeff % S * *actcoeff);
@@ -350,6 +360,7 @@ void MultiSite::project_active() {
     actcoeff = make_shared<Matrix>(*actcoeff * *tildex);
     cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
   }
+*/
 
   auto new_coeff = active_ref_->coeff()->copy();
   new_coeff->copy_block(0, nclosed, multimerbasis, nact, actcoeff->data());
@@ -358,11 +369,6 @@ void MultiSite::project_active() {
   active_sizes_ = actsizes;
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
 
-#if 0
-  MoldenOut out("projected.molden");
-  out << geom_;
-  out << ref_;
-#endif
 }
 
 
