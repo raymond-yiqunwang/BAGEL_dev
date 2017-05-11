@@ -317,50 +317,35 @@ void MultiSite::project_active() {
   }
   assert(orboffset == nact);
   
-  // normalize projected orbitals TODO check if necessary
-  {
-    auto csc = make_shared<Matrix>(*tmp % S * *tmp);
-    for (int i = 0; i != nact; ++i) {
-      const double denom = sqrt(*csc->element_ptr(i, i));
-      for_each(tmp->element_ptr(0, i), tmp->element_ptr(multimerbasis, i), [&i, &denom, &csc] (double& p) { p /= denom; });
-    }
-  }
-
-  // Now we want to solve min|| Act_coeff * x - tmp|| so that we will not change the active subspace
+  // Now we want to solve min|| Act_coeff * x - tmp||, 
   // DGELS is used to obtain the transformation matrix, projected orbitals cannot have linear dependancy
-  int N = actcoeff->ndim();
-  int M = actcoeff->mdim();
-  assert(N > M);
-  assert(M == tmp->mdim());
-  int lwork = 10 * N;
-  unique_ptr<double[]> work(new double[lwork]);
-  auto actcopy = actcoeff->copy();
-  double* adata = actcopy->data();
-  double* bdata = tmp->data();
-  int info = 0;
-  dgels_("N", N, M, M, adata, N, bdata, N, work.get(), lwork, info);
-  if (info != 0) throw runtime_error("dgels failed in projecting coeff");
+  shared_ptr<Matrix> solution;
+  {
+    int N = actcoeff->ndim();
+    int M = actcoeff->mdim();
+    assert(N > M);
+    assert(M == tmp->mdim());
+    int lwork = 10 * N;
+    unique_ptr<double[]> work(new double[lwork]);
+    auto actcopy = actcoeff->copy();
+    double* adata = actcopy->data();
+    double* bdata = tmp->data();
+    int info = 0;
+    dgels_("N", N, M, M, adata, N, bdata, N, work.get(), lwork, info);
+    if (info != 0) throw runtime_error("dgels failed in projecting coeff");
   
-  auto solution = tmp->get_submatrix(0, 0, M, M);
+    solution = tmp->get_submatrix(0, 0, M, M);
+  }
 
   // Lowdin orthogonalization for transformation matrix
   {
     auto tildeX = make_shared<Matrix>(*solution % *solution);
     tildeX->inverse_half();
+    cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
     solution = make_shared<Matrix>(*solution * *tildeX);
   }
 
   actcoeff = make_shared<Matrix>(*actcoeff * *solution);
-
-/*  
-  // Lowdin orthogonalization within active subspace
-  {
-    auto tildex = make_shared<Matrix>(*actcoeff % S * *actcoeff);
-    tildex->inverse_half();
-    actcoeff = make_shared<Matrix>(*actcoeff * *tildex);
-    cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
-  }
-*/
 
   auto new_coeff = active_ref_->coeff()->copy();
   new_coeff->copy_block(0, nclosed, multimerbasis, nact, actcoeff->data());
