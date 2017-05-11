@@ -111,8 +111,10 @@ void MultiSite::precompute() {
 
   // reorder MO coeff to closed - active - virtual
   set_active_metal();
+  
   // project active orbitals to fragments
   project_active();
+  
   // canonicalize active orbitals in sub spaces
   canonicalize();
 }
@@ -371,16 +373,6 @@ void MultiSite::canonicalize() {
   blas::scale_n(sqrt(0.5*nactele/nact), density_coeff->element_ptr(0, nclosed), multimerbasis * nact);
   auto density = density_coeff->form_density_rhf(nclosed + nact);
   auto fock = make_shared<const Fock<1>>(geom_, ref_->hcore(), density, density_coeff);
-
-  // canonicalize closed orbitals TODO which is not necessary
-  if (nclosed != 0) {
-    auto clo_subspace = ref_->coeff()->slice_copy(0, nclosed);
-    auto subfock = make_shared<Matrix>(*clo_subspace % *fock * *clo_subspace);
-    VectorB eigs(nclosed);
-    subfock->diagonalize(eigs);
-    clo_subspace = make_shared<Matrix>(*clo_subspace * *subfock);
-    copy_n(clo_subspace->data(), multimerbasis * nclosed, out_coeff->element_ptr(0, 0));
-  }
 
   // canonicalize active orbitals in each fragment
   {
