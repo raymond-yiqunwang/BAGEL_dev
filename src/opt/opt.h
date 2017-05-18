@@ -34,7 +34,7 @@
 #include <src/grad/gradeval.h>
 #include <src/util/timer.h>
 #include <src/util/io/moldenout.h>
-#include <src/wfn/construct_method.h>
+#include <src/wfn/get_energy.h>
 #include <src/opt/constraint.h>
 #include <src/util/muffle.h>
 
@@ -71,7 +71,6 @@ class Opt {
     bool mass_weight_;
 
     bool numerical_;
-    double numerical_dx_;
 
     std::array<std::shared_ptr<const Matrix>,3> bmat_;
     std::array<std::shared_ptr<const Matrix>,4> bmat_red_;

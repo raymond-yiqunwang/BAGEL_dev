@@ -26,7 +26,7 @@
 #include <src/grad/force.h>
 #include <src/grad/gradeval.h>
 #include <src/grad/finite.h>
-#include <src/wfn/construct_method.h>
+#include <src/wfn/get_energy.h>
 
 using namespace std;
 using namespace bagel;
@@ -56,10 +56,7 @@ shared_ptr<GradFile> Force::compute() {
   for ( ; m != --input->end(); ++m) {
     const std::string title = to_lower((*m)->get<std::string>("title", ""));
     if (title != "molecule") {
-      shared_ptr<Method> c = construct_method(title, *m, geom_, ref);
-      if (!c) throw runtime_error("unknown method in force");
-      c->compute();
-      ref = c->conv_to_ref();
+      tie(ignore, ref) = get_energy(title, *m, geom_, ref);
     } else {
       geom_ = make_shared<const Geometry>(*geom_, *m);
       if (ref) ref = ref->project_coeff(geom_);
@@ -168,10 +165,11 @@ shared_ptr<GradFile> Force::compute() {
   if (numerical_) {
 
     const double dx = idata_->get<double>("dx", 1.0e-3);
+    const int nproc = idata_->get<int>("nproc", 1);
 
     if (jobtitle == "force") {
 
-      auto force = make_shared<FiniteGrad>(method, cinput, geom_, ref_, target, dx);
+      auto force = make_shared<FiniteGrad>(input, geom_, ref_, target, dx, nproc);
       out = force->compute();
       ref = force->ref();
 
@@ -179,13 +177,13 @@ shared_ptr<GradFile> Force::compute() {
 
       if (method == "casscf") {
 
-        auto force = make_shared<FiniteNacm<CASSCF>>(method, cinput, geom_, ref_, target, target2, dx);
+        auto force = make_shared<FiniteNacm<CASSCF>>(cinput, geom_, ref_, target, target2, dx, nproc);
         out = force->compute();
         ref = force->ref();
 
       } else if (method == "caspt2") {
 
-        auto force = make_shared<FiniteNacm<CASPT2Energy>>(method, cinput, geom_, ref_, target, target2, dx);
+        auto force = make_shared<FiniteNacm<CASPT2Energy>>(cinput, geom_, ref_, target, target2, dx, nproc);
         out = force->compute();
         ref = force->ref();
 

@@ -31,7 +31,6 @@
 #include <src/grad/gradeval.h>
 #include <src/util/timer.h>
 #include <src/util/io/moldenout.h>
-#include <src/wfn/construct_method.h>
 #include <src/opt/optimize.h>
 #include <src/opt/opt.h>
 #include <src/util/archive.h>
@@ -55,7 +54,6 @@ Opt::Opt(shared_ptr<const PTree> idat, shared_ptr<const PTree> inp, shared_ptr<c
   maxziter_ = idat->get<int>("maxziter", 100);
   scratch_ = idat->get<bool>("scratch", false);
   numerical_ = idat->get<bool>("numerical", false);
-  numerical_dx_ = idat->get<double>("numerical_dx", 0.001);
   hess_update_ = idat->get<string>("hess_update", "flowchart");
   hess_approx_ = idat->get<bool>("hess_approx", true);
 

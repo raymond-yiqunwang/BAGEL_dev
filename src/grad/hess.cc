@@ -26,7 +26,7 @@
 #include <src/grad/hess.h>
 #include <src/grad/force.h>
 #include <src/grad/finite.h>
-#include <src/wfn/construct_method.h>
+#include <src/wfn/get_energy.h>
 #include <src/grad/gradeval.h>
 #include <src/util/atommap.h>
 #include <src/util/constants.h>
@@ -53,10 +53,7 @@ Hess::Hess(shared_ptr<const PTree> idata, shared_ptr<const Geometry> g, shared_p
   for ( ; m != --input->end(); ++m) {
     const string title = to_lower((*m)->get<string>("title", ""));
     if (title != "molecule") {
-      shared_ptr<Method> c = construct_method(title, *m, geom_, r);
-      if (!c) throw runtime_error("unknown method in Hess");
-      c->compute();
-      r = c->conv_to_ref();
+      tie(energy_, r) = get_energy(title, *m, geom_, r);
     } else {
       geom_ = make_shared<Geometry>(*geom_, *m);
       if (r) r = r->project_coeff(geom_);
@@ -161,10 +158,12 @@ void Hess::compute_finite_diff_() {
           displ->element(j,i) = dx_;
           auto geom_plus = make_shared<Geometry>(*geom_, displ, make_shared<PTree>(), false, false);
           geom_plus->print_atoms();
-          if (ref_)
-            ref_ = ref_->project_coeff(geom_plus);
 
-          auto plus = make_shared<Force>(idata_, geom_plus, ref_);
+          shared_ptr<const Reference> ref_plus;
+          if (ref_)
+            ref_plus = ref_->project_coeff(geom_plus);
+
+          auto plus = make_shared<Force>(idata_, geom_plus, ref_plus);
           outplus = plus->compute();
           dipole_plus = plus->force_dipole();
         }
@@ -177,10 +176,12 @@ void Hess::compute_finite_diff_() {
           displ->element(j,i) = -dx_;
           auto geom_minus = make_shared<Geometry>(*geom_, displ, make_shared<PTree>(), false, false);
           geom_minus->print_atoms();
-          if (ref_)
-            ref_ = ref_->project_coeff(geom_minus);
 
-          auto minus = make_shared<Force>(idata_, geom_minus, ref_);
+          shared_ptr<const Reference> ref_minus;
+          if (ref_)
+            ref_minus = ref_->project_coeff(geom_minus);
+
+          auto minus = make_shared<Force>(idata_, geom_minus, ref_minus);
           outminus = minus->compute();
           dipole_minus = minus->force_dipole();
         }
