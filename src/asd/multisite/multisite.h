@@ -39,7 +39,7 @@ class MultiSite {
     std::shared_ptr<const Geometry> geom_;
 
     std::shared_ptr<const Reference> ref_;
-    std::shared_ptr<const Reference> rhf_ref_;
+    std::shared_ptr<const Reference> hf_ref_;
     std::shared_ptr<const Reference> prev_ref_;
     std::shared_ptr<const Reference> active_ref_;
 
@@ -54,6 +54,8 @@ class MultiSite {
     // canonicalize in sub-active spaces
     void canonicalize();
 
+    bool open_shell_;
+    
     int nsites_; // TODO better to be const
 
   protected:

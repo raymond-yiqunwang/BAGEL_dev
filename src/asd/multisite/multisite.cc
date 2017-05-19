@@ -92,16 +92,28 @@ MultiSite::MultiSite(shared_ptr<const PTree> input, vector<shared_ptr<const Refe
 }
 
 
-MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) : input_(itree), prev_ref_(ref) {
+MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) : input_(itree) {
   
   cout << " ===== Constructing MultiSite Geometry ===== " << endl;
   const shared_ptr<const PTree> moldata = itree->get_child("basis_info");
   geom_ = make_shared<Geometry>(*ref->geom(), moldata);
 
-  // direct rhf with larger basis
-  auto HFinfo = itree->get_child("hf_info") ? itree->get_child("hf_info") : make_shared<PTree>();
-  double energy;
-  tie(energy, rhf_ref_) = get_energy("hf", HFinfo, geom_, nullptr);
+  open_shell_ = itree->get<bool>("open_shell", false);
+  
+  // hf with larger basis
+  if (!open_shell_) {
+    prev_ref_ = make_shared<Reference>(*ref);
+    auto hf_info = itree->get_child("hf_info") ? itree->get_child("hf_info") : make_shared<PTree>();
+    double energy;
+    tie(energy, hf_ref_) = get_energy("hf", hf_info, geom_, nullptr);
+  } else {
+    prev_ref_ = make_shared<Reference>(ref->geom(), make_shared<const Coeff>(*ref->coeff()), ref->nact(), 0, ref->nvirt());
+    auto rohf_info = itree->get_child("rohf_info") ? itree->get_child("rohf_info"): make_shared<PTree>();
+    double energy;
+    tie(energy, hf_ref_)  = get_energy("rohf", rohf_info, geom_, nullptr);
+    hf_ref_ = make_shared<Reference>(geom_, make_shared<const Coeff>(*hf_ref_->coeff()), hf_ref_->nact(), 0, hf_ref_->nvirt());
+  }
+
 }
 
 
@@ -140,10 +152,10 @@ void MultiSite::set_active_metal() {
   }
 
   // pick active orbitals with maximum overlap with small active orbitals from closed and virtual sets, respectively
-  auto coeff = rhf_ref_->coeff();
+  auto coeff = hf_ref_->coeff();
   const MixedBasis<OverlapBatch> mix(geom_, prev_ref_->geom());
   const int multisitebasis = geom_->nbasis();
-  const int nclosed_HF = rhf_ref_->nclosed();
+  const int nclosed_HF = hf_ref_->nclosed();
   const int nclosed = nclosed_HF - prev_nactclo;
   const int nvirt = multisitebasis - nclosed - nactive;
 
@@ -207,7 +219,7 @@ void MultiSite::set_active_metal() {
 
       int ip = 0;
       for (auto& imo : subActList)
-        copy_n(rhf_ref_->coeff()->element_ptr(0, imo), multisitebasis, subspace.element_ptr(0, ip++));
+        copy_n(hf_ref_->coeff()->element_ptr(0, imo), multisitebasis, subspace.element_ptr(0, ip++));
 
       // by default active orbitals should be orthonormal, but here a general method is implemented
       Overlap SAO_prev(prev_ref_->geom());
