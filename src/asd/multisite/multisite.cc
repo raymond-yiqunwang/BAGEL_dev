@@ -26,7 +26,7 @@
 #include <src/mat1e/overlap.h>
 #include <src/util/muffle.h>
 #include <src/scf/hf/rhf.h>
-#include <src/wfn/construct_method.h>
+#include <src/wfn/get_energy.h>
 #include <src/util/io/moldenout.h>
 #include <src/mat1e/mixedbasis.h>
 #include <src/integral/os/overlapbatch.h>
@@ -100,9 +100,8 @@ MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> 
 
   // direct rhf with larger basis
   auto HFinfo = itree->get_child("hf_info") ? itree->get_child("hf_info") : make_shared<PTree>();
-  auto rhf = dynamic_pointer_cast<RHF>(construct_method("hf", HFinfo, geom_, nullptr));
-  rhf->compute();
-  rhf_ref_ = rhf->conv_to_ref();
+  double energy;
+  tie(energy, rhf_ref_) = get_energy("hf", HFinfo, geom_, nullptr);
 }
 
 
