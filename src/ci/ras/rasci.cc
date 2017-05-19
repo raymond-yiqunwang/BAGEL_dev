@@ -80,11 +80,12 @@ void RASCI::common_init() {
   const int nspin = idata_->get<int>("nspin", 0);
   const bool metal = idata_->get<bool>("metal", false);
   if (!metal) {
-    if ((geom_->nele()+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified");
+    if ((geom_->nele()+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified in RASCI");
     nelea_ = (geom_->nele()+nspin-charge)/2 - ncore_;
     neleb_ = (geom_->nele()-nspin-charge)/2 - ncore_;
   } else {
     const int nactele = idata_->get<int>("nactele");
+    if ((nactele+nspin-charge) % 2 != 0) throw runtime_error("Invalid nspin specified in RASCI");
     nelea_ = (nactele + nspin - charge) / 2;
     neleb_ = nactele - charge -nelea_;
     cout << "In RASCI, nactele = " << nactele << endl;
