@@ -92,33 +92,9 @@ MultiSite::MultiSite(shared_ptr<const PTree> input, vector<shared_ptr<const Refe
 }
 
 
-MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) : input_(itree) {
+MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) : input_(itree), geom_(ref->geom()), hf_ref_(ref) {
   
-  cout << " ===== Constructing MultiSite Geometry ===== " << endl;
-  const shared_ptr<const PTree> moldata = itree->get_child("basis_info");
-  geom_ = make_shared<Geometry>(*ref->geom(), moldata);
-
-  open_shell_ = itree->get<bool>("open_shell", false);
-  
-  // hf with larger basis
-  if (!open_shell_) {
-    prev_ref_ = make_shared<Reference>(*ref);
-    auto hf_info = itree->get_child("hf_info") ? itree->get_child("hf_info") : make_shared<PTree>();
-    double energy;
-    tie(energy, hf_ref_) = get_energy("hf", hf_info, geom_, nullptr);
-  } else {
-    prev_ref_ = make_shared<Reference>(ref->geom(), make_shared<const Coeff>(*ref->coeff()), ref->nact(), 0, ref->nvirt());
-    auto rohf_info = itree->get_child("rohf_info") ? itree->get_child("rohf_info"): make_shared<PTree>();
-    double energy;
-    tie(energy, hf_ref_)  = get_energy("rohf", rohf_info, geom_, nullptr);
-    hf_ref_ = make_shared<Reference>(geom_, make_shared<const Coeff>(*hf_ref_->coeff()), hf_ref_->nact(), 0, hf_ref_->nvirt());
-  }
-
-}
-
-
-// preparation for ASD-DMRG
-void MultiSite::precompute() {
+  cout << " ===== Constructing MultiSite Molecular Orbitals ===== " << endl;
 
   // reorder MO coeff to closed - active - virtual
   set_active_metal();
@@ -128,6 +104,7 @@ void MultiSite::precompute() {
   
   // canonicalize active orbitals in sub spaces
   canonicalize();
+
 }
 
 
@@ -137,127 +114,35 @@ void MultiSite::set_active_metal() {
   cout << "    o Forming multisite active orbitals from reference active list" << endl << endl;
 
   auto isp = input_->get_child("multisite_active");
-  set<int> RefActList;
-  for (auto& s : *isp) { RefActList.insert(lexical_cast<int>(s->data())-1); };
-  const int nactive = RefActList.size();
+  set<int> ActList;
+  for (auto& s : *isp) { ActList.insert(lexical_cast<int>(s->data())-1); };
+  
+  const int charge = input_->get<int>("charge", 0);
+  
+  const vector<int> act_electrons = input_->get_vector<int>("active_electrons");
+  const int nactele = accumulate(act_electrons.begin(), act_electrons.end(), 0);
+  cout << "number of nactele = " << nactele << endl;
 
-  // active orbitals with small basis
-  auto prev_coeff = prev_ref_->coeff();
-  auto prev_active = make_shared<Matrix>(prev_coeff->ndim(), nactive);
-  const int prev_nclosed = prev_ref_->nclosed();
-  int pos = 0; int prev_nactclo = 0;
-  for (auto& iact : RefActList) {
-    if (iact < prev_nclosed) { ++prev_nactclo; }
-    copy_n(prev_coeff->element_ptr(0, iact), prev_coeff->ndim(), prev_active->element_ptr(0, pos++));
-  }
-
-  // pick active orbitals with maximum overlap with small active orbitals from closed and virtual sets, respectively
-  auto coeff = hf_ref_->coeff();
-  const MixedBasis<OverlapBatch> mix(geom_, prev_ref_->geom());
   const int multisitebasis = geom_->nbasis();
-  const int nclosed_HF = hf_ref_->nclosed();
-  const int nclosed = nclosed_HF - prev_nactclo;
-  const int nvirt = multisitebasis - nclosed - nactive;
+  const int nactive = ActList.size();
+  const int nclosed = (geom_->nele() - charge -nactele) / 2;
+  cout << "number of nclosed = " << nclosed << endl;
+  assert ((geom_->nele() - charge -nactele) % 2 == 0);
+  const int nvirt = multisitebasis - nactive - nclosed;
 
+  auto hf_coeff = hf_ref_->coeff();
+  auto out_coeff = make_shared<Matrix>(multisitebasis, multisitebasis);
+  
+  int iclosed = 0;
   int closed_position = 0;
   int active_position = nclosed;
   int virt_position = nclosed + nactive;
-
-  auto out_coeff = make_shared<Matrix>(multisitebasis, multisitebasis);
-
-  // now deal with active orbitals
-  // tuple information:
-  // matrix --> reference active orbitals
-  // pair   --> bounds to construct subspace
-  // int    --> number of active orbitals to form
-  // bool   --> closed(true) / virtual(false)
-  vector<tuple<pair<int, int>, int, bool>> svd_info;
-
-  svd_info.emplace_back(make_pair(0         ,    nclosed_HF), prev_nactclo,  true);
-  svd_info.emplace_back(make_pair(nclosed_HF, multisitebasis), nactive - prev_nactclo, false);
-
-  for (auto& subset : svd_info) {
-    pair<int, int> bounds = get<0>(subset);
-    const int nsubactive = get<1>(subset);
-    const bool closed = get<2>(subset);
-
-    auto subcoeff = coeff->slice_copy(bounds.first, bounds.second);
-    auto overlap = make_shared<const Matrix>(*prev_active % mix * *subcoeff);
-
-    multimap<double, int> norms;
-    for (int i = 0; i != overlap->mdim(); ++i) {
-      const double norm = blas::dot_product(overlap->element_ptr(0, i), overlap->ndim(), overlap->element_ptr(0, i));
-      norms.emplace(norm, i);
-    }
-
-    set<int> subActList;
-    active_thresh_ = input_->get<double>("active_thresh", 0.5);
-    double max_overlap, min_overlap;
-    {   
-      auto end = norms.rbegin(); advance(end, nsubactive);
-      end = find_if(end, norms.rend(), [this] (const pair<double, int>& p) { return p.first < active_thresh_; }); 
-      for_each(norms.rbegin(), end, [&subActList] (const pair<double, int>& p) { subActList.emplace(p.second); }); 
-      auto mnmx = minmax_element(norms.rbegin(), end);
-      tie(min_overlap, max_overlap) = make_tuple(mnmx.first->first, mnmx.second->first);
-    }   
-    const int sublist_size = subActList.size();
-    cout << "      - size of " << (closed ? "closed " : "virtual ") << "candidate space : " << sublist_size << endl;
-    cout << "      - largest overlap with reference actorb : " << max_overlap << ", smallest : " << min_overlap << endl << endl;
-    
-    for (int i = 0; i != subcoeff->mdim(); ++i) {
-      if (subActList.find(i) != subActList.end()) copy_n(subcoeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, active_position++));
-      else copy_n(subcoeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, (closed ? closed_position++ : virt_position++)));
-    }   
-
-    if (sublist_size != nsubactive)
-      throw runtime_error("currently SVD is disabled, try higher active_thresh");
-/*
-    // TODO currently disable SVD, may turn on when necessary
-    if (sublist_size != nsubactive) {
-      cout << "        o Performing SVD in " << (closed ? "closed" : "virtual") << " candidate space" << endl;
-      Matrix subspace(multisitebasis, sublist_size);
-
-      int ip = 0;
-      for (auto& imo : subActList)
-        copy_n(hf_ref_->coeff()->element_ptr(0, imo), multisitebasis, subspace.element_ptr(0, ip++));
-
-      // by default active orbitals should be orthonormal, but here a general method is implemented
-      Overlap SAO_prev(prev_ref_->geom());
-      Matrix SMO_prev_inv(*prev_active % SAO_prev * *prev_active);
-      SMO_prev_inv.inverse_symmetric();
-
-      Matrix projector(SMO_prev_inv * (*prev_active % mix * subspace));
-      vector<double> singulars(sublist_size, 0.0);
-      shared_ptr<Matrix> V;
-      tie(ignore, V) = projector.svd(singulars.data());
-      cout << "          - largest used singular value : " << singulars[0] << ", smallest : " << singulars[nsubactive - 1] << endl;
-      cout << "          - largest ignored singular value : " << singulars[nsubactive] << endl << endl;
-
-      subspace = subspace ^ *V;
-
-      // fill in closed / virtual orbitals
-      for (int i = 0; i != subcoeff->mdim(); ++i) {
-        if (subActList.find(i) == subActList.end())
-          copy_n(subspace.element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, (closed ? closed_position++ : virt_position++)));
-      }   
-
-      // fill in active orbitals
-      copy_n(subspace.data(), multisitebasis * nsubactive, out_coeff->element_ptr(0, active_position));
-      active_position += nsubactive;
-
-      // non-active orbitals in subActList
-      for (int i = nsubactive; i != sublist_size; ++i) {
-        copy_n(subspace.element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, (closed ? closed_position++ : virt_position++)));
-      }   
-    } else {
-      for (int i = 0; i != subcoeff->mdim(); ++i) {
-        if (subActList.find(i) != subActList.end()) copy_n(subcoeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, active_position++));
-        else copy_n(subcoeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, (closed ? closed_position++ : virt_position++)));
-      }   
-    }
-*/
-  }
-
+  for (int i = 0; i != multisitebasis; ++i) {
+    if (ActList.find(i) != ActList.end()) copy_n(hf_coeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, active_position++));
+    else copy_n(hf_coeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, ((iclosed < nclosed) ? (++iclosed, closed_position++) : virt_position++)));
+  } 
+  assert (virt_position == multisitebasis + 1);
+  
   active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nactive, nvirt);
 }
 

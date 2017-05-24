@@ -40,7 +40,6 @@ class MultiSite {
 
     std::shared_ptr<const Reference> ref_;
     std::shared_ptr<const Reference> hf_ref_;
-    std::shared_ptr<const Reference> prev_ref_;
     std::shared_ptr<const Reference> active_ref_;
 
     double active_thresh_; // overlap threshold for inclusion in the active space
@@ -54,8 +53,6 @@ class MultiSite {
     // canonicalize in sub-active spaces
     void canonicalize();
 
-    bool open_shell_;
-    
     int nsites_; // TODO better to be const
 
   protected:
