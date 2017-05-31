@@ -174,8 +174,9 @@ void FormSigmaProdRAS::diagonal_terms(shared_ptr<const ProductRASCivec> cc, shar
 
 
 void FormSigmaProdRAS::interaction_terms(shared_ptr<const ProductRASCivec> cc, shared_ptr<ProductRASCivec> sigma, shared_ptr<const BlockOperators> blockops, shared_ptr<DimerJop> jop) const {
-  Timer ptime(2);
-
+  //Timer ptime(2);
+  Timer ptime(3);
+  
   for (auto& isec : cc->sectors()) {
     shared_ptr<const RASBlockVectors> cc_sector = isec.second;
     const BlockKey cc_key = isec.first;
