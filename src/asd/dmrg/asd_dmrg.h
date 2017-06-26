@@ -48,6 +48,7 @@ class ASD_DMRG {
     std::vector<std::vector<double>> sweep_energies_; ///< Stores the energies of each state for each step of the sweep
     std::vector<double> energies_; ///< final energies
 
+    bool metal_;
     int nsites_;  ///< Number of sites in the DMRG model
     int nstate_;  ///< Number of states to target
     int maxiter_; ///< Maximum number of full sweeps to perform

@@ -151,14 +151,13 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
   Timer rastime;
 
   bool append = false;
-  const bool metal = input_->get<bool>("metal", false);
 
   for (auto& inp : inputs) {
     // finish preparing the input
     inp->put("nclosed", ref->nclosed());
-    inp->put("metal", metal);
+    inp->put("metal", metal_);
     read_restricted(inp, 0);
-    if (metal) inp->put("nactele", multisite_->active_electrons(0));
+    if (metal_) inp->put("nactele", multisite_->active_electrons(0));
     const int spin = inp->get<int>("nspin");
     const int charge = inp->get<int>("charge");
     {
@@ -219,9 +218,30 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
                                     << fixed << setw(10) << setprecision(2) << rastime.tick() << endl;
   }
 
+  { //Debugging
+    Muffle hide_cout("rasci.log", false);
+    cout << "In RASCI:" << endl;
+    for (auto& iter : states) {
+      cout << endl;
+      const int nelea = iter.first.nelea;
+      const int neleb = iter.first.neleb;
+      cout << "nelea = " << nelea << ", neleb = " << neleb << endl;
+      BlockKey key(nelea, neleb);
+      cout << "civecs:" << endl;
+      iter.second->print();
+      cout << "Hamiltonian:" << endl;
+      hmap[key]->print();
+      cout << "spin matrix:" << endl;
+      spinmap[key]->print();
+      cout << std::string(50, '=') << endl;
+    }
+  }
+
   GammaForestASD<RASDvec> forest(states);
   rastime.tick_print("construct forest");
   forest.compute();
+  //Debugging
+  cout << "GammaForestASD->size = " << forest.sparselist().size() << endl;
   rastime.tick_print("compute forest");
   auto coeff = ref->coeff()->slice_copy(ref->nclosed(), ref->nclosed() + ref->nact());
   rastime.tick_print("coeff ");
@@ -237,20 +257,17 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
 
   shared_ptr<const DimerJop> jop;
   
-  const bool metal = input_->get<bool>("metal", false);
-
   Timer growtime(2);
   for (auto& inp : inputs) {
     // finish preparing the input
     const int charge = inp->get<int>("charge");
     const int spin = inp->get<int>("nspin");
     inp->put("nclosed", ref->nclosed());
-    inp->put("metal", metal);
+    inp->put("metal", metal_);
     read_restricted(inp, site);
-    if (metal) {
-      int nactele = 0;
-      for (int i = 0; i != site + 1; ++i)
-        nactele += multisite_->active_electrons(i);
+    if (metal_) {
+      vector<int> actvec = multisite_->active_electrons();
+      const int nactele = accumulate(actvec.begin(), (actvec.begin()+site+1), 0);
       inp->put("nactele", nactele);
     }
     {
@@ -327,20 +344,19 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
 }
 
 shared_ptr<DMRG_Block1> RASD::decimate_block(shared_ptr<PTree> input, shared_ptr<const Reference> ref, shared_ptr<DMRG_Block1> system, shared_ptr<DMRG_Block1> environment, const int site) {
-  const bool metal = input_->get<bool>("metal", false);
+  
   Timer decimatetime(2);
   // assume the input is already fully formed, this may be revisited later
   input->put("nclosed", ref->nclosed());
-  input->put("metal", metal);
+  input->put("metal", metal_);
   read_restricted(input, site);
-  if (metal) {
-    int nactele = 0;
-    for (auto& i : multisite_->active_electrons())
-      nactele += i;
+  if (metal_) {
+    vector<int> actvec = multisite_->active_electrons();
+    const int nactele = accumulate(actvec.begin(), actvec.end(), input->get<int>("charge"));
     input->put("nactele", nactele);
   }
   {
-    Muffle hide_cout("asd_dmrg.log", true);
+    Muffle hide_cout("product.log", true);
     // ProductRAS calculations
     if (!system) {
       auto prod_ras = make_shared<ProductRASCI>(input, ref, environment);
@@ -559,7 +575,7 @@ map<BlockKey, shared_ptr<const RASDvec>> RASD::diagonalize_site_RDM(const vector
   int nvectors = 0;
   double partial_trace = 0.0;
   for (auto i = singular_values.rbegin(); i != singular_values.rend(); ++i, ++nvectors) {
-    if (nvectors==ntrunc_) break;
+    if (nvectors==ntrunc_) { cout << "number of vectors == ntrunc" << endl; break; }
     BlockKey bk = get<0>(i->second);
     const int position = get<1>(i->second);
 
@@ -576,6 +592,7 @@ map<BlockKey, shared_ptr<const RASDvec>> RASD::diagonalize_site_RDM(const vector
     output_vectors[get<0>(i->second)].push_back(tmp);
     partial_trace += i->first;
   }
+  cout << "number of vectors = " << nvectors << endl;
   const double total_trace = accumulate(singular_values.begin(), singular_values.end(), 0.0,
                                           [] (double x, pair<double, tuple<BlockKey, int>> s) { return x + s.first; } );
   cout << "  discarded weights: " << setw(12) << setprecision(8) << scientific <<  total_trace - partial_trace << fixed << endl;
@@ -790,7 +807,7 @@ map<BlockKey, vector<shared_ptr<ProductRASCivec>>> RASD::diagonalize_site_and_bl
   int nvectors = 0;
   double partial_trace = 0.0;
   for (auto i = singular_values.rbegin(); i != singular_values.rend(); ++i, ++nvectors) {
-    if (nvectors==ntrunc_) break;
+    if (nvectors==ntrunc_) { cout << "number of vectors == ntrunc" << endl; break; }
     BlockKey bk = get<0>(i->second);
     const int position = get<1>(i->second);
 

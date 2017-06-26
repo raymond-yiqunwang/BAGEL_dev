@@ -31,6 +31,7 @@
 #include <src/mat1e/mixedbasis.h>
 #include <src/integral/os/overlapbatch.h>
 #include <src/scf/hf/fock.h>
+#include <src/ci/fci/harrison.h>
 
 using namespace std;
 using namespace bagel;
@@ -95,7 +96,15 @@ MultiSite::MultiSite(shared_ptr<const PTree> input, vector<shared_ptr<const Refe
 MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) : input_(itree), geom_(ref->geom()), hf_ref_(ref) {
   
   cout << " ===== Constructing MultiSite Molecular Orbitals ===== " << endl;
-
+  
+  //Debugging
+  cout << "FCI_HF" << endl;
+  shared_ptr<const PTree> fci_input = input_->get_child_optional("fci");
+  if (fci_input) {
+    auto fci = make_shared<HarrisonZarrabian>(fci_input, geom_, ref);
+    fci->compute();
+  }
+  
   // reorder MO coeff to closed - active - virtual
   set_active_metal();
   
@@ -111,22 +120,17 @@ MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> 
 // pick active orbitals from reference actorbs
 void MultiSite::set_active_metal() {
   
-  cout << "    o Forming multisite active orbitals from reference active list" << endl << endl;
-
   auto isp = input_->get_child("multisite_active");
   set<int> ActList;
   for (auto& s : *isp) { ActList.insert(lexical_cast<int>(s->data())-1); };
   
+  active_electrons_ = input_->get_vector<int>("active_electrons");
+  const int nactele = accumulate(active_electrons_.begin(), active_electrons_.end(), 0);
   const int charge = input_->get<int>("charge", 0);
-  
-  const vector<int> act_electrons = input_->get_vector<int>("active_electrons");
-  const int nactele = accumulate(act_electrons.begin(), act_electrons.end(), 0);
-  cout << "number of nactele = " << nactele << endl;
 
   const int multisitebasis = geom_->nbasis();
   const int nactive = ActList.size();
-  const int nclosed = (geom_->nele() - charge -nactele) / 2;
-  cout << "number of nclosed = " << nclosed << endl;
+  const int nclosed = (geom_->nele() - charge - nactele) / 2;
   assert ((geom_->nele() - charge -nactele) % 2 == 0);
   const int nvirt = multisitebasis - nactive - nclosed;
 
@@ -144,13 +148,13 @@ void MultiSite::set_active_metal() {
   assert (virt_position == multisitebasis + 1);
   
   active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nactive, nvirt);
+  
 }
 
 
 void MultiSite::project_active() {
 
   // define fragments (regions) of the multisite
-  active_electrons_ = input_->get_vector<int>("active_electrons");
   vector<int> region_sizes = input_->get_vector<int>("region_sizes");
   nsites_ = region_sizes.size();
   vector<pair<int, int>> basis_bounds;
@@ -179,7 +183,7 @@ void MultiSite::project_active() {
   Overlap S(geom_);
 
   // project active orbitals to each fragement and do SVD
-  vector<int> actsizes = input_->get_vector<int>("active_sizes");
+  active_sizes_ = input_->get_vector<int>("active_sizes");
   int basisoffset = 0;
   int orboffset = 0;
   auto actcoeff = active_ref_->coeff()->get_submatrix(0, nclosed, multimerbasis, nact);
@@ -203,15 +207,15 @@ void MultiSite::project_active() {
       auto CC = make_shared<Matrix>(*projected % *Sfrag *  *projected);
       VectorB eig(projected->mdim());
       CC->diagonalize(eig);
-      auto P = CC->get_submatrix(0, (CC->mdim() - actsizes[i]), CC->ndim(), actsizes[i]);
+      auto P = CC->get_submatrix(0, (CC->mdim() - active_sizes_[i]), CC->ndim(), active_sizes_[i]);
       auto temp = make_shared<const Matrix>(*projected * *P);
       reduced = make_shared<Matrix>(multimerbasis, temp->mdim());
       reduced->copy_block(basisoffset, 0, nbasis, temp->mdim(), temp->data());
     }
-    tmp->copy_block(0, orboffset, multimerbasis, actsizes[i], reduced->data());
+    tmp->copy_block(0, orboffset, multimerbasis, active_sizes_[i], reduced->data());
 
     basisoffset += nbasis;
-    orboffset += actsizes[i];
+    orboffset += active_sizes_[i];
   }
   assert(orboffset == nact);
   
@@ -242,16 +246,22 @@ void MultiSite::project_active() {
     cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
     solution = make_shared<Matrix>(*solution * *tildeX);
   }
+  //Debugging
+  cout << "AX-B:" << endl;
+  auto ori = make_shared<Matrix>(*actcoeff);
 
   actcoeff = make_shared<Matrix>(*actcoeff * *solution);
+  //Debugging continued
+  auto test = make_shared<Matrix>(*actcoeff - *ori);
+  double norm = test->norm();
+  cout << "norm = " << norm << endl;
 
   auto new_coeff = active_ref_->coeff()->copy();
   new_coeff->copy_block(0, nclosed, multimerbasis, nact, actcoeff->data());
 
   // update multimer information
-  active_sizes_ = actsizes;
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
-
+  
 }
 
 
@@ -287,6 +297,14 @@ void MultiSite::canonicalize() {
 
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nact, ref_->nvirt());
   
+  //Debugging
+  cout << "FCI_new_coeff" << endl;
+  shared_ptr<const PTree> fci_input = input_->get_child_optional("fci");
+  if (fci_input) {
+    auto fci = make_shared<HarrisonZarrabian>(fci_input, geom_, ref_);
+    fci->compute();
+  }
+
 #if 1
   MoldenOut out("canonicalized.molden");
   out << geom_;
@@ -329,8 +347,7 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
 
   } else {// Raymond version
 
-    int act_start = ref_->nclosed();
-    for (int i = 0; i != site; ++i) act_start += active_sizes_[i];
+    const int act_start = accumulate(active_sizes_.begin(), active_sizes_.begin()+site, ref_->nclosed());
     const int nact = active_sizes_[site];
     const Matrix active_orbitals = ref_->coeff()->slice(act_start, act_start + nact);
 

@@ -30,6 +30,7 @@ using namespace std;
 using namespace bagel;
 
 ASD_DMRG::ASD_DMRG(shared_ptr<const PTree> input, shared_ptr<const MultiSite> multisite) : input_(input), multisite_(multisite) {
+  metal_ = input_->get<bool>("metal", false);
   nsites_ = multisite->nsites();
   nstate_ = input_->get<int>("nstate", 1);
   ntrunc_ = input_->get<int>("ntrunc");

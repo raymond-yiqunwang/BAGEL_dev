@@ -32,8 +32,9 @@ namespace bagel {
 
 shared_ptr<RASD> construct_ASD_METAL(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) {
   
-  shared_ptr<const PTree> multisite_info = itree->get_child("multisite");
-  auto multisite = make_shared<MultiSite>(multisite_info, ref);
+//  shared_ptr<const PTree> multisite_info = itree->get_child("multisite");
+//  auto multisite = make_shared<MultiSite>(multisite_info, ref);
+  auto multisite = make_shared<MultiSite>(itree, ref);
 
   auto out = make_shared<RASD>(itree, multisite);
 
