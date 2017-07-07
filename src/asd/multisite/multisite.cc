@@ -96,14 +96,14 @@ MultiSite::MultiSite(shared_ptr<const PTree> input, vector<shared_ptr<const Refe
 MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) : input_(itree), geom_(ref->geom()), hf_ref_(ref) {
   
   cout << " ===== Constructing MultiSite Molecular Orbitals ===== " << endl;
-  
-  //Debugging
-  cout << "FCI_HF" << endl;
-  shared_ptr<const PTree> fci_input = input_->get_child_optional("fci");
-  if (fci_input) {
-    auto fci = make_shared<HarrisonZarrabian>(fci_input, geom_, ref);
-    fci->compute();
+#if 1
+  auto fci_info = input_->get_child_optional("fci");
+  if (fci_info) {
+    cout << " *** FCI with HF orbitals" << endl;
+    auto hf_fci = make_shared<HarrisonZarrabian>(fci_info, geom_, hf_ref_);
+    hf_fci->compute();
   }
+#endif
   
   // reorder MO coeff to closed - active - virtual
   set_active_metal();
@@ -135,7 +135,7 @@ void MultiSite::set_active_metal() {
   const int nvirt = multisitebasis - nactive - nclosed;
 
   auto hf_coeff = hf_ref_->coeff();
-  auto out_coeff = make_shared<Matrix>(multisitebasis, multisitebasis);
+  auto out_coeff = hf_coeff->clone();
   
   int iclosed = 0;
   int closed_position = 0;
@@ -146,7 +146,7 @@ void MultiSite::set_active_metal() {
     else copy_n(hf_coeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, ((iclosed < nclosed) ? (++iclosed, closed_position++) : virt_position++)));
   } 
   assert (virt_position == multisitebasis + 1);
-  
+
   active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nactive, nvirt);
   
 }
@@ -246,22 +246,15 @@ void MultiSite::project_active() {
     cout << "    *** If linear dependency is detected, you shall try to find better initial active orbital guess ***   " << endl;
     solution = make_shared<Matrix>(*solution * *tildeX);
   }
-  //Debugging
-  cout << "AX-B:" << endl;
-  auto ori = make_shared<Matrix>(*actcoeff);
 
   actcoeff = make_shared<Matrix>(*actcoeff * *solution);
-  //Debugging continued
-  auto test = make_shared<Matrix>(*actcoeff - *ori);
-  double norm = test->norm();
-  cout << "norm = " << norm << endl;
 
   auto new_coeff = active_ref_->coeff()->copy();
   new_coeff->copy_block(0, nclosed, multimerbasis, nact, actcoeff->data());
 
   // update multimer information
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
-  
+
 }
 
 
@@ -297,15 +290,10 @@ void MultiSite::canonicalize() {
 
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nact, ref_->nvirt());
   
-  //Debugging
-  cout << "FCI_new_coeff" << endl;
-  shared_ptr<const PTree> fci_input = input_->get_child_optional("fci");
-  if (fci_input) {
-    auto fci = make_shared<HarrisonZarrabian>(fci_input, geom_, ref_);
-    fci->compute();
-  }
-
 #if 1
+  MoldenOut hf("hf.molden");
+  hf << geom_;
+  hf << hf_ref_;
   MoldenOut out("canonicalized.molden");
   out << geom_;
   out << ref_;

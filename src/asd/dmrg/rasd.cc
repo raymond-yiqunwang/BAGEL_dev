@@ -218,25 +218,6 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
                                     << fixed << setw(10) << setprecision(2) << rastime.tick() << endl;
   }
 
-  { //Debugging
-    Muffle hide_cout("rasci.log", false);
-    cout << "In RASCI:" << endl;
-    for (auto& iter : states) {
-      cout << endl;
-      const int nelea = iter.first.nelea;
-      const int neleb = iter.first.neleb;
-      cout << "nelea = " << nelea << ", neleb = " << neleb << endl;
-      BlockKey key(nelea, neleb);
-      cout << "civecs:" << endl;
-      iter.second->print();
-      cout << "Hamiltonian:" << endl;
-      hmap[key]->print();
-      cout << "spin matrix:" << endl;
-      spinmap[key]->print();
-      cout << std::string(50, '=') << endl;
-    }
-  }
-
   GammaForestASD<RASDvec> forest(states);
   rastime.tick_print("construct forest");
   forest.compute();
@@ -356,7 +337,7 @@ shared_ptr<DMRG_Block1> RASD::decimate_block(shared_ptr<PTree> input, shared_ptr
     input->put("nactele", nactele);
   }
   {
-    Muffle hide_cout("product.log", true);
+    Muffle hide_cout("asd_dmrg.log", true);
     // ProductRAS calculations
     if (!system) {
       auto prod_ras = make_shared<ProductRASCI>(input, ref, environment);

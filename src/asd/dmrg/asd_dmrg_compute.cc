@@ -165,7 +165,7 @@ void ASD_DMRG::down_sweep() {
       for (int site = nsites_-1; site > 0; --site) {
         left_block = left_blocks_[site-1];
         right_block = (site == nsites_-1) ? nullptr : right_blocks_[nsites_ - site - 2];
-        shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
+        shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal_);
 
         right_block = decimate_block(prepare_sweeping_input(site), ref, right_block, left_block, site);
         right_blocks_[nsites_ - site - 1] = right_block;
@@ -176,7 +176,7 @@ void ASD_DMRG::down_sweep() {
       for (int site = 0; site < nsites_-1; ++site) {
         left_block = (site == 0) ? nullptr : left_blocks_[site-1];
         right_block = right_blocks_[nsites_ - site - 2];
-        shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
+        shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal_);
 
         left_block = decimate_block(prepare_sweeping_input(site), ref, left_block, right_block, site);
         left_blocks_[site] = left_block;

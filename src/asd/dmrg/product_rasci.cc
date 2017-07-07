@@ -89,8 +89,6 @@ ProductRASCI::ProductRASCI(shared_ptr<const PTree> input, shared_ptr<const Refer
     nelea_ = (nactele + nspin - charge) / 2;
     neleb_ = nactele - charge - nelea_;
     assert(neleb_ == (nactele - nspin - charge)/2);
-    cout << "In ProdRASCI, nactele = " << nactele << endl;
-    cout << "nelea = " << nelea_ << ", neleb = " << neleb_ << endl;
   }
 
   // TODO allow for zero electron (quick return)
