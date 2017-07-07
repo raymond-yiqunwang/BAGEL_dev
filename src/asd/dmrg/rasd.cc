@@ -612,7 +612,9 @@ void RASD::apply_perturbation(shared_ptr<const RASBlockVectors> cc, vector<Gamma
   else {
     const int na = sdet->nelea() + dele.first;
     const int nb = sdet->neleb() + dele.second;
-    if (na >= 0 && na < sdet->norb() && nb >= 0 && nb < sdet->norb()) {
+    // Debugging Raymond
+    //if (na >= 0 && na < sdet->norb() && nb >= 0 && nb < sdet->norb()) {
+    if (na >= 0 && na <= sdet->norb() && nb >= 0 && nb <= sdet->norb()) {
       tdet = sdet->clone(na, nb);
       detmap[Tkey] = tdet;
     }
