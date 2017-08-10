@@ -1,6 +1,6 @@
 //
 // BAGEL - Brilliantly Advanced General Electronic Structure Library
-// Filename: construct_asd_metal.cc
+// Filename: asd_rotfile.h
 // Copyright (C) 2017 Raymond Wang
 //
 // Author: Raymond Wang
@@ -22,20 +22,13 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include <src/asd/multisite/multisite.h>
-#include <src/asd/dmrg/rasd.h>
-
-using namespace std;
-using namespace bagel;
+#ifndef __ASD_DMRG_ROTFILE_H
+#define __ASD_DMRG_ROTFILE_H
 
 namespace bagel {
 
-shared_ptr<RASD> construct_ASD_METAL(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) {
-  
-  auto multisite = make_shared<MultiSite>(itree, ref);
 
-  return make_shared<RASD>(itree, multisite);
 
 }
 
-}
+#endif

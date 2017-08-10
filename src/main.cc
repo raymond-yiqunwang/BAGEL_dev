@@ -199,9 +199,8 @@ int main(int argc, char** argv) {
           auto asd = make_shared<RASD>(itree, multisite);
           asd->compute();
       } else if (title == "asd_metal") {
-          auto asd_metal = construct_ASD_METAL(itree, ref);
+          asd_metal = construct_ASD_METAL(itree, ref);
           asd_metal->compute();
-          ref = asd_metal->conv_to_ref();
       } else if (title == "asd_dmrg_orbopt") {
           auto asd_dmrg_orbopt = make_shared<ASD_DMRG_Orbopt>(itree, ref);
           asd_dmrg_orbopt->compute();

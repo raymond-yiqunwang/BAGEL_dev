@@ -27,12 +27,36 @@
 using namespace std;
 using namespace bagel;
 
-ASD_DMRG_Orbopt::ASD_DMRG_Orbopt(shared_ptr<const PTree> itree, shared_ptr<const Reference> input_ref)
-  : Method(itree, input_ref->geom(), input_ref) {
+ASD_DMRG_Orbopt::ASD_DMRG_Orbopt(shared_ptr<const PTree> idata, shared_ptr<const Reference> iref) {
+  // ASD-DMRG orbital optimization comes after RHF calculation
   
+  // first construct multisite
+  multisite_ = make_shared<MultiSite>(idata, iref);
+  ref_ = multisite_->ref();
+
+  common_init();
+
+}
+
+void ASD_DMRG_Orbopt::common_init() {
+
+  print_header();
+
+  nclosed_ = ref_->nclosed();
+  nact_ = ref_->nact();
+  nocc_ = nclosed_ + nact_;
+  cout << " nclosed = " << nclosed_ << ", nact = " << nact_ << endl;
+
+}
+
+void ASD_DMRG_Orbopt::print_header() const {
+  cout << "  --------------------------------------------------" << endl;
+  cout << "     ASD-DMRG Second Order Orbital Optimization     " << endl;
+  cout << "  --------------------------------------------------" << endl << endl;
 }
 
 void ASD_DMRG_Orbopt::compute() {
-  cout << "  ===== ASD-DMRG Second Order Orbital Optimization =====  " << endl;
+
 }
+
 
