@@ -26,7 +26,7 @@
 #define __ASD_DMRG_ORBOPT_H
 
 #include <src/wfn/method.h>
-#include <src/asd/multisite/multisite.h>
+#include <src/asd/dmrg/rasd.h>
 
 namespace bagel {
 
@@ -40,18 +40,27 @@ class ASD_DMRG_Orbopt : public std::enable_shared_from_this<ASD_DMRG_Orbopt> {
   int nmo_;
   int nstate_;
 
+  // parameters for iteration
   int max_iter_;
   int max_micro_iter_;
   double thresh_;
   double thresh_micro_;
-  
+ 
+  std::shared_ptr<RASD> asd_dmrg_; // should have DMRG member
+  std::shared_ptr<const PTree> input_;
   std::shared_ptr<MultiSite> multisite_;
   std::shared_ptr<const Coeff> coeff_;
   std::vector<double> energy_;
   std::shared_ptr<const Reference> ref_;
 
+  // util functions
   void print_header() const;
   void common_init();
+
+  // second-order optimization functions
+  std::shared_ptr<ASD_RotFile> compute_gradient(std::shared_ptr<const Matrix> cfock, std::shared_ptr<const Matrix> afock, std::shared_ptr<const Matrix> qxr) const;
+
+
 
   public:
   ASD_DMRG_Orbopt(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> iref);

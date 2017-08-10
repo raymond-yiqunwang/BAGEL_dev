@@ -27,25 +27,42 @@
 using namespace std;
 using namespace bagel;
 
-ASD_DMRG_Orbopt::ASD_DMRG_Orbopt(shared_ptr<const PTree> idata, shared_ptr<const Reference> iref) {
-  // ASD-DMRG orbital optimization comes after RHF calculation
+ASD_DMRG_Orbopt::ASD_DMRG_Orbopt(shared_ptr<const PTree> idata, shared_ptr<const Reference> iref) : input_(idata) {
+  
+  print_header();
   
   // first construct multisite
   multisite_ = make_shared<MultiSite>(idata, iref);
   ref_ = multisite_->ref();
-
+  
   common_init();
 
 }
 
 void ASD_DMRG_Orbopt::common_init() {
 
-  print_header();
-
   nclosed_ = ref_->nclosed();
   nact_ = ref_->nact();
   nocc_ = nclosed_ + nact_;
-  cout << " nclosed = " << nclosed_ << ", nact = " << nact_ << endl;
+  nvirt_ = ref_->nvirt();
+  nmo_ = ref_->coeff()->mdim();
+  
+  nstate_ = input_->get<int>("nstate", 1);
+  max_iter_ = input_->get<int>("max_iter", 50);
+  max_micro_iter_ = input_->get<int>("max_micro_iter", 100);
+  thresh_ = input_->get<double>("thresh", 1.0e-8); // thresh for macro iteration
+  thresh_micro_ = input_->get<double>("thresh_micro", 5.0e-6); // thresh for micro iteration
+
+  cout << "    * nstate   : " << setw(6) << nstate_ << endl;
+  cout << "    * nclosed  : " << setw(6) << nclosed_ << endl;
+  cout << "    * nact     : " << setw(6) << nact_ << endl;
+  cout << "    * nvirt    : " << setw(6) << nvirt_ << endl << endl;
+
+  // DMRG with RHF orbitals
+  asd_dmrg_ = make_shared<RASD>(input_, multisite_);
+  asd_dmrg_->compute();
+
+  cout << "  ===== Orbital Optimization Iteration =====" << endl << endl;
 
 }
 
