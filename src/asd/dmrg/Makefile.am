@@ -1,3 +1,4 @@
+SUBDIRS = orbopt
 lib_LTLIBRARIES = libbagel_asd_dmrg.la
 libbagel_asd_dmrg_la_SOURCES = asd_dmrg.cc asd_dmrg_compute.cc rasd.cc product_civec.cc \
                                product_rasci.cc product_denom.cc product_guess.cc product_modelci.cc \

@@ -110,3 +110,8 @@ shared_ptr<PTree> ASD_DMRG::prepare_sweeping_input(const int site) const {
 
   return out;
 }
+
+shared_ptr<const Reference> ASD_DMRG::conv_to_ref() const {
+  auto mref = multisite_->ref();
+  return make_shared<Reference>(mref->geom(), mref->coeff(), mref->nclosed(), mref->nact(), mref->nvirt(), energies_, make_shared<VecRDM<1>>(), make_shared<VecRDM<2>>());
+}

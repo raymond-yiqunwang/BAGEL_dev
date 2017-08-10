@@ -90,6 +90,8 @@ class ASD_DMRG {
 
     const std::vector<double>& energies() const { return energies_; }
     double energies(const int i) const { return energies_.at(i); }
+    
+    std::shared_ptr<const Reference> conv_to_ref() const;
 
   private:
     /// Prepare several input files used for growing the chain

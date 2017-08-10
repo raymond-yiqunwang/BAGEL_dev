@@ -96,14 +96,6 @@ MultiSite::MultiSite(shared_ptr<const PTree> input, vector<shared_ptr<const Refe
 MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> ref) : input_(itree), geom_(ref->geom()), hf_ref_(ref) {
   
   cout << " ===== Constructing MultiSite Molecular Orbitals ===== " << endl;
-#if 1
-  auto fci_info = input_->get_child_optional("fci");
-  if (fci_info) {
-    cout << " *** FCI with HF orbitals" << endl;
-    auto hf_fci = make_shared<HarrisonZarrabian>(fci_info, geom_, hf_ref_);
-    hf_fci->compute();
-  }
-#endif
   
   // reorder MO coeff to closed - active - virtual
   set_active_metal();
@@ -113,7 +105,6 @@ MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> 
   
   // canonicalize active orbitals in sub spaces
   canonicalize();
-
 }
 
 
@@ -148,7 +139,6 @@ void MultiSite::set_active_metal() {
   assert (virt_position == multisitebasis + 1);
 
   active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nactive, nvirt);
-  
 }
 
 
@@ -254,7 +244,6 @@ void MultiSite::project_active() {
 
   // update multimer information
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*new_coeff)), nclosed, nact, nvirt);
-
 }
 
 
@@ -289,16 +278,6 @@ void MultiSite::canonicalize() {
   }
 
   ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nact, ref_->nvirt());
-  
-#if 1
-  MoldenOut hf("hf.molden");
-  hf << geom_;
-  hf << hf_ref_;
-  MoldenOut out("canonicalized.molden");
-  out << geom_;
-  out << ref_;
-#endif
-
 }
 
 
@@ -364,5 +343,4 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
 
     return make_shared<Reference>(ref_->geom(), make_shared<Coeff>(move(*out)), nclosed, nact, 0);
   }
-
 }

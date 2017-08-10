@@ -31,6 +31,7 @@
 #include <src/asd/construct_asd.h>
 #include <src/asd/orbital/construct_asd_orbopt.h>
 #include <src/asd/dmrg/construct_asd_metal.h>
+#include <src/asd/dmrg/orbopt/asd_dmrg_orbopt.h>
 #include <src/asd/dmrg/rasd.h>
 #include <src/asd/multisite/multisite.h>
 #include <src/util/exception.h>
@@ -200,6 +201,10 @@ int main(int argc, char** argv) {
       } else if (title == "asd_metal") {
           auto asd_metal = construct_ASD_METAL(itree, ref);
           asd_metal->compute();
+          ref = asd_metal->conv_to_ref();
+      } else if (title == "asd_dmrg_orbopt") {
+          auto asd_dmrg_orbopt = make_shared<ASD_DMRG_Orbopt>(itree, ref);
+          asd_dmrg_orbopt->compute();
       } else if (title == "localize") {
         if (ref == nullptr) throw runtime_error("Localize needs a reference");
 

@@ -80,8 +80,11 @@ class MultiSite {
     std::vector<int> active_electrons() const { return active_electrons_; }
     int active_electrons(int i) const { return active_electrons_[i]; }
 
-    /// Creates a Reference object for an ASD calculation
+    // Creates a Reference object for an ASD calculation
     std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield, bool metal = false) const;
+
+    // Return functions
+    std::shared_ptr<const Reference> ref() const {return ref_;}
 
   public:
     // Constructors
