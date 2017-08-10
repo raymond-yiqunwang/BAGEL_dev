@@ -1,6 +1,6 @@
 //
 // BAGEL - Brilliantly Advanced General Electronic Structure Library
-// Filename: asd_qvec.h
+// Filename: asd_dmrg_qvec.h
 // Copyright (C) 2017 Raymond Wang
 //
 // Author: Raymond Wang

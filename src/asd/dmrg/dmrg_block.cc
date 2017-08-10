@@ -33,7 +33,8 @@ using namespace std;
 
 DMRG_Block1::DMRG_Block1(GammaForestASD<RASDvec>&& forest, const map<BlockKey, shared_ptr<const Matrix>> h2e, const map<BlockKey,
            shared_ptr<const Matrix>> spin, shared_ptr<const Matrix> coeff) : DMRG_Block(coeff), H2e_(h2e), spin_(spin) {
-  Timer dmrgtime(2);
+  //Timer dmrgtime(2);
+  Timer dmrgtime(3);
 
   // Build set of blocks
   for (auto& i : h2e) {
