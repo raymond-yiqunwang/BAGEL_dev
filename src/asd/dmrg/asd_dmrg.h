@@ -92,6 +92,7 @@ class ASD_DMRG {
     double energies(const int i) const { return energies_.at(i); }
     
     std::shared_ptr<const Reference> conv_to_ref() const;
+    void update_multisite(std::shared_ptr<const Coeff> newcoeff) { multisite_ = multisite_->reset_coeff(newcoeff); }
 
   private:
     /// Prepare several input files used for growing the chain

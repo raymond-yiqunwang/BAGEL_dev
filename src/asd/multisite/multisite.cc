@@ -344,3 +344,17 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
     return make_shared<Reference>(ref_->geom(), make_shared<Coeff>(move(*out)), nclosed, nact, 0);
   }
 }
+
+
+shared_ptr<const MultiSite> MultiSite::reset_coeff(shared_ptr<const Coeff> new_coeff) const {
+  
+  // doing this only to update coeff without reconstructing everything (MultiSite should be const in ASD_DMRG class), ugly and stupid though..
+  auto new_multisite = make_shared<MultiSite>(*this);
+  auto prev_ref = this->ref();
+  auto new_ref = make_shared<const Reference>(prev_ref->geom(), new_coeff, prev_ref->nclosed(), prev_ref->nact(), prev_ref->nvirt());
+  new_multisite->ref_ = new_ref;
+
+  return new_multisite;
+}
+
+

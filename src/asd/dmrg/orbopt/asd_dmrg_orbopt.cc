@@ -32,8 +32,10 @@ ASD_DMRG_Orbopt::ASD_DMRG_Orbopt(shared_ptr<const PTree> idata, shared_ptr<const
   print_header();
   
   // first construct multisite
-  multisite_ = make_shared<MultiSite>(idata, iref);
+  asd_info_ = idata->get_child("asd_info");
+  multisite_ = make_shared<MultiSite>(asd_info_, iref);
   ref_ = multisite_->ref();
+  coeff_ = ref_->coeff();
   
   common_init();
 
@@ -47,11 +49,11 @@ void ASD_DMRG_Orbopt::common_init() {
   nvirt_ = ref_->nvirt();
   nmo_ = ref_->coeff()->mdim();
   
-  nstate_ = input_->get<int>("nstate", 1);
-  max_iter_ = input_->get<int>("max_iter", 50);
-  max_micro_iter_ = input_->get<int>("max_micro_iter", 100);
-  thresh_ = input_->get<double>("thresh", 1.0e-8); // thresh for macro iteration
-  thresh_micro_ = input_->get<double>("thresh_micro", 5.0e-6); // thresh for micro iteration
+  nstate_ = input_->get<int>("opt_nstate", 1);
+  max_iter_ = input_->get<int>("opt_max_iter", 50);
+  max_micro_iter_ = input_->get<int>("opt_max_micro_iter", 100);
+  thresh_ = input_->get<double>("opt_thresh", 1.0e-8); // thresh for macro iteration
+  thresh_micro_ = input_->get<double>("opt_thresh_micro", 5.0e-6); // thresh for micro iteration
 
   cout << "    * nstate   : " << setw(6) << nstate_ << endl;
   cout << "    * nclosed  : " << setw(6) << nclosed_ << endl;
@@ -59,8 +61,7 @@ void ASD_DMRG_Orbopt::common_init() {
   cout << "    * nvirt    : " << setw(6) << nvirt_ << endl << endl;
 
   // DMRG with RHF orbitals
-  asd_dmrg_ = make_shared<RASD>(input_, multisite_);
-  asd_dmrg_->compute();
+  asd_dmrg_ = make_shared<RASD>(asd_info_, multisite_);
 
   cout << "  ===== Orbital Optimization Iteration =====" << endl << endl;
 
@@ -73,6 +74,21 @@ void ASD_DMRG_Orbopt::print_header() const {
 }
 
 void ASD_DMRG_Orbopt::compute() {
+  assert(nvirt_ && nact_);
+
+  for (int iter = 0; iter != max_iter_; ++iter) {
+    
+    // first obtain RDM from ASD_DMRG
+    {
+      if (iter) asd_dmrg_->update_multisite(coeff_);
+      asd_dmrg_->compute();
+      //asd_dmrg_->compute_rdm12();
+      energy_ = asd_dmrg_->energies();
+    }
+
+
+  
+  }
 
 }
 

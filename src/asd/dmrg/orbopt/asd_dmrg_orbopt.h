@@ -48,6 +48,7 @@ class ASD_DMRG_Orbopt : public std::enable_shared_from_this<ASD_DMRG_Orbopt> {
    
     std::shared_ptr<RASD> asd_dmrg_; // should have DMRG member
     std::shared_ptr<const PTree> input_;
+    std::shared_ptr<const PTree> asd_info_; // information for doing ASD-DMRG
     std::shared_ptr<MultiSite> multisite_;
     std::shared_ptr<const Coeff> coeff_;
     std::vector<double> energy_;

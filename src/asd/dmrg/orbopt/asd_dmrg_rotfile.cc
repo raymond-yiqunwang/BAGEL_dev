@@ -29,7 +29,7 @@ using namespace bagel;
 
 // constructors
 ASD_DMRG_RotFile::ASD_DMRG_RotFile(const int iclo, const int iact, const int ivirt)
-  : nclosed_(iclo), nact_(iact), nvirt_(ivirt), size_(iclo*iact+ivirt*iact+ivirt*iclo+iact*iact), data_(new double[size_]) {
+  : nclosed_(iclo), nact_(iact), nvirt_(ivirt), size_(iclo*iact+ivirt*iact+ivirt*iclo/*TODO+iact*iact*/), data_(new double[size_]) {
   zero();  
 }
 
@@ -121,10 +121,12 @@ void ASD_DMRG_RotFile::ax_plus_y_vc(const double a, const MatView mat) {
   blas::ax_plus_y_n(a, mat.data(), nvirt_*nclosed_, ptr_vc());
 }
 
+/*
 void ASD_DMRG_RotFile::ax_plus_y_aa(const double a, const MatView mat) {
   assert(mat.ndim() == nact_ && mat.mdim() == nact_);
   blas::ax_plus_y_n(a, mat.data(), nact_*nact_, ptr_aa());
 }
+*/
 
 void ASD_DMRG_RotFile::print(const string input) const {
   cout << " +++++ " + input + " +++++" <<endl;
@@ -152,6 +154,12 @@ void ASD_DMRG_RotFile::print(const string input) const {
       cout << endl;
     }
   }
+/*
+  if (nact_) {
+    cout << " printing active-active block" << endl;
+    cout << " not implemented yet.." << endl;
+  }
+*/
 }
 
 

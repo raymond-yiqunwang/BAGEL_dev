@@ -57,6 +57,7 @@ ASD_DMRG::ASD_DMRG(shared_ptr<const PTree> input, shared_ptr<const MultiSite> mu
   sweep_energies_.resize(nstate_);
 }
 
+
 string ASD_DMRG::print_progress(const int position, const string left_symbol, const string right_symbol) const {
   stringstream out;
   for (int i = 0; i < position; ++i) out << left_symbol << " ";
@@ -65,6 +66,7 @@ string ASD_DMRG::print_progress(const int position, const string left_symbol, co
 
   return out.str();
 }
+
 
 vector<shared_ptr<PTree>> ASD_DMRG::prepare_growing_input(const int site) const {
   vector<shared_ptr<PTree>> out;
@@ -100,6 +102,7 @@ vector<shared_ptr<PTree>> ASD_DMRG::prepare_growing_input(const int site) const 
   return out;
 }
 
+
 shared_ptr<PTree> ASD_DMRG::prepare_sweeping_input(const int site) const {
   shared_ptr<PTree> out = input_->get_child_optional(input_->get<string>("method"));
   if (!out) out = make_shared<PTree>();
@@ -111,8 +114,11 @@ shared_ptr<PTree> ASD_DMRG::prepare_sweeping_input(const int site) const {
   return out;
 }
 
+
 shared_ptr<const Reference> ASD_DMRG::conv_to_ref() const {
   // TODO this function is to be modified
   auto mref = multisite_->ref();
   return make_shared<Reference>(mref->geom(), mref->coeff(), mref->nclosed(), mref->nact(), mref->nvirt(), energies_, make_shared<VecRDM<1>>(), make_shared<VecRDM<2>>());
 }
+
+

@@ -33,7 +33,7 @@
 namespace bagel {
 
 /// Contains references for isolated sites in the ASD_DMRG algorithm.
-class MultiSite {
+class MultiSite : public std::enable_shared_from_this<MultiSite> {
   protected: // Raymond version
     std::shared_ptr<const PTree> input_;
     std::shared_ptr<const Geometry> geom_;
@@ -98,6 +98,7 @@ class MultiSite {
     std::shared_ptr<const Reference> active_refs(const int i) const { return active_refs_.at(i); }
 
     std::shared_ptr<const Reference> conv_to_ref() const { return sref_; }
+    std::shared_ptr<const MultiSite> reset_coeff(std::shared_ptr<const Coeff> new_coeff) const;
 
     // Utility functions
     /// Sets active space of sref_ using overlaps with isolated_ref_ active spaces

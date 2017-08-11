@@ -221,8 +221,6 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
   GammaForestASD<RASDvec> forest(states);
   rastime.tick_print("construct forest");
   forest.compute();
-  //Debugging
-  cout << "GammaForestASD->size = " << forest.sparselist().size() << endl;
   rastime.tick_print("compute forest");
   auto coeff = ref->coeff()->slice_copy(ref->nclosed(), ref->nclosed() + ref->nact());
   rastime.tick_print("coeff ");

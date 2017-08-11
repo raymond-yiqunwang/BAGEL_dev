@@ -89,31 +89,32 @@ class ASD_DMRG_RotFile {
     //virtual-closed block, virtual runs first
     double* ptr_vc() { return data() + (nclosed_+nvirt_)*nact_; }
     double& ele_vc(const int iv, const int ic) { return data_[(nclosed_+nvirt_)*nact_ + iv + ic*nvirt_]; }
+/*  do not rotate within active space for the moment  
     // active-active block, the first active runs first
     double* ptr_aa() { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_; }
     double& ele_aa(const int ia1, const int ia2) { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + ia1 + ia2*nact_]; }
+*/
     // const references and pointers
     const double* ptr_ca() const { return data(); }
     const double* ptr_va() const { return data() + nclosed_*nact_; }
     const double* ptr_vc() const { return data() + (nclosed_+nvirt_)*nact_; }
-    const double* ptr_aa() const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_; }
+//    const double* ptr_aa() const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_; }
     
     const double& ele_ca(const int ic, const int ia) const { return data_[ic + ia*nclosed_]; }
     const double& ele_va(const int iv, const int ia) const { return data_[nclosed_*nact_ + iv + ia*nvirt_]; }
     const double& ele_vc(const int iv, const int ic) const { return data_[(nclosed_+nvirt_)*nact_ + iv + ic*nvirt_]; }
-    const double& ele_aa(const int ia1, const int ia2) const { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + ia1 + ia2*nact_]; }
+//    const double& ele_aa(const int ia1, const int ia2) const { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + ia1 + ia2*nact_]; }
 
     void  ax_plus_y_ca(const double a, const MatView mat);
     void  ax_plus_y_va(const double a, const MatView mat);
     void  ax_plus_y_vc(const double a, const MatView mat);
-    void  ax_plus_y_aa(const double a, const MatView mat);
+//    void  ax_plus_y_aa(const double a, const MatView mat);
 
     // unpack to Matrix
     // to be implemented..
 
     void print(const std::string input = "") const;
     
-
 };
 
 }
