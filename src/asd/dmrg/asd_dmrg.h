@@ -27,6 +27,8 @@
 
 #include <src/asd/multisite/multisite.h>
 #include <src/asd/dmrg/dmrg_block.h>
+#include <src/wfn/rdm.h>
+#include <src/asd/dmrg/product_rasci.h>
 
 namespace bagel {
 
@@ -51,6 +53,7 @@ class ASD_DMRG {
     bool metal_;
     int nsites_;  ///< Number of sites in the DMRG model
     int nstate_;  ///< Number of states to target
+    int nactorb_; ///< Number of total active orbitals
     int maxiter_; ///< Maximum number of full sweeps to perform
     int ntrunc_;  ///< Number of states to keep in each DMRG block. Same as \f$M\f$ in the DMRG literature
 
@@ -62,6 +65,19 @@ class ASD_DMRG {
     double down_thresh_; ///< convergence threshold for sweeping downwards with smaller M. Should probably be tighter than thresh_
     bool down_sweep_; ///< controls whether to sweep with decreasing values of ntrunc_ after the main calculation
     std::vector<int> down_sweep_truncs_; ///< descending list of values to use for ntrunc_
+
+    // ProdRASCI vector at convergence
+    std::vector<std::shared_ptr<ProductRASCivec>> cc_;
+    // RDM of DMRG wave function
+    std::shared_ptr<VecRDM<1>> rdm1_;
+    std::shared_ptr<VecRDM<2>> rdm2_;
+    // state averaged RDM
+    std::vector<double> weight_;
+    std::shared_ptr<RDM<1>> rdm1_av_;
+    std::shared_ptr<RDM<2>> rdm2_av_;
+    
+    /// Read RASCI info from input
+    void read_restricted(std::shared_ptr<PTree> input, const int site) const;
 
     /// Prints graphical depiction of sweep process, mainly probably useful for debugging
     std::string print_progress(const int position, const std::string left_symbol, const std::string right_symbol) const;
@@ -93,6 +109,12 @@ class ASD_DMRG {
     
     std::shared_ptr<const Reference> conv_to_ref() const;
     void update_multisite(std::shared_ptr<const Coeff> newcoeff) { multisite_ = multisite_->reset_coeff(newcoeff); }
+
+    // compute RDM
+    void compute_rdm12();
+    void compute_rdm12(const int ist, const int jst);
+    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> 
+      compute_rdm12_from_prodcivec(std::shared_ptr<const ProductRASCivec> cbra, std::shared_ptr<const ProductRASCivec> cket) const;
 
   private:
     /// Prepare several input files used for growing the chain

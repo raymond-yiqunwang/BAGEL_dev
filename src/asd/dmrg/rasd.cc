@@ -39,40 +39,6 @@ using namespace bagel;
 
 RASD::RASD(const shared_ptr<const PTree> input, shared_ptr<MultiSite> multisite) : ASD_DMRG(input, multisite) { }
 
-void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
-  auto restricted = input_->get_child("restricted");
-
-  auto read = [&input] (const shared_ptr<const PTree> inp, int current) {
-    array<int, 3> nras = inp->get_array<int, 3>("orbitals");
-    input->put("max_holes", inp->get<string>("max_holes"));
-    input->put("max_particles", inp->get<string>("max_particles"));
-
-    input->erase("active");
-    auto parent = std::make_shared<PTree>();
-    for (int i = 0; i < 3; ++i) {
-      auto tmp = std::make_shared<PTree>();
-      const int norb = nras[i];
-      for (int i = 0; i < norb; ++i, ++current)
-        tmp->push_back(current+1);
-      parent->push_back(tmp);
-    }
-    input->add_child("active", parent);
-#ifdef DEBUG
-    //cout << "RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
-#endif
-  };
-
-  if (restricted->size() == 1)
-    read(*restricted->begin(), input->get<int>("nclosed"));
-  else if (restricted->size() == nsites_) {
-    auto iter = restricted->begin();
-    advance(iter, site);
-    read(*iter, input->get<int>("nclosed"));
-  }
-  else
-    throw runtime_error("Must specify either one set of restrictions for all sites, or one set per site");
-}
-
 shared_ptr<Matrix> RASD::compute_sigma2e(shared_ptr<const RASDvec> cc, shared_ptr<const MOFile> jop) const {
   const int nstates = cc->ij();
   // Maybe batchsize should be an attribute of RASD

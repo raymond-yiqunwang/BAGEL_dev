@@ -82,7 +82,7 @@ void ASD_DMRG_Orbopt::compute() {
     {
       if (iter) asd_dmrg_->update_multisite(coeff_);
       asd_dmrg_->compute();
-      //asd_dmrg_->compute_rdm12();
+      asd_dmrg_->compute_rdm12();
       energy_ = asd_dmrg_->energies();
     }
 

@@ -33,6 +33,7 @@ ASD_DMRG::ASD_DMRG(shared_ptr<const PTree> input, shared_ptr<const MultiSite> mu
   metal_ = input_->get<bool>("metal", false);
   nsites_ = multisite->nsites();
   nstate_ = input_->get<int>("nstate", 1);
+  nactorb_ = multisite_->ref()->nact();
   ntrunc_ = input_->get<int>("ntrunc");
   thresh_ = input_->get<double>("thresh", 1.0e-6);
   maxiter_ = input_->get<int>("maxiter", 50);
@@ -55,6 +56,11 @@ ASD_DMRG::ASD_DMRG(shared_ptr<const PTree> input, shared_ptr<const MultiSite> mu
 
   energies_.resize(nstate_);
   sweep_energies_.resize(nstate_);
+
+  // initialize VecRDM
+  rdm1_ = make_shared<VecRDM<1>>();
+  rdm2_ = make_shared<VecRDM<2>>();
+
 }
 
 
@@ -119,6 +125,41 @@ shared_ptr<const Reference> ASD_DMRG::conv_to_ref() const {
   // TODO this function is to be modified
   auto mref = multisite_->ref();
   return make_shared<Reference>(mref->geom(), mref->coeff(), mref->nclosed(), mref->nact(), mref->nvirt(), energies_, make_shared<VecRDM<1>>(), make_shared<VecRDM<2>>());
+}
+
+
+void ASD_DMRG::read_restricted(shared_ptr<PTree> input, const int site) const {
+  auto restricted = input_->get_child("restricted");
+
+  auto read = [&input] (const shared_ptr<const PTree> inp, int current) {
+    array<int, 3> nras = inp->get_array<int, 3>("orbitals");
+    input->put("max_holes", inp->get<string>("max_holes"));
+    input->put("max_particles", inp->get<string>("max_particles"));
+
+    input->erase("active");
+    auto parent = std::make_shared<PTree>();
+    for (int i = 0; i < 3; ++i) {
+      auto tmp = std::make_shared<PTree>();
+      const int norb = nras[i];
+      for (int i = 0; i < norb; ++i, ++current)
+        tmp->push_back(current+1);
+      parent->push_back(tmp);
+    }
+    input->add_child("active", parent);
+#ifdef DEBUG
+    //cout << "RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
+#endif
+  };
+
+  if (restricted->size() == 1)
+    read(*restricted->begin(), input->get<int>("nclosed"));
+  else if (restricted->size() == nsites_) {
+    auto iter = restricted->begin();
+    advance(iter, site);
+    read(*iter, input->get<int>("nclosed"));
+  }
+  else
+    throw runtime_error("Must specify either one set of restrictions for all sites, or one set per site");
 }
 
 
