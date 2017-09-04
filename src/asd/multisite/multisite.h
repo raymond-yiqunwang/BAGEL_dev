@@ -79,6 +79,7 @@ class MultiSite : public std::enable_shared_from_this<MultiSite> {
     int nsites() const { return nsites_; }
     std::vector<int> active_electrons() const { return active_electrons_; }
     int active_electrons(int i) const { return active_electrons_[i]; }
+    std::vector<int> active_sizes() const { return active_sizes_; }
 
     // Creates a Reference object for an ASD calculation
     std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield, bool metal = false) const;

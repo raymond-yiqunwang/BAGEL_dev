@@ -417,7 +417,9 @@ map<BlockKey, shared_ptr<const RASDvec>> RASD::diagonalize_site_RDM(const vector
         if ((nele_block*nele_ci)%2==1) {
           auto tmp = isec.second->copy();
           tmp->scale(-1.0);
-          outer_products[isec.first].emplace_back(weights_[ist], isec.second);
+          //outer_products[isec.first].emplace_back(weights_[ist], isec.second); // TODO check this
+          outer_products[isec.first].emplace_back(weights_[ist], tmp); // should use tmp instead of isec.second?
+          cout << " using tmp instead of isec.second..." << endl;
         }
         else {
           outer_products[isec.first].emplace_back(weights_[ist], isec.second);

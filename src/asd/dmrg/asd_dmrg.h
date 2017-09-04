@@ -112,9 +112,9 @@ class ASD_DMRG {
 
     // compute RDM
     void compute_rdm12();
-    void compute_rdm12(const int ist, const int jst);
+    void compute_rdm12(const int ist, std::shared_ptr<const DMRG_Block1> left, std::shared_ptr<const DMRG_Block1> right);
     std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> 
-      compute_rdm12_from_prodcivec(std::shared_ptr<const ProductRASCivec> cbra, std::shared_ptr<const ProductRASCivec> cket) const;
+      compute_rdm12_from_prodcivec(std::shared_ptr<const ProductRASCivec> cbra,std::shared_ptr<const DMRG_Block1> left, std::shared_ptr<const DMRG_Block1> right) const;
 
   private:
     /// Prepare several input files used for growing the chain
