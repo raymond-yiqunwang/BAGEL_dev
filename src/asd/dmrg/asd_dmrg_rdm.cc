@@ -126,6 +126,7 @@ tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
       const int lstates = leftinfo.nstates;
       const int rstates = rightinfo.nstates;
       // transition density matrix
+      auto rdm1_ll = make_shared<RDM<1>>(site_offset);
       pair<BlockKey, BlockKey> left_cbkey = {leftinfo, leftinfo};
       list<GammaSQ> gammalist_alpha = {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha};
       list<GammaSQ> gammalist_beta =  {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta};
@@ -152,8 +153,8 @@ tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
         }
       }
       // fill in RDM<1>
-      auto rdm1t = btas::group(*rdm1,0,2);
-      btas::contract(1.0, *transition_tensor, {0,2,1}, *left_contract, {0,2}, 0.0, rdm1t, {1});
+      auto rdm1tmp = btas::group(*rdm1_ll,0,2);
+      btas::contract(1.0, group(*transition_tensor, 0, 2), {0,1}, group(*left_contract, 0, 2), {0}, 0.0, rdm1tmp, {1});
     }
   }
 
