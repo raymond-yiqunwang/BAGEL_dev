@@ -113,10 +113,11 @@ tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
   const int right_offset = site_offset + active_sizes[site];
   cout << "right_offset = " << right_offset << endl;
 
-  // RDM1, calculate the lower half ( i >= j) then fill_upper
+  // RDM1, calculate the lower half then fill_upper
   shared_ptr<const DMRG_Block2> block2 = dynamic_pointer_cast<const DMRG_Block2>(cbra->left());
   auto left_block = block2->left_block();
   auto right_block = block2->right_block();
+  ///< both indices in left block
   for (auto sec : cbra->sectors()) {
     BlockKey bkey = sec.first;
     auto civec = sec.second;
@@ -126,7 +127,7 @@ tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
       const int lstates = leftinfo.nstates;
       const int rstates = rightinfo.nstates;
       // transition density matrix
-      auto rdm1_ll = make_shared<RDM<1>>(site_offset);
+      auto rdm1_ll = make_shared<Matrix>(site_offset, site_offset);
       pair<BlockKey, BlockKey> left_cbkey = {leftinfo, leftinfo};
       list<GammaSQ> gammalist_alpha = {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha};
       list<GammaSQ> gammalist_beta =  {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta};
@@ -155,6 +156,47 @@ tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
       // fill in RDM<1>
       auto rdm1tmp = btas::group(*rdm1_ll,0,2);
       btas::contract(1.0, group(*transition_tensor, 0, 2), {0,1}, group(*left_contract, 0, 2), {0}, 0.0, rdm1tmp, {1});
+      // TODO find a good way to add partial RDM to RDM<1>
+    }
+  }
+  ///< one orbital on site, the other in left block
+  const int nelea_tot = cbra->nelea();
+  const int neleb_tot = cbra->neleb();
+  cout << "nelea_tot = " << nelea_tot << endl;
+  cout << "neleb_tot = " << nelea_tot << endl;
+  for (auto sec : cbra->sectors()) {
+    BlockKey bkey = sec.first;
+    auto civec = sec.second;
+    const int nelea_ci = nelea_tot - bkey.nelea;
+    const int neleb_ci = neleb_tot - bkey.neleb;
+    cout << "nelea_ci = " << nelea_ci << endl;
+    cout << "neleb_ci = " << neleb_ci << endl;
+    // left block wave function as ket
+    for (auto& sourcepair : block2->blockpairs(bkey)) {
+      BlockInfo leftinfo = sourcepair.left;
+      BlockInfo rightinfo = sourcepair.right;
+      const int lstates = leftinfo.nstates;
+      const int rstates = rightinfo.nstates;
+      cout << "lstates = " << lstates << endl;
+      cout << "rstates = " << rstates << endl;
+      cout << "left.nelea = " << leftinfo.nelea << endl;
+      cout << "left.neleb = " << leftinfo.neleb << endl;
+      cout << "right.nelea = " << rightinfo.nelea << endl;
+      cout << "right.neleb = " << rightinfo.neleb << endl;
+      BlockKey coupled_bkey_alpha = {leftinfo.nelea+1, leftinfo.neleb};
+      BlockKey coupled_bkey_beta = {leftinfo.nelea, leftinfo.neleb+1};
+      list<GammaSQ> gammalist_alpha = {GammaSQ::CreateAlpha};
+      list<GammaSQ> gammalist_beta = {GammaSQ::CreateBeta};
+      pair<BlockKey, BlockKey> left_cbkey_alpha = {coupled_bkey_alpha, leftinfo};
+      pair<BlockKey, BlockKey> left_cbkey_beta = {coupled_bkey_beta, leftinfo};
+      if (left_block->contains(coupled_bkey_alpha)) {
+        shared_ptr<const btas::Tensor3<double>> tran_tensor_alpha = left_block->coupling(gammalist_alpha).at(left_cbkey_alpha).data;
+        cout << "alpha ext0 = " << tran_tensor_alpha->extent(0) << ", ext1 = " << tran_tensor_alpha->extent(1) << ", ext2 = " << tran_tensor_alpha->extent(2) << endl;
+      }
+      if (left_block->contains(coupled_bkey_beta)) {
+        shared_ptr<const btas::Tensor3<double>> tran_tensor_beta = left_block->coupling(gammalist_beta).at(left_cbkey_beta).data;
+        cout << "beta ext0 = " << tran_tensor_beta->extent(0) << ", ext1 = " << tran_tensor_beta->extent(1) << ", ext2 = " << tran_tensor_beta->extent(2) << endl;
+      }
     }
   }
 
