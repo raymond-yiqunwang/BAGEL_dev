@@ -27,7 +27,6 @@
 
 #include <iostream>
 #include <src/molecule/atom.h>
-#include <src/molecule/petite.h>
 #include <src/util/math/xyzfile.h>
 #include <src/util/serialization.h>
 #include <src/opt/constraint.h>
@@ -48,9 +47,6 @@ class Molecule {
     int lmax_;
     int aux_lmax_;
 
-    // FMM
-    bool dofmm_;
-
     // these two offsets are in principle redundant information (can be derived from Shells);
     std::vector<std::vector<int>> offsets_;
     std::vector<std::vector<int>> aux_offsets_;
@@ -64,14 +60,6 @@ class Molecule {
 
     // Nuclear repulsion energy.
     double nuclear_repulsion_;
-
-    // Symmetry can be used for molecular calculation.
-    std::string symmetry_;
-    std::shared_ptr<Petite> plist_;
-    int nirrep_;
-
-    // for R12 calculations
-    double gamma_;
 
     // external electric field
     std::array<double,3> external_;
@@ -93,13 +81,14 @@ class Molecule {
     template<class Archive>
     void serialize(Archive& ar, const unsigned int) {
       ar & spherical_ & aux_merged_ & nbasis_ & nele_ & nfrc_ & naux_ & lmax_ & aux_lmax_ & offsets_ & aux_offsets_ & basisfile_ & auxfile_
-         & atoms_ & aux_atoms_ & nuclear_repulsion_ & symmetry_ & plist_ & nirrep_ & gamma_ & external_ & magnetic_field_ & dofmm_ & skip_self_interaction_;
+         & atoms_ & aux_atoms_ & nuclear_repulsion_ & external_ & magnetic_field_ & skip_self_interaction_;
     }
 
   public:
-    Molecule() : symmetry_("c1"), nirrep_(1), external_{{0.0,0.0,0.0}}, magnetic_field_{{0.0,0.0,0.0}} {}
+    Molecule() : external_{{0.0,0.0,0.0}}, magnetic_field_{{0.0,0.0,0.0}} {}
     Molecule(const std::vector<std::shared_ptr<const Atom>> a, const std::vector<std::shared_ptr<const Atom>> b)
-      : atoms_(a), aux_atoms_(b), symmetry_("c1"), nirrep_(1), external_{{0.0,0.0,0.0}}, magnetic_field_{{0.0,0.0,0.0}} { }
+      : atoms_(a), aux_atoms_(b), external_{{0.0,0.0,0.0}}, magnetic_field_{{0.0,0.0,0.0}} { }
+    Molecule(const Molecule& o, std::shared_ptr<const Matrix> disp, const bool rotate = true);
     virtual ~Molecule() { }
 
     // Returns shared pointers of Atom objects, which contains basis-set info.
@@ -118,11 +107,7 @@ class Molecule {
     int natom() const { return atoms_.size(); }
     const std::string basisfile() const { return basisfile_; }
     const std::string auxfile() const { return auxfile_; }
-    const std::string symmetry() const { return symmetry_; }
     virtual double nuclear_repulsion() const { return nuclear_repulsion_; }
-    double gamma() const {return gamma_; }
-    int nirrep() const { return nirrep_; }
-    bool dofmm() const { return dofmm_; }
     bool skip_self_interaction() { return skip_self_interaction_; }
 
     // The position of the specific function in the basis set.
@@ -139,9 +124,6 @@ class Molecule {
 
     std::array<double,3> charge_center() const;
     std::array<double,6> quadrupole() const;
-
-    // Returns the Petite list.
-    std::shared_ptr<Petite> plist() const { return plist_; }
 
     // finite nucleus
     bool has_finite_nucleus() const;
@@ -168,7 +150,6 @@ class Molecule {
     std::array<std::shared_ptr<const Matrix>,3> compute_internal_coordinate(
         std::shared_ptr<const Matrix> prev = nullptr,
         std::vector<std::shared_ptr<const OptExpBonds>> explicit_bond = std::vector<std::shared_ptr<const OptExpBonds>>(),
-        std::vector<std::shared_ptr<const OptConstraint>> cmat = std::vector<std::shared_ptr<const OptConstraint>>(),
         bool negative_hessian = false,
         bool verbose = true) const;
     // driver for compute B matrix for redundant coordinate (original Wilson B)

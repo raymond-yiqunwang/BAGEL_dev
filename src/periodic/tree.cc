@@ -470,7 +470,8 @@ void Tree::print_leaves() const {
 
 shared_ptr<const ZMatrix> Tree::compute_interactions(shared_ptr<const Matrix> density, const double schwarz_thresh) const {
 
-  const int nspairs = geom_->nshellpair();
+  const int nspairs = geom_->fmm()->nshellpair();
+  shared_ptr<const FMMInfo> info = geom_->fmm();
   const int nsh = sqrt(nspairs);
   assert(nsh*nsh == nspairs);
   auto out = make_shared<ZMatrix>(nbasis_, nbasis_);
@@ -480,12 +481,12 @@ shared_ptr<const ZMatrix> Tree::compute_interactions(shared_ptr<const Matrix> de
 
   vector<double> max_density(nspairs);
   for (int i01 = 0; i01 != nspairs; ++i01) {
-    shared_ptr<const Shell> sh0 = geom_->shellpair(i01)->shell(0);
-    const int offset0 = geom_->shellpair(i01)->offset(0);
+    shared_ptr<const Shell> sh0 = info->shellpair(i01)->shell(0);
+    const int offset0 = info->shellpair(i01)->offset(0);
     const int size0 = sh0->nbasis();
 
-    shared_ptr<const Shell> sh1 = geom_->shellpair(i01)->shell(1);
-    const int offset1 = geom_->shellpair(i01)->offset(1);
+    shared_ptr<const Shell> sh1 = info->shellpair(i01)->shell(1);
+    const int offset1 = info->shellpair(i01)->offset(1);
     const int size1 = sh0->nbasis();
 
     double denmax = 0.0;
@@ -500,22 +501,19 @@ shared_ptr<const ZMatrix> Tree::compute_interactions(shared_ptr<const Matrix> de
  #if 1
   const int shift = sizeof(int) * 4;
   //const int nmult = (lmax_+1)*(lmax_+1);
-  shared_ptr<Petite> plist = geom_->plist();;
   int nint = 0;
   for (int i01 = 0; i01 != nspairs; ++i01) {
-//    if (!plist->in_p2(i01)) continue;
     if (schwarz_[i01] < 1e-15) continue;
     const double density_01 = max_density[i01] * 4.0;
 
-    shared_ptr<const Shell> sh0 = geom_->shellpair(i01)->shell(0);
-    const int i0 = geom_->shellpair(i01)->shell_ind(0);
-    const int offset0 = geom_->shellpair(i01)->offset(0);
+    shared_ptr<const Shell> sh0 = info->shellpair(i01)->shell(0);
+    const int i0 = info->shellpair(i01)->shell_ind(0);
+    const int offset0 = info->shellpair(i01)->offset(0);
     const int size0 = sh0->nbasis();
-//    if (!plist->in_p1(i0)) continue;
 
-    shared_ptr<const Shell> sh1 = geom_->shellpair(i01)->shell(1);
-    const int offset1 = geom_->shellpair(i01)->offset(1);
-    const int i1 = geom_->shellpair(i01)->shell_ind(1);
+    shared_ptr<const Shell> sh1 = info->shellpair(i01)->shell(1);
+    const int offset1 = info->shellpair(i01)->offset(1);
+    const int i1 = info->shellpair(i01)->shell_ind(1);
     const int size1 = sh1->nbasis();
 
     assert(i01 == i0 * nsh + i1);
@@ -525,21 +523,19 @@ shared_ptr<const ZMatrix> Tree::compute_interactions(shared_ptr<const Matrix> de
       if (schwarz_[i23] < 1e-15) continue;
       const double density_23 = max_density[i23] * 4.0;
 
-      shared_ptr<const Shell> sh2 = geom_->shellpair(i23)->shell(0);
-      const int i2 = geom_->shellpair(i23)->shell_ind(0);
-      const int offset2 = geom_->shellpair(i23)->offset(0);
+      shared_ptr<const Shell> sh2 = info->shellpair(i23)->shell(0);
+      const int i2 = info->shellpair(i23)->shell_ind(0);
+      const int offset2 = info->shellpair(i23)->offset(0);
       const int size2 = sh2->nbasis();
       if (i2 < i0) continue;
 
-      shared_ptr<const Shell> sh3 = geom_->shellpair(i23)->shell(1);
-      const int offset3 = geom_->shellpair(i23)->offset(1);
-      const int i3 = geom_->shellpair(i23)->shell_ind(1);
+      shared_ptr<const Shell> sh3 = info->shellpair(i23)->shell(1);
+      const int offset3 = info->shellpair(i23)->offset(1);
+      const int i3 = info->shellpair(i23)->shell_ind(1);
       const int size3 = sh3->nbasis();
 
       assert(i23 == i2 * nsh + i3);
       if (i3 < i2) continue;
-//      int ijkl = plist->in_p4(i01, i23, i0, i1, i2, i3);
-//      if (ijkl == 0) continue;
 
       const double density_02 = max_density[i0 * nsh + i2];
       const double density_03 = max_density[i0 * nsh + i3];
@@ -554,14 +550,14 @@ shared_ptr<const ZMatrix> Tree::compute_interactions(shared_ptr<const Matrix> de
       if (skip_schwarz) continue;
 
       array<shared_ptr<const Shell>,4> input = {{sh3, sh2, sh1, sh0}};
-      const bool is_neigh = geom_->shellpair(i01)->is_neighbour(geom_->shellpair(i23), ws_);
+      const bool is_neigh = info->shellpair(i01)->is_neighbour(info->shellpair(i23), ws_);
 
       if (!is_neigh) {
         // multipoles
         #if 0
         vector<complex<double>> omega01(nmult), omega23(nmult);
-        vector<shared_ptr<const ZMatrix>> qlm01 = geom_->shellpair(i01)->multipoles();
-        vector<shared_ptr<const ZMatrix>> qlm23 = geom_->shellpair(i23)->multipoles();
+        vector<shared_ptr<const ZMatrix>> qlm01 = info->shellpair(i01)->multipoles();
+        vector<shared_ptr<const ZMatrix>> qlm23 = info->shellpair(i23)->multipoles();
 
         auto den01 = density->get_submatrix(offset1, offset0, size1, size0);
         auto den23 = density->get_submatrix(offset3, offset2, size3, size2);
@@ -571,7 +567,7 @@ shared_ptr<const ZMatrix> Tree::compute_interactions(shared_ptr<const Matrix> de
         }
         array<double, 3> rvec0123, rvec2301;
         for (int i = 0; i != 3; ++i) {
-          rvec0123[i] = geom_->shellpair(i23)->centre(i) - geom_->shellpair(i01)->centre(i);
+          rvec0123[i] = info->shellpair(i23)->centre(i) - info->shellpair(i01)->centre(i);
           rvec2301[i] = -rvec0123[i];
         }
         vector<complex<double>> mlm01 = get_mlm(rvec0123, omega01);
@@ -713,15 +709,6 @@ shared_ptr<const ZMatrix> Tree::compute_JK(shared_ptr<const Matrix> density, con
       [this, i, &out, &density, shells] () {
     int ish = 0;
     for (auto& sh : nodes_[i]->shellquads_) {
-      shared_ptr<Petite> plist = geom_->plist();;
-      const int nsh = shells.size();
-      if (!plist->in_p1(sh[0])) continue;
-      const int i01 = sh[0] * nsh + sh[1];
-      const int i23 = sh[2] * nsh + sh[3];
-      if (!plist->in_p2(i01)) continue;
-      int ijkl = plist->in_p4(i01, i23, sh[0], sh[1], sh[2], sh[3]);
-      if (ijkl == 0) continue;
-
       shared_ptr<const Shell> b0 = shells[sh[0]];
       shared_ptr<const Shell> b1 = shells[sh[1]];
       shared_ptr<const Shell> b2 = shells[sh[2]];
@@ -753,7 +740,7 @@ shared_ptr<const ZMatrix> Tree::compute_JK(shared_ptr<const Matrix> density, con
                 const int j2n = j2 * density->ndim();
                 for (int j3 = b3offset; j3 != b3offset + input[0]->nbasis(); ++j3, ++eridata) {
                   const int j3n = j3 * density->ndim();
-                  double eri = *eridata * static_cast<double>(ijkl) * 0.5;
+                  double eri = *eridata * 0.5;
 
                   if (j0 + j1 <  j2 + j3) continue;
                   if (j0 + j2 <  j1 + j3) continue;

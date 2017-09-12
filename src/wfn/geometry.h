@@ -29,7 +29,8 @@
 #include <src/df/df.h>
 #include <src/util/input/input.h>
 #include <src/molecule/molecule.h>
-#include <src/molecule/shellpair.h>
+#include <src/wfn/hcoreinfo.h>
+#include <src/wfn/fmminfo.h>
 
 namespace bagel {
 
@@ -53,22 +54,20 @@ class Geometry : public Molecule {
     void set_london(std::shared_ptr<const PTree>& geominfo);
     void init_magnetism();
 
-    // DKH2 Hamiltonian
-    bool dkh_;
-
     // Magnetism-specific parameters
     bool magnetism_;
     bool london_;
     bool use_finite_;
-    bool use_ecp_basis_;
 
     // Lattice parameters
     bool do_periodic_df_;
     std::vector<std::array<double, 3>> primitive_vectors_;
 
-    // Schwarz, multipoles
-    void get_shellpairs();
-    std::vector<std::shared_ptr<const ShellPair>> shellpairs_;
+    // Hcore Information
+    std::shared_ptr<const HcoreInfo> hcoreinfo_;
+
+    // FMM
+    std::shared_ptr<const FMMInfo> fmm_;
 
   private:
     // serialization
@@ -77,7 +76,7 @@ class Geometry : public Molecule {
     template<class Archive>
     void save(Archive& ar, const unsigned int) const {
       ar << boost::serialization::base_object<Molecule>(*this);
-      ar << schwarz_thresh_ << overlap_thresh_ << dkh_ << magnetism_ << london_ << use_finite_ << use_ecp_basis_ << do_periodic_df_;
+      ar << schwarz_thresh_ << overlap_thresh_ << magnetism_ << london_ << use_finite_ << do_periodic_df_ << hcoreinfo_ << fmm_;
       const size_t dfindex = !df_ ? 0 : std::hash<DFDist*>()(df_.get());
       ar << dfindex;
       const bool do_rel   = !!dfs_;
@@ -88,15 +87,17 @@ class Geometry : public Molecule {
     template<class Archive>
     void load(Archive& ar, const unsigned int) {
       ar >> boost::serialization::base_object<Molecule>(*this);
-      ar >> schwarz_thresh_ >> overlap_thresh_ >> dkh_ >> magnetism_ >> london_ >> use_finite_ >> use_ecp_basis_ >> do_periodic_df_;
+      ar >> schwarz_thresh_ >> overlap_thresh_ >> magnetism_ >> london_ >> use_finite_ >> do_periodic_df_ >> hcoreinfo_ >> fmm_;
       size_t dfindex;
       ar >> dfindex;
       static std::map<size_t, std::weak_ptr<DFDist>> dfmap;
-      if (dfmap[dfindex].expired()) {
-        compute_integrals(overlap_thresh_);
-        dfmap[dfindex] = df_;
-      } else {
-        df_ = dfmap[dfindex].lock();
+      if (!fmm_) {
+        if (dfmap[dfindex].expired()) {
+          compute_integrals(overlap_thresh_);
+          dfmap[dfindex] = df_;
+        } else {
+          df_ = dfmap[dfindex].lock();
+        }
       }
 
       bool do_rel, do_gaunt;
@@ -118,12 +119,14 @@ class Geometry : public Molecule {
     Geometry(const Geometry& o, std::shared_ptr<const Matrix> disp, std::shared_ptr<const PTree> geominfo, const bool rotate = true, const bool nodf = false);
     Geometry(const Geometry& o, const std::array<double,3> disp);
     Geometry(std::vector<std::shared_ptr<const Geometry>>, const bool nodf = false);
+    Geometry(const Geometry& o, const std::string extent_type);
 
-    // Returns a constant
+    // Gradients of the nuclear-nuclear potential energy
     std::shared_ptr<const Matrix> compute_grad_vnuc() const;
+
+    // Thresholds
     double schwarz_thresh() const { return schwarz_thresh_; }
     double overlap_thresh() const { return overlap_thresh_; }
-    bool dkh() const { return dkh_; }
     bool london() const { return london_; }
     bool magnetism() const { return magnetism_; }
 
@@ -155,10 +158,11 @@ class Geometry : public Molecule {
     bool do_periodic_df() const { return do_periodic_df_; }
     std::shared_ptr<const Geometry> periodic(std::vector<std::shared_ptr<const Atom>> new_atoms) const;
 
-    std::vector<std::shared_ptr<const ShellPair>> shellpairs() const { return shellpairs_; }
-    std::shared_ptr<const ShellPair> shellpair(const int i) const { return shellpairs_[i]; }
-    int nshellpair() const { return shellpairs_.size(); }
+    // Hcore Information
+    std::shared_ptr<const HcoreInfo> hcoreinfo() const { return hcoreinfo_; }
 
+    // FMM
+    std::shared_ptr<const FMMInfo> fmm() const { return fmm_; }
 };
 
 }

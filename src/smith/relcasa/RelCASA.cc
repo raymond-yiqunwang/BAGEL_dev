@@ -249,7 +249,7 @@ vector<shared_ptr<MultiTensor_<complex<double>>>> RelCASA::RelCASA::solve_linear
       energy_[i] += detail::real(dot_product_transpose(rall_[i], t[i]));
 
       // compute rms for state i
-      error = rall_[i]->rms();
+      error = rall_[i]->norm() / pow(rall_[i]->size(), 0.25);
       print_iteration(iter, energy_[i], error, mtimer.tick());
       conv = error < info_->thresh();
 
@@ -307,7 +307,7 @@ void RelCASA::RelCASA::load_t2all(shared_ptr<MultiTensor> t2in, const int ist) {
 }
 
 
-void RelCASA::RelCASA::solve_deriv() {
+void RelCASA::RelCASA::solve_gradient(const int targetJ, const int targetI, shared_ptr<const NacmType> nacmtype, const bool nocider) {
   throw std::logic_error("Nuclear gradients not implemented for RelCASA");
 }
 

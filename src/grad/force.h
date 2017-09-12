@@ -27,6 +27,7 @@
 
 #include <src/wfn/reference.h>
 #include <src/util/muffle.h>
+#include <src/grad/gradinfo.h>
 
 namespace bagel {
 
@@ -36,7 +37,7 @@ class Force {
     std::shared_ptr<const Geometry> geom_;
     std::shared_ptr<const Reference> ref_;
 
-    bool numerical_;		// numerical or analytical gradient?
+    bool numerical_;
     std::vector<double> energy_;
     std::vector<double> force_dipole_;
 
@@ -44,11 +45,10 @@ class Force {
     Force(std::shared_ptr<const PTree>, std::shared_ptr<const Geometry>, std::shared_ptr<const Reference>);
 
     std::shared_ptr<GradFile> compute();
-    void force_export(const bool export_single, const int target, const int target2, const std::vector<double> energy, const std::string jobtitle, const std::shared_ptr<GradFile> out);
+    void force_export(const std::string jobtitle, std::shared_ptr<const GradInfo> gradinfo, const std::vector<double> energy, std::shared_ptr<const GradFile> out, const bool export_single);
     const std::vector<double>& force_dipole() const { return force_dipole_; }
 
 };
-
 
 }
 

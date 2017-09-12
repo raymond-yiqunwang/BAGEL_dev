@@ -182,7 +182,7 @@ void MRCI::MRCI::solve() {
     // find new trial vectors
     vector<shared_ptr<Residual<double>>> res = davidson.residual();
     for (int i = 0; i != nstates_; ++i) {
-      const double err = res[i]->tensor()->rms();
+      const double err = res[i]->tensor()->norm() / pow(res[i]->tensor()->size(), 0.25);
       print_iteration(iter, energy_[i]+core_nuc, err, mtimer.tick(), i);
 
       t2all_[i]->zero();
@@ -222,7 +222,7 @@ void MRCI::MRCI::solve() {
 }
 
 
-void MRCI::MRCI::solve_deriv() {
+void MRCI::MRCI::solve_gradient(const int targetJ, const int targetI, shared_ptr<const NacmType> nacmtype, const bool nocider) {
   throw std::logic_error("Nuclear gradients not implemented for MRCI");
 }
 
