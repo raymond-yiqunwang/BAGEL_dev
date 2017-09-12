@@ -50,13 +50,27 @@ void ASD_DMRG::compute_rdm12() {
       shared_ptr<PTree> input = prepare_sweeping_input(site);
       {
         input->put("nclosed", ref->nclosed());
+        input->put("metal", metal_);
         read_restricted(input, site);
         vector<int> actvec = multisite_->active_electrons();
         const int nactele = accumulate(actvec.begin(), actvec.end(), input->get<int>("charge"));
         input->put("nactele", nactele);
       }
-      auto environment = make_shared<const DMRG_Block2>(left_block, right_block);
-      auto prod_ras = make_shared<ProductRASCI>(input, ref, environment);
+      shared_ptr<ProductRASCI> prod_ras;
+      // testing
+      {
+        cout << "site = " << site << endl;
+        if (left_block)
+          cout << "left block is not nullptr" << endl;
+        if (right_block)
+          cout << "right_block is not nullptr" << endl;
+      }
+      if ((left_block==nullptr) ^ (right_block==nullptr))
+        prod_ras = make_shared<ProductRASCI>(input, ref, ((left_block==nullptr) ? right_block : left_block));
+      else {
+        assert((left_block!=nullptr) && (right_block!=nullptr));
+        prod_ras = make_shared<ProductRASCI>(input, ref, make_shared<const DMRG_Block2>(left_block, right_block));
+      }
       prod_ras->compute();
       cc = prod_ras->civectors();
     }
@@ -64,7 +78,7 @@ void ASD_DMRG::compute_rdm12() {
     // construct RDM<2> by collecting terms during sweeping
     if (site == 0) {
       cout << "  * special treatment for site[0]" << endl;
-      //auto ras_rdm = compute_ras_rdm(cc);
+      auto ras_rdm = compute_ras_rdm(cc);
 
     } else if (site == nsites_-1) {
       cout << "  * special treatment for site[" << nsites_-1 << "]" << endl;
@@ -82,7 +96,7 @@ void ASD_DMRG::compute_rdm12() {
 
       // special treatment for final configuration
       if (site == nsites_-2) {
-        cout << "  * special treatment for the final site" << endl;
+        cout << "  * special treatment for site[" << site << "]" << endl;
       }
     }
 
@@ -113,7 +127,30 @@ void ASD_DMRG::compute_rdm12() {
 }
 
 
-void ASD_DMRG::compute_site_rdm_from_block(shared_ptr<DMRG_Block1> dmrg_block, vector<pair<int, int>> orbital_range) {
+vector<shared_ptr<Matrix>> ASD_DMRG::compute_ras_rdm(vector<shared_ptr<ProductRASCivec>> dvec) {
+  cout << "  * DEBUGGING... in function ASD_DMRG::compute_ras_rdm" << endl;
+  vector<shared_ptr<Matrix>> out;
+  const int norb = dvec.front()->space()->norb();
+  const int nstate = dvec.size();
+  for (int i = 0; i != nstate; ++i) {
+    auto tmp_result = make_shared<Matrix>(norb*norb, norb*norb);
+    for (auto block : dvec[i]->sectors()) {
+      const int n_lr = block.second->mdim();
+      for (int i = 0; i != n_lr; ++i)
+        *tmp_result += *compute_rdm_from_rascivec(block.second->civec(i));
+    }
+    out.push_back(tmp_result);
+  }
+
+  return out;
+}
+
+shared_ptr<Matrix> ASD_DMRG::compute_rdm_from_rascivec(RASCivecView civec) {
+  cout << "    * computing RDM from RASCivec..." << endl;
+  // using resolution of identity, inserting the FCI determinant basis as intermediate configurations
+  const int norb = civec.det()->norb();
+
+  return make_shared<Matrix>(norb*norb, norb*norb);
 }
 
 

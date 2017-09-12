@@ -111,7 +111,8 @@ class ASD_DMRG {
     // compute RDM
     void compute_rdm12();
     void compute_rdm12(const int ist, std::shared_ptr<const DMRG_Block1> left, std::shared_ptr<const DMRG_Block1> right);
-    void compute_site_rdm_from_block(std::shared_ptr<DMRG_Block1> block, std::vector<std::pair<int, int>> orb_range);
+    std::vector<std::shared_ptr<Matrix>> compute_ras_rdm(std::vector<std::shared_ptr<ProductRASCivec>>);
+    std::shared_ptr<Matrix> compute_rdm_from_rascivec(RASCivecView);
 
   private:
     /// Prepare several input files used for growing the chain
