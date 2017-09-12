@@ -136,7 +136,7 @@ void MultiSite::set_active_metal() {
     if (ActList.find(i) != ActList.end()) copy_n(hf_coeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, active_position++));
     else copy_n(hf_coeff->element_ptr(0, i), multisitebasis, out_coeff->element_ptr(0, ((iclosed < nclosed) ? (++iclosed, closed_position++) : virt_position++)));
   } 
-  assert (virt_position == multisitebasis + 1);
+  assert(virt_position == multisitebasis);
 
   active_ref_ = make_shared<Reference>(geom_, make_shared<Coeff>(move(*out_coeff)), nclosed, nactive, nvirt);
 }

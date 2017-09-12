@@ -37,10 +37,12 @@ void ASD_DMRG::compute_rdm12() {
 
   // one additional sweeping after convergence to collect terms required to construct RDM
   shared_ptr<DMRG_Block1> left_block, right_block;
-  for (int site = 1; site != (nsites_ - 1); ++site) {
-    left_block = left_blocks_[site-1];
-    right_block = right_blocks_[nsites_-site-2];
-    // this part is to get the ProductRASCivec
+  for (int site = 0; site != nsites_; ++site) {
+    left_block = (site==0) ? nullptr : left_blocks_[site-1];
+    right_block = (site==nsites_-1) ? nullptr : right_blocks_[nsites_-site-2];
+
+    // obtain ProductRASCivec 
+    vector<shared_ptr<ProductRASCivec>> cc;
     {
       Muffle hide_cout("asd_dmrg_rdm.log", false);
       
@@ -56,10 +58,37 @@ void ASD_DMRG::compute_rdm12() {
       auto environment = make_shared<const DMRG_Block2>(left_block, right_block);
       auto prod_ras = make_shared<ProductRASCI>(input, ref, environment);
       prod_ras->compute();
-      cc_ = prod_ras->civectors();
+      cc = prod_ras->civectors();
     }
+
+    // construct RDM<2> by collecting terms during sweeping
+    if (site == 0) {
+      cout << "  * special treatment for site[0]" << endl;
+      //auto ras_rdm = compute_ras_rdm(cc);
+
+    } else if (site == nsites_-1) {
+      cout << "  * special treatment for site[" << nsites_-1 << "]" << endl;
+    
+    } else {
+      // special treatment for first configuration as described by Garnet Chan, 2008
+      if (site == 1) {
+        cout << "  * special treatment for site[1]" << endl;
+      }
+
+      // general treatment
+      {
+        cout << "  * general treatment for site[" << site << "]" << endl;
+      }
+
+      // special treatment for final configuration
+      if (site == nsites_-2) {
+        cout << "  * special treatment for the final site" << endl;
+      }
+    }
+
   }
 
+/*
   // for nstate==1, rdm1_av_ = rdm1_->at(0)
   // Needs initialization here because we use daxpy
   if (rdm1_av_ == nullptr && nstate_ > 1) {
@@ -79,19 +108,12 @@ void ASD_DMRG::compute_rdm12() {
     rdm1_av_ = rdm1_->at(0, 0);
     rdm2_av_ = rdm2_->at(0, 0);
   }
+*/
 
 }
 
 
-void ASD_DMRG::compute_rdm12(const int ist, const shared_ptr<const DMRG_Block1> left, const shared_ptr<const DMRG_Block1> right) {
-  shared_ptr<ProductRASCivec> ccbra = cc_[ist];
-
-  shared_ptr<RDM<1>> rdm1;
-  shared_ptr<RDM<2>> rdm2;
-//  tie(rdm1, rdm2) = compute_rdm12_from_prodcivec(ccbra, left, right);
-
-  rdm1_->emplace(ist, ist, rdm1);
-  rdm2_->emplace(ist, ist, rdm2);
+void ASD_DMRG::compute_site_rdm_from_block(shared_ptr<DMRG_Block1> dmrg_block, vector<pair<int, int>> orbital_range) {
 }
 
 

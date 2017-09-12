@@ -66,8 +66,6 @@ class ASD_DMRG {
     bool down_sweep_; ///< controls whether to sweep with decreasing values of ntrunc_ after the main calculation
     std::vector<int> down_sweep_truncs_; ///< descending list of values to use for ntrunc_
 
-    // ProdRASCI vector at convergence
-    std::vector<std::shared_ptr<ProductRASCivec>> cc_;
     // RDM of DMRG wave function
     std::shared_ptr<VecRDM<1>> rdm1_;
     std::shared_ptr<VecRDM<2>> rdm2_;
@@ -113,8 +111,7 @@ class ASD_DMRG {
     // compute RDM
     void compute_rdm12();
     void compute_rdm12(const int ist, std::shared_ptr<const DMRG_Block1> left, std::shared_ptr<const DMRG_Block1> right);
-    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> 
-      compute_rdm12_from_prodcivec(std::shared_ptr<const ProductRASCivec> cbra,std::shared_ptr<const DMRG_Block1> left, std::shared_ptr<const DMRG_Block1> right) const;
+    void compute_site_rdm_from_block(std::shared_ptr<DMRG_Block1> block, std::vector<std::pair<int, int>> orb_range);
 
   private:
     /// Prepare several input files used for growing the chain
