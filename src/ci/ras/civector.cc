@@ -175,6 +175,27 @@ template<> shared_ptr<RASCivector<double>> RASCivecView_<double>::spin_raise(sha
   return out;
 }
 
+template<> shared_ptr<RDM<2>> RASCivector<double>::compute_rdm2_from_rasvec() {
+  cout << "  * debugging in compute_rdm2_from_rasvec.." << endl;
+  const int norb = det_->norb();
+  const int nelea = det_->nelea();
+  const int neleb = det_->neleb();
+  auto rdm2 = make_shared<RDM<2>>(norb);
+
+  auto idet = make_shared<Determinants>(norb, nelea, neleb, false/*compress*/, true/*mute*/);
+  auto dbra = make_shared<Dvec>(idet, norb*norb);
+  ras_sigma_2a1(this, dbra)
+
+  return rdm2;
+}
+
+template<> void RASCivector<double>::ras_sigma_2a1(shared_ptr<RASCivector> cbra, shared_ptr<Dvec> dbra) {
+  cout << "ras_sigma_2a1" << endl;
+  {
+    
+  }
+}
+
 
 template class bagel::RASCivector<double>;
 template class bagel::RASCivecView_<double>;

@@ -25,7 +25,7 @@
 #ifndef __BAGEL_RAS_RASCI_H
 #define __BAGEL_RAS_RASCI_H
 
-#define NORDMS
+//#define NORDMS
 
 #include <src/ci/fci/mofile.h>
 #include <src/ci/ras/civector.h>

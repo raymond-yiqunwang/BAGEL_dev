@@ -27,6 +27,7 @@
 #define __BAGEL_RAS_RASCIVECTOR_H
 
 #include <src/ci/ras/civector_impl.h>
+#include <src/ci/fci/dvec.h>
 
 namespace bagel {
 
@@ -80,6 +81,9 @@ class RASCivector : public RASCivector_impl<DataType> {
     }
 
     std::shared_ptr<RASCivector<DataType>> apply(const int orbital, const bool action, const bool spin) const;
+
+    std::shared_ptr<RDM<2>> compute_rdm2_from_rasvec();
+    void ras_sigma_2a1(std::shared_ptr<RASCivector>, std::shared_ptr<Dvec>);
 };
 
 template<> std::shared_ptr<RASCivector<double>> RASCivector<double>::spin() const; // returns S^2 | civec >

@@ -132,12 +132,17 @@ vector<shared_ptr<Matrix>> ASD_DMRG::compute_ras_rdm(vector<shared_ptr<ProductRA
   vector<shared_ptr<Matrix>> out;
   const int norb = dvec.front()->space()->norb();
   const int nstate = dvec.size();
-  for (int i = 0; i != nstate; ++i) {
+  shared_ptr<const RDM<2>> rdm2;
+  for (int istate = 0; istate != nstate; ++istate) {
     auto tmp_result = make_shared<Matrix>(norb*norb, norb*norb);
-    for (auto block : dvec[i]->sectors()) {
+    for (auto& block : dvec[istate]->sectors()) {
       const int n_lr = block.second->mdim();
-      for (int i = 0; i != n_lr; ++i)
-        *tmp_result += *compute_rdm_from_rascivec(block.second->civec(i));
+      for (int i = 0; i != n_lr; ++i) {
+        auto rasvec = make_shared<const RASCivec>(block.second->civec(i));
+        rdm2 = rasvec->compute_rdm2_from_rasvec();
+        assert(tmp_result->size() == rdm2->size());
+        blas::ax_plus_y_n(1.0, rdm2->data(), tmp_result->size(), tmp_result->data());
+      }
     }
     out.push_back(tmp_result);
   }
@@ -145,12 +150,30 @@ vector<shared_ptr<Matrix>> ASD_DMRG::compute_ras_rdm(vector<shared_ptr<ProductRA
   return out;
 }
 
-shared_ptr<Matrix> ASD_DMRG::compute_rdm_from_rascivec(RASCivecView civec) {
-  cout << "    * computing RDM from RASCivec..." << endl;
-  // using resolution of identity, inserting the FCI determinant basis as intermediate configurations
-  const int norb = civec.det()->norb();
+/*
+void ASD_DMRG::ras_sigma_2a1(shared_ptr<RASCivec> cbra, shared_ptr<Dvec> dbra) {
+  cout << "ras_sigma_2a1" << endl;
+  const int ij = dbra->ij();
+  const double* const source_base = cbra->data();
+  
+  auto construct_unrestricted_phis()
 
-  return make_shared<Matrix>(norb*norb, norb*norb);
+  for (auto& iblock : cbra->blocks()) {
+    const int lenb = iblock->lenb();
+    cout << ij << lenb << *source_base << endl; // TODO delete this line
+    for (int ip = 0; ip != ij; ++ip) {
+      double* const target_base = dbra->data(ip)->data();
+      for (auto& abit : *iblock->stringsa()) {
+        for (auto& bbit : *iblock->stringsb()) {
+          bitset<nbit__> sourcebita = abit;
+          bitset<nbit__> sourcebitb = bbit;
+          const int sourceida = iblock->stringsa()->lexical_offset(sourcebita);
+          const int sourceidb = iblock->stringsb()->lexical_offset(sourcebitb);
+          cout << sourceida << sourceidb << endl;
+        }
+      }
+    }
+  }
 }
 
-
+*/
