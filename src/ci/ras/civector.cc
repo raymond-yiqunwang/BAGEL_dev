@@ -177,7 +177,6 @@ template<> shared_ptr<RASCivector<double>> RASCivecView_<double>::spin_raise(sha
 }
 
 template<> tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>> RASCivector<double>::compute_rdm12_from_rasvec() const {
-  cout << "  * debugging in compute_rdm2_from_rasvec.." << endl;
   const int norb = det_->norb();
   const int nelea = det_->nelea();
   const int neleb = det_->neleb();
@@ -190,32 +189,21 @@ template<> tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>> RASCivector<double>::co
   // map RASCI vec into FCI vec
   for (auto& iblock : blocks_) {
     if (!iblock) continue;
-    cout << "a new block.. iblock->offset = " << iblock->offset() << endl;
     // beta_string runs first
     for (auto& abit : iblock->stringsa()->strings()) {
       const int block_index_a = iblock->stringsa()->lexical_zero(abit);
-      cout << "abit : " << abit.to_string() << endl;
-      cout << "abit lexical_zero = " << iblock->stringsa()->lexical_zero(abit) << endl;
       for (auto & bbit : iblock->stringsb()->strings()) {
         // now I have a pair of legal bits, identify the source index in RASCivec and target index in Civec
         const int block_index_b = iblock->stringsb()->lexical_zero(bbit);
-        cout << "bbit : " << bbit.to_string() << endl;
-        cout << "bbit lexical_zero = " << iblock->stringsb()->lexical_zero(bbit) << endl;
         double* const source_ptr = iblock->data() + block_index_b + (block_index_a * iblock->lenb());
-        cout << "source_ptr value : " << *source_ptr << endl;
         // FCI part
         const int fci_index_a = fcivec->det()->lexical<0>(abit);
         const int fci_index_b = fcivec->det()->lexical<1>(bbit);
         double* const target_ptr = fcivec->data() + fci_index_b + (fci_index_a * fcivec->det()->lenb());
         *target_ptr = *source_ptr;
-        cout << "target_ptr value : " << *target_ptr << endl;
       }
     }
   }
-  cout << "printing RASCI vector :" << endl;
-  this->print(0.0);
-  cout << "printing FCI vector : " << endl;
-  fcivec->print(0.0);
   // form RDM<2>
   { // sigma_2a1
     const int lb = dbra->lenb();

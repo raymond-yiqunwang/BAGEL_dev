@@ -110,7 +110,8 @@ class ASD_DMRG {
 
     // compute RDM
     void compute_rdm12();
-    std::vector<std::shared_ptr<Matrix>> compute_ras_rdm12(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    std::tuple<std::vector<std::shared_ptr<Matrix>>, std::vector<std::shared_ptr<Matrix>>> 
+      compute_ras_rdm12(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
 
   private:
     /// Prepare several input files used for growing the chain

@@ -75,14 +75,23 @@ void ASD_DMRG::compute_rdm12() {
       cc = prod_ras->civectors();
     }
 
-    // construct RDM<2> by collecting terms during sweeping
-    if (site == 0) {
-      cout << "  * special treatment for site[0]" << endl;
-      auto ras_rdm = compute_ras_rdm12(cc);
-
-    } else if (site == nsites_-1) {
-      cout << "  * special treatment for site[" << nsites_-1 << "]" << endl;
-    
+    // construct RDM by collecting terms during sweeping
+    if ((site == 0) || (site == nsites_-1)) {
+      cout << "  * special treatment for site[" << site << "]" << endl;
+      vector<shared_ptr<Matrix>> ras_rdm1_mat;
+      vector<shared_ptr<Matrix>> ras_rdm2_mat;
+      tie(ras_rdm1_mat, ras_rdm2_mat) = compute_ras_rdm12(cc);
+      // debugging
+      {
+        cout << "printing RAS RDM1 : " << endl;
+        for (auto& mat1 : ras_rdm1_mat)
+          mat1->print();
+        cout << "printing RAS RDM2 : " << endl;
+        for (auto& mat2 : ras_rdm2_mat)
+          mat2->print();
+      }
+      // TODO implement -- copy this fragment of RDM into rdm_ with orbital range determined from site
+      
     } else {
       // special treatment for first configuration as described by Garnet Chan, 2008
       if (site == 1) {
@@ -102,6 +111,7 @@ void ASD_DMRG::compute_rdm12() {
 
   }
 
+/*
   // for nstate==1, rdm1_av_ = rdm1_->at(0)
   // Needs initialization here because we use daxpy
   if (rdm1_av_ == nullptr && nstate_ > 1) {
@@ -118,38 +128,40 @@ void ASD_DMRG::compute_rdm12() {
       rdm2_av_->ax_plus_y(weights_[ist], rdm2_->at(ist));
     }
   } else {
-    rdm1_av_ = rdm1_->at(0, 0);
-    rdm2_av_ = rdm2_->at(0, 0);
+    rdm1_av_ = rdm1_->at(0,0);
+    rdm2_av_ = rdm2_->at(0,0);
   }
+*/
 }
 
 
-vector<shared_ptr<Matrix>> ASD_DMRG::compute_ras_rdm12(vector<shared_ptr<ProductRASCivec>> dvec) {
-  cout << "  * DEBUGGING... in function ASD_DMRG::compute_ras_rdm" << endl;
-  vector<shared_ptr<Matrix>> out;
+tuple<vector<shared_ptr<Matrix>>, vector<shared_ptr<Matrix>>> ASD_DMRG::compute_ras_rdm12(vector<shared_ptr<ProductRASCivec>> dvec) {
+  vector<shared_ptr<Matrix>> rdm1_vec;
+  vector<shared_ptr<Matrix>> rdm2_vec;
   const int norb = dvec.front()->space()->norb();
   const int nstate = dvec.size();
   shared_ptr<const RDM<2>> rdm2;
   shared_ptr<const RDM<1>> rdm1;
   for (int istate = 0; istate != nstate; ++istate) {
-    auto tmp_result = make_shared<Matrix>(norb*norb, norb*norb);
+    auto rdm1_mat = make_shared<Matrix>(norb, norb);
+    auto rdm2_mat = make_shared<Matrix>(norb*norb, norb*norb);
     for (auto& block : dvec[istate]->sectors()) {
       const int n_lr = block.second->mdim();
       for (int i = 0; i != n_lr; ++i) {
         auto rasvec = make_shared<RASCivec>(block.second->civec(i));
         tie(rdm1, rdm2) = rasvec->compute_rdm12_from_rasvec();
-        assert(tmp_result->size() == rdm2->size());
-        blas::ax_plus_y_n(1.0, rdm2->data(), tmp_result->size(), tmp_result->data());
-        // TODO get rid of the following line
-        break;
+        assert(rdm1_mat->size() == rdm1->size());
+        assert(rdm2_mat->size() == rdm2->size());
+        blas::ax_plus_y_n(1.0, rdm1->data(), rdm1_mat->size(), rdm1_mat->data());
+        blas::ax_plus_y_n(1.0, rdm2->data(), rdm2_mat->size(), rdm2_mat->data());
       }
-      // TODO get rid of the following line
-      break;
     }
-    out.push_back(tmp_result);
+
+    rdm1_vec.push_back(rdm1_mat);
+    rdm2_vec.push_back(rdm2_mat);
   }
 
-  return out;
+  return tie(rdm1_vec, rdm2_vec);
 }
 
 
