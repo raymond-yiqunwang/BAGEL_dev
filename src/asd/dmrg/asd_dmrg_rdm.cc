@@ -78,7 +78,7 @@ void ASD_DMRG::compute_rdm12() {
     // construct RDM<2> by collecting terms during sweeping
     if (site == 0) {
       cout << "  * special treatment for site[0]" << endl;
-      auto ras_rdm = compute_ras_rdm(cc);
+      auto ras_rdm = compute_ras_rdm12(cc);
 
     } else if (site == nsites_-1) {
       cout << "  * special treatment for site[" << nsites_-1 << "]" << endl;
@@ -102,7 +102,6 @@ void ASD_DMRG::compute_rdm12() {
 
   }
 
-/*
   // for nstate==1, rdm1_av_ = rdm1_->at(0)
   // Needs initialization here because we use daxpy
   if (rdm1_av_ == nullptr && nstate_ > 1) {
@@ -122,27 +121,30 @@ void ASD_DMRG::compute_rdm12() {
     rdm1_av_ = rdm1_->at(0, 0);
     rdm2_av_ = rdm2_->at(0, 0);
   }
-*/
-
 }
 
 
-vector<shared_ptr<Matrix>> ASD_DMRG::compute_ras_rdm(vector<shared_ptr<ProductRASCivec>> dvec) {
+vector<shared_ptr<Matrix>> ASD_DMRG::compute_ras_rdm12(vector<shared_ptr<ProductRASCivec>> dvec) {
   cout << "  * DEBUGGING... in function ASD_DMRG::compute_ras_rdm" << endl;
   vector<shared_ptr<Matrix>> out;
   const int norb = dvec.front()->space()->norb();
   const int nstate = dvec.size();
   shared_ptr<const RDM<2>> rdm2;
+  shared_ptr<const RDM<1>> rdm1;
   for (int istate = 0; istate != nstate; ++istate) {
     auto tmp_result = make_shared<Matrix>(norb*norb, norb*norb);
     for (auto& block : dvec[istate]->sectors()) {
       const int n_lr = block.second->mdim();
       for (int i = 0; i != n_lr; ++i) {
-        auto rasvec = make_shared<const RASCivec>(block.second->civec(i));
-        rdm2 = rasvec->compute_rdm2_from_rasvec();
+        auto rasvec = make_shared<RASCivec>(block.second->civec(i));
+        tie(rdm1, rdm2) = rasvec->compute_rdm12_from_rasvec();
         assert(tmp_result->size() == rdm2->size());
         blas::ax_plus_y_n(1.0, rdm2->data(), tmp_result->size(), tmp_result->data());
+        // TODO get rid of the following line
+        break;
       }
+      // TODO get rid of the following line
+      break;
     }
     out.push_back(tmp_result);
   }
@@ -150,30 +152,4 @@ vector<shared_ptr<Matrix>> ASD_DMRG::compute_ras_rdm(vector<shared_ptr<ProductRA
   return out;
 }
 
-/*
-void ASD_DMRG::ras_sigma_2a1(shared_ptr<RASCivec> cbra, shared_ptr<Dvec> dbra) {
-  cout << "ras_sigma_2a1" << endl;
-  const int ij = dbra->ij();
-  const double* const source_base = cbra->data();
-  
-  auto construct_unrestricted_phis()
 
-  for (auto& iblock : cbra->blocks()) {
-    const int lenb = iblock->lenb();
-    cout << ij << lenb << *source_base << endl; // TODO delete this line
-    for (int ip = 0; ip != ij; ++ip) {
-      double* const target_base = dbra->data(ip)->data();
-      for (auto& abit : *iblock->stringsa()) {
-        for (auto& bbit : *iblock->stringsb()) {
-          bitset<nbit__> sourcebita = abit;
-          bitset<nbit__> sourcebitb = bbit;
-          const int sourceida = iblock->stringsa()->lexical_offset(sourcebita);
-          const int sourceidb = iblock->stringsb()->lexical_offset(sourcebitb);
-          cout << sourceida << sourceidb << endl;
-        }
-      }
-    }
-  }
-}
-
-*/

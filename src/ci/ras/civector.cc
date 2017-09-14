@@ -29,6 +29,7 @@
 #include <src/ci/ras/civector.h>
 #include <src/ci/ras/civec_spinop.h>
 #include <src/ci/ras/apply_block.h>
+#include <src/ci/fci/fci.h>
 
 using namespace std;
 using namespace bagel;
@@ -175,7 +176,7 @@ template<> shared_ptr<RASCivector<double>> RASCivecView_<double>::spin_raise(sha
   return out;
 }
 
-template<> shared_ptr<RDM<2>> RASCivector<double>::compute_rdm2_from_rasvec() {
+template<> tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>> RASCivector<double>::compute_rdm12_from_rasvec() const {
   cout << "  * debugging in compute_rdm2_from_rasvec.." << endl;
   const int norb = det_->norb();
   const int nelea = det_->nelea();
@@ -184,17 +185,116 @@ template<> shared_ptr<RDM<2>> RASCivector<double>::compute_rdm2_from_rasvec() {
 
   auto idet = make_shared<Determinants>(norb, nelea, neleb, false/*compress*/, true/*mute*/);
   auto dbra = make_shared<Dvec>(idet, norb*norb);
-  ras_sigma_2a1(this, dbra)
-
-  return rdm2;
-}
-
-template<> void RASCivector<double>::ras_sigma_2a1(shared_ptr<RASCivector> cbra, shared_ptr<Dvec> dbra) {
-  cout << "ras_sigma_2a1" << endl;
-  {
-    
+  auto fcivec = make_shared<Civec>(idet);
+  
+  // map RASCI vec into FCI vec
+  for (auto& iblock : blocks_) {
+    if (!iblock) continue;
+    cout << "a new block.. iblock->offset = " << iblock->offset() << endl;
+    // beta_string runs first
+    for (auto& abit : iblock->stringsa()->strings()) {
+      const int block_index_a = iblock->stringsa()->lexical_zero(abit);
+      cout << "abit : " << abit.to_string() << endl;
+      cout << "abit lexical_zero = " << iblock->stringsa()->lexical_zero(abit) << endl;
+      for (auto & bbit : iblock->stringsb()->strings()) {
+        // now I have a pair of legal bits, identify the source index in RASCivec and target index in Civec
+        const int block_index_b = iblock->stringsb()->lexical_zero(bbit);
+        cout << "bbit : " << bbit.to_string() << endl;
+        cout << "bbit lexical_zero = " << iblock->stringsb()->lexical_zero(bbit) << endl;
+        double* const source_ptr = iblock->data() + block_index_b + (block_index_a * iblock->lenb());
+        cout << "source_ptr value : " << *source_ptr << endl;
+        // FCI part
+        const int fci_index_a = fcivec->det()->lexical<0>(abit);
+        const int fci_index_b = fcivec->det()->lexical<1>(bbit);
+        double* const target_ptr = fcivec->data() + fci_index_b + (fci_index_a * fcivec->det()->lenb());
+        *target_ptr = *source_ptr;
+        cout << "target_ptr value : " << *target_ptr << endl;
+      }
+    }
   }
+  cout << "printing RASCI vector :" << endl;
+  this->print(0.0);
+  cout << "printing FCI vector : " << endl;
+  fcivec->print(0.0);
+  // form RDM<2>
+  { // sigma_2a1
+    const int lb = dbra->lenb();
+    const int ij = dbra->ij();
+    const double* const source_base = fcivec->data();
+    for (int ip = 0; ip != ij; ++ip) {
+      double* const target_base = dbra->data(ip)->data();
+      for (auto& iter : fcivec->det()->phia(ip)) {
+        const double sign = static_cast<double>(iter.sign);
+        double* const target_array = target_base + iter.source*lb;
+        blas::ax_plus_y_n(sign, source_base + iter.target*lb, lb, target_array);
+      }
+    }
+  }
+  { // sigma_2a2
+    const int la = dbra->lena();
+    const int ij = dbra->ij();
+    for (int i = 0; i < la; ++i) {
+      const double* const source_array0 = fcivec->element_ptr(0, i);
+      for (int ip = 0; ip != ij; ++ip) {
+        double* const target_array0 = dbra->data(ip)->element_ptr(0, i);
+        for (auto& iter : fcivec->det()->phib(ip)) {
+          const double sign = static_cast<double>(iter.sign);
+          target_array0[iter.source] += sign * source_array0[iter.target];
+        }
+      }
+    }
+  }
+
+  return compute_rasrdm12_last_step(dbra, dbra, fcivec);
 }
+
+template<> tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>> RASCivector<double>::compute_rasrdm12_last_step(shared_ptr<Dvec> dbra, shared_ptr<Dvec> dket,
+                                                                                                         shared_ptr<Civec> cibra) const {
+  const int nri = cibra->asize() * cibra->lenb();
+  const int norb = det_->norb();
+  const int ij = norb * norb;
+
+  auto rdm1 = make_shared<RDM<1>>(norb);
+  auto rdm2 = make_shared<RDM<2>>(norb);
+  {
+    auto cibra_data = make_shared<VectorB>(nri);
+    copy_n(cibra->data(), nri, cibra_data->data());
+
+    auto dket_data = make_shared<Matrix>(nri, ij);
+    for (int i = 0; i != ij; ++i)
+      copy_n(dket->data(i)->data(), nri, dket_data->element_ptr(0, i));
+    auto rdm1t = btas::group(*rdm1,0,2);
+    btas::contract(1.0, *dket_data, {0,1}, *cibra_data, {0}, 0.0, rdm1t, {1});
+
+    auto dbra_data = dket_data;
+    if (dbra != dket) {
+      dbra_data = make_shared<Matrix>(nri, ij);
+      for (int i = 0; i != ij; ++i)
+        copy_n(dbra->data(i)->data(), nri, dbra_data->element_ptr(0, i));
+    }
+    auto rdm2t = group(group(*rdm2, 2,4), 0,2);
+    btas::contract(1.0, *dbra_data, {1,0}, *dket_data, {1,2}, 0.0, rdm2t, {0,2});
+  }
+
+  // sorting... a bit stupid but cheap anyway
+  // This is since we transpose operator pairs in dgemm - cheaper to do so after dgemm (usually Nconfig >> norb_**2).
+  unique_ptr<double[]> buf(new double[norb*norb]);
+  for (int i = 0; i != norb; ++i) {
+    for (int k = 0; k != norb; ++k) {
+      copy_n(&rdm2->element(0,0,k,i), norb*norb, buf.get());
+      blas::transpose(buf.get(), norb, norb, rdm2->element_ptr(0,0,k,i));
+    }
+  }
+
+  // put in diagonal into 2RDM
+  // Gamma{i+ k+ l j} = Gamma{i+ j k+ l} - delta_jk Gamma{i+ l}
+  for (int i = 0; i != norb; ++i)
+    for (int k = 0; k != norb; ++k)
+      for (int j = 0; j != norb; ++j)
+        rdm2->element(j,k,k,i) -= rdm1->element(j,i);
+
+  return tie(rdm1, rdm2);
+}                                                                                                        
 
 
 template class bagel::RASCivector<double>;

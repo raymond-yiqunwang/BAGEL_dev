@@ -215,7 +215,7 @@ void MultiSite::project_active() {
   {
     int N = actcoeff->ndim();
     int M = actcoeff->mdim();
-    assert(N > M);
+    assert(N >= M);
     assert(M == tmp->mdim());
     int lwork = 10 * N;
     unique_ptr<double[]> work(new double[lwork]);
