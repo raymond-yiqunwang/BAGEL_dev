@@ -34,6 +34,13 @@ using namespace bagel;
 void ASD_DMRG::compute_rdm12() {
 
   cout << endl << " " << string(10, '=') << " computing RDM12 " << string(10, '=') << endl << endl; 
+  // initialize RDM12 with 0.0 then do ax_plus_y
+  auto rdm1 = make_shared<RDM<1>>(nactorb_);
+  auto rdm2 = make_shared<RDM<2>>(nactorb_);
+  for (int istate = 0; istate != nstate_; ++istate) {
+    rdm1_->emplace(istate, istate, rdm1);
+    rdm2_->emplace(istate, istate, rdm2);
+  }
 
   // one additional sweeping after convergence to collect terms required to construct RDM
   shared_ptr<DMRG_Block1> left_block, right_block;
@@ -57,14 +64,7 @@ void ASD_DMRG::compute_rdm12() {
         input->put("nactele", nactele);
       }
       shared_ptr<ProductRASCI> prod_ras;
-      // testing
-      {
-        cout << "site = " << site << endl;
-        if (left_block)
-          cout << "left block is not nullptr" << endl;
-        if (right_block)
-          cout << "right_block is not nullptr" << endl;
-      }
+      
       if ((left_block==nullptr) ^ (right_block==nullptr))
         prod_ras = make_shared<ProductRASCI>(input, ref, ((left_block==nullptr) ? right_block : left_block));
       else {
@@ -77,21 +77,9 @@ void ASD_DMRG::compute_rdm12() {
 
     // construct RDM by collecting terms during sweeping
     if ((site == 0) || (site == nsites_-1)) {
+      // only collect on-site RASCI RDM from these two sites
       cout << "  * special treatment for site[" << site << "]" << endl;
-      vector<shared_ptr<Matrix>> ras_rdm1_mat;
-      vector<shared_ptr<Matrix>> ras_rdm2_mat;
-      tie(ras_rdm1_mat, ras_rdm2_mat) = compute_ras_rdm12(cc);
-      // debugging
-      {
-        cout << "printing RAS RDM1 : " << endl;
-        for (auto& mat1 : ras_rdm1_mat)
-          mat1->print();
-        cout << "printing RAS RDM2 : " << endl;
-        for (auto& mat2 : ras_rdm2_mat)
-          mat2->print();
-      }
-      // TODO implement -- copy this fragment of RDM into rdm_ with orbital range determined from site
-      
+      compute_ras_rdm12(cc, site);
     } else {
       // special treatment for first configuration as described by Garnet Chan, 2008
       if (site == 1) {
@@ -101,6 +89,10 @@ void ASD_DMRG::compute_rdm12() {
       // general treatment
       {
         cout << "  * general treatment for site[" << site << "]" << endl;
+        // compute RASCI RDM
+        compute_ras_rdm12(cc, site);
+
+        // compute_rdm12_130(cc, site);
       }
 
       // special treatment for final configuration
@@ -111,7 +103,6 @@ void ASD_DMRG::compute_rdm12() {
 
   }
 
-/*
   // for nstate==1, rdm1_av_ = rdm1_->at(0)
   // Needs initialization here because we use daxpy
   if (rdm1_av_ == nullptr && nstate_ > 1) {
@@ -131,11 +122,10 @@ void ASD_DMRG::compute_rdm12() {
     rdm1_av_ = rdm1_->at(0,0);
     rdm2_av_ = rdm2_->at(0,0);
   }
-*/
 }
 
 
-tuple<vector<shared_ptr<Matrix>>, vector<shared_ptr<Matrix>>> ASD_DMRG::compute_ras_rdm12(vector<shared_ptr<ProductRASCivec>> dvec) {
+void ASD_DMRG::compute_ras_rdm12(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
   vector<shared_ptr<Matrix>> rdm1_vec;
   vector<shared_ptr<Matrix>> rdm2_vec;
   const int norb = dvec.front()->space()->norb();
@@ -161,7 +151,22 @@ tuple<vector<shared_ptr<Matrix>>, vector<shared_ptr<Matrix>>> ASD_DMRG::compute_
     rdm2_vec.push_back(rdm2_mat);
   }
 
-  return tie(rdm1_vec, rdm2_vec);
+  // copy rdm12 elements into total rdm1_ and rdm2_
+  vector<int> active_sizes = multisite_->active_sizes();
+  const int orb_start = accumulate(active_sizes.begin(), active_sizes.begin()+site, 0);
+  const int orb_end = orb_start + active_sizes.at(site); // TODO get rid of orb_end
+  assert((orb_end-orb_start) == norb);
+  cout << "  * orb_start = " << orb_start << ", orb_end = " << orb_end << endl;
+  for (int istate = 0; istate != nstate; ++istate) {
+    auto rdm1 = rdm1_vec.at(istate);
+    auto rdm2 = rdm2_vec.at(istate);
+    const double* const rdm1_source = rdm1->data();
+    auto rdm1_target = rdm1_->at(istate);
+    for (int j = 0; j != norb; ++j) {
+      copy_n(rdm1_source + j*norb, norb, rdm1_target->element_ptr(orb_start, orb_start + j));
+    }
+  }
+
 }
 
 
