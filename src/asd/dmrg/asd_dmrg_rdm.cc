@@ -122,48 +122,60 @@ void ASD_DMRG::compute_rdm12() {
     rdm1_av_ = rdm1_->at(0,0);
     rdm2_av_ = rdm2_->at(0,0);
   }
+
+  // printing out results
+  for (int i = 0; i != nstate_; ++i) {
+    cout << "rdm1_[" << i << "] : " << endl;
+    rdm1_->at(i)->print(1e-3);
+    cout << "rdm2_[" << i << "] : " << endl;
+    rdm2_->at(i)->print(1e-3);
+  }
 }
 
 
 void ASD_DMRG::compute_ras_rdm12(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
-  vector<shared_ptr<Matrix>> rdm1_vec;
-  vector<shared_ptr<Matrix>> rdm2_vec;
+  vector<shared_ptr<RDM<1>>> rdm1_vec;
+  vector<shared_ptr<RDM<2>>> rdm2_vec;
   const int norb = dvec.front()->space()->norb();
   const int nstate = dvec.size();
-  shared_ptr<const RDM<2>> rdm2;
-  shared_ptr<const RDM<1>> rdm1;
+  shared_ptr<const RDM<1>> rdm1_ptr;
+  shared_ptr<const RDM<2>> rdm2_ptr;
   for (int istate = 0; istate != nstate; ++istate) {
-    auto rdm1_mat = make_shared<Matrix>(norb, norb);
-    auto rdm2_mat = make_shared<Matrix>(norb*norb, norb*norb);
+    auto rdm1_tmp = make_shared<RDM<1>>(norb);
+    auto rdm2_tmp = make_shared<RDM<2>>(norb);
     for (auto& block : dvec[istate]->sectors()) {
       const int n_lr = block.second->mdim();
       for (int i = 0; i != n_lr; ++i) {
         auto rasvec = make_shared<RASCivec>(block.second->civec(i));
-        tie(rdm1, rdm2) = rasvec->compute_rdm12_from_rasvec();
-        assert(rdm1_mat->size() == rdm1->size());
-        assert(rdm2_mat->size() == rdm2->size());
-        blas::ax_plus_y_n(1.0, rdm1->data(), rdm1_mat->size(), rdm1_mat->data());
-        blas::ax_plus_y_n(1.0, rdm2->data(), rdm2_mat->size(), rdm2_mat->data());
+        tie(rdm1_ptr, rdm2_ptr) = rasvec->compute_rdm12_from_rasvec();
+        assert(rdm1_ptr->size() == rdm1_tmp->size());
+        assert(rdm2_ptr->size() == rdm2_tmp->size());
+        blas::ax_plus_y_n(1.0, rdm1_ptr->data(), rdm1_ptr->size(), rdm1_tmp->data());
+        blas::ax_plus_y_n(1.0, rdm2_ptr->data(), rdm2_ptr->size(), rdm2_tmp->data());
       }
     }
 
-    rdm1_vec.push_back(rdm1_mat);
-    rdm2_vec.push_back(rdm2_mat);
+    rdm1_vec.push_back(rdm1_tmp);
+    rdm2_vec.push_back(rdm2_tmp);
   }
 
   // copy rdm12 elements into total rdm1_ and rdm2_
   vector<int> active_sizes = multisite_->active_sizes();
   const int orb_start = accumulate(active_sizes.begin(), active_sizes.begin()+site, 0);
-  const int orb_end = orb_start + active_sizes.at(site); // TODO get rid of orb_end
-  assert((orb_end-orb_start) == norb);
-  cout << "  * orb_start = " << orb_start << ", orb_end = " << orb_end << endl;
+  cout << "  * orb_start = " << orb_start << endl;
   for (int istate = 0; istate != nstate; ++istate) {
     auto rdm1 = rdm1_vec.at(istate);
     auto rdm2 = rdm2_vec.at(istate);
     const double* const rdm1_source = rdm1->data();
     auto rdm1_target = rdm1_->at(istate);
-    for (int j = 0; j != norb; ++j) {
-      copy_n(rdm1_source + j*norb, norb, rdm1_target->element_ptr(orb_start, orb_start + j));
+    auto rdm2_target = rdm2_->at(istate);
+    for (int k = 0; k != norb; ++k) {
+      copy_n(rdm1_source + k*norb, norb, rdm1_target->element_ptr(orb_start, orb_start + k));
+      for (int j = 0; j != norb; ++j) {
+        for (int i = 0; i != norb; ++i) {
+          copy_n(rdm2->element_ptr(0,i,j,k), norb, rdm2_target->element_ptr(orb_start, (orb_start + i), (orb_start + j), (orb_start + k)));
+        }
+      }
     }
   }
 
