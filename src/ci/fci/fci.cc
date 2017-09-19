@@ -412,8 +412,8 @@ void FCI::compute() {
   // Debug
   for (int i = 0; i != nstate_; ++i) {
     cout << "rdm1" << endl;
-    rdm1_->at(i)->print(1e-3);
+    rdm1_->at(i)->print(1e-8);
     cout << "rdm2" << endl;
-    rdm2_->at(i)->print(1e-3);
+    rdm2_->at(i)->print(1e-8);
   }
 }
