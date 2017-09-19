@@ -79,7 +79,7 @@ void ASD_DMRG::compute_rdm12() {
     if ((site == 0) || (site == nsites_-1)) {
       // only collect on-site RASCI RDM from these two sites
       cout << "  * special treatment for site[" << site << "]" << endl;
-      compute_ras_rdm12(cc, site);
+      compute_rdm12_ras(cc, site);
     } else {
       // special treatment for first configuration as described by Garnet Chan, 2008
       if (site == 1) {
@@ -90,9 +90,9 @@ void ASD_DMRG::compute_rdm12() {
       {
         cout << "  * general treatment for site[" << site << "]" << endl;
         // compute RASCI RDM
-        compute_ras_rdm12(cc, site);
+        compute_rdm12_ras(cc, site);
 
-        // compute_rdm12_130(cc, site);
+        compute_rdm12_130(cc, site);
       }
 
       // special treatment for final configuration
@@ -133,7 +133,7 @@ void ASD_DMRG::compute_rdm12() {
 }
 
 
-void ASD_DMRG::compute_ras_rdm12(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
+void ASD_DMRG::compute_rdm12_ras(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
   vector<shared_ptr<RDM<1>>> rdm1_vec;
   vector<shared_ptr<RDM<2>>> rdm2_vec;
   const int norb = dvec.front()->space()->norb();
@@ -179,6 +179,62 @@ void ASD_DMRG::compute_ras_rdm12(vector<shared_ptr<ProductRASCivec>> dvec, const
     }
   }
 
+}
+
+
+void ASD_DMRG::compute_rdm12_130(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
+  cout << "  * compute_rdm12_130" << endl;
+  const int nstate = dvec.size();
+  for (int istate = 0; istate != nstate; ++istate) {
+    auto prod_civec = dvec.at(istate);
+    shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
+    const int norb_site = multisite_->active_sizes().at(site);
+    cout << "norb_site = " << norb_site << endl;
+    const int norb_left = doubleblock->left_block()->norb();
+    cout << "norb_left = " << norb_left << endl;
+    auto rdm_mat = make_shared<Matrix>(norb_left*norb_left*norb_left, norb_site); // matrix to store RDM, use ax_plus_y...
+
+    map<BlockKey, shared_ptr<const RASDvec>> states; // only store transition between left blocks with the same right block
+    for (auto& ketblock : prod_civec->sectors()) {
+      BlockKey ketkey = ketblock.first;
+      BlockKey brakey(ketkey.nelea+1, ketkey.neleb);
+      if (!prod_civec->contains_block(brakey)) continue;
+      auto ketci_ptr = prod_civec->sector(ketkey);
+      auto braci_ptr = prod_civec->sector(brakey);
+      for (auto& ketpair : doubleblock->blockpairs(ketkey)) {
+        const int ket_offset = ketpair.offset;
+        BlockInfo ket_rblock = ketpair.right;
+        BlockInfo ket_lblock = ketpair.left;
+        // aaaa first
+        for (auto& brapair : doubleblock->blockpairs(brakey)) {
+          const int bra_offset = brapair.offset;
+          // only loop over blockpairs with the same right block
+          if (brapair.right == ket_rblock) {
+            BlockInfo bra_lblock = brapair.left;
+            cout << "  * the same right block matched!" << endl;
+            vector<shared_ptr<RASCivec>> ket_tmpvec;
+            for (int iket = 0; iket != ket_lblock.nstates; ++iket)
+              ket_tmpvec.push_back(make_shared<RASCivec>(ketci_ptr->civec(ket_offset + iket)));
+            vector<shared_ptr<RASCivec>> bra_tmpvec;
+            for (int ibra = 0; ibra != bra_lblock.nstates; ++ibra)
+              bra_tmpvec.push_back(make_shared<RASCivec>(braci_ptr->civec(bra_offset + ibra)));
+
+            auto ket_rasdvec = make_shared<const RASDvec>(ket_tmpvec);
+            auto bra_rasdvec = make_shared<const RASDvec>(bra_tmpvec);
+            states[ket_lblock] = ket_rasdvec;
+            states[bra_lblock] = bra_rasdvec;
+          }
+        }
+      }
+      GammaForestASD<RASDvec> forest(states);
+      forest.compute();
+    }
+
+    // <r|a^{\dagger}_{\alpha}|r'> <site|a^{\dagger}_{\alpha} a_{\alpha} a_{\alpha} |site'>
+    // short form representation -- alpha, alpha, alpha, alpha
+    list<GammaSQ> gammalist_aaaa = {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha};
+
+  }
 }
 
 
