@@ -92,7 +92,7 @@ void ASD_DMRG::compute_rdm12() {
         // compute RASCI RDM
         compute_rdm12_ras(cc, site);
 
-        compute_rdm12_130(cc, site);
+        //compute_rdm12_130(cc, site);
       }
 
       // special treatment for final configuration
@@ -124,12 +124,14 @@ void ASD_DMRG::compute_rdm12() {
   }
 
   // printing out results
+#if 1
   for (int i = 0; i != nstate_; ++i) {
     cout << "rdm1_[" << i << "] : " << endl;
     rdm1_->at(i)->print(1e-3);
     cout << "rdm2_[" << i << "] : " << endl;
     rdm2_->at(i)->print(1e-3);
   }
+#endif
 }
 
 
@@ -154,7 +156,6 @@ void ASD_DMRG::compute_rdm12_ras(vector<shared_ptr<ProductRASCivec>> dvec, const
         blas::ax_plus_y_n(1.0, rdm2_ptr->data(), rdm2_ptr->size(), rdm2_tmp->data());
       }
     }
-
     rdm1_vec.push_back(rdm1_tmp);
     rdm2_vec.push_back(rdm2_tmp);
   }
@@ -188,16 +189,16 @@ void ASD_DMRG::compute_rdm12_130(vector<shared_ptr<ProductRASCivec>> dvec, const
   for (int istate = 0; istate != nstate; ++istate) {
     auto prod_civec = dvec.at(istate);
     shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
+    auto left_block = doubleblock->left_block();
     const int norb_site = multisite_->active_sizes().at(site);
     cout << "norb_site = " << norb_site << endl;
     const int norb_left = doubleblock->left_block()->norb();
     cout << "norb_left = " << norb_left << endl;
-    auto rdm_mat = make_shared<Matrix>(norb_left*norb_left*norb_left, norb_site); // matrix to store RDM, use ax_plus_y...
+    auto rdm_mat = make_shared<Matrix>(norb_site*norb_site*norb_site, norb_left); // matrix to store RDM, use ax_plus_y...
 
-    map<BlockKey, shared_ptr<const RASDvec>> states; // only store transition between left blocks with the same right block
     for (auto& ketblock : prod_civec->sectors()) {
       BlockKey ketkey = ketblock.first;
-      BlockKey brakey(ketkey.nelea+1, ketkey.neleb);
+      BlockKey brakey(ketkey.nelea-1, ketkey.neleb);
       if (!prod_civec->contains_block(brakey)) continue;
       auto ketci_ptr = prod_civec->sector(ketkey);
       auto braci_ptr = prod_civec->sector(brakey);
@@ -210,8 +211,10 @@ void ASD_DMRG::compute_rdm12_130(vector<shared_ptr<ProductRASCivec>> dvec, const
           const int bra_offset = brapair.offset;
           // only loop over blockpairs with the same right block
           if (brapair.right == ket_rblock) {
+            map<BlockKey, shared_ptr<const RASDvec>> states; // only store transition between left blocks with the same right block
             BlockInfo bra_lblock = brapair.left;
             cout << "  * the same right block matched!" << endl;
+            cout << "rblock info : " << ket_rblock.nelea << ", " << ket_rblock.neleb << ", " << ket_rblock.nstates << endl;
             vector<shared_ptr<RASCivec>> ket_tmpvec;
             for (int iket = 0; iket != ket_lblock.nstates; ++iket)
               ket_tmpvec.push_back(make_shared<RASCivec>(ketci_ptr->civec(ket_offset + iket)));
@@ -221,19 +224,54 @@ void ASD_DMRG::compute_rdm12_130(vector<shared_ptr<ProductRASCivec>> dvec, const
 
             auto ket_rasdvec = make_shared<const RASDvec>(ket_tmpvec);
             auto bra_rasdvec = make_shared<const RASDvec>(bra_tmpvec);
-            states[ket_lblock] = ket_rasdvec;
-            states[bra_lblock] = bra_rasdvec;
+            const int ket_ras_nelea = prod_civec->nelea() - ketkey.nelea;
+            const int ket_ras_neleb = prod_civec->neleb() - ketkey.neleb;
+            const int bra_ras_nelea = prod_civec->nelea() - brakey.nelea;
+            const int bra_ras_neleb = prod_civec->neleb() - brakey.neleb;
+            BlockInfo ket_rasblock(ket_ras_nelea, ket_ras_neleb, ket_lblock.nstates);
+            BlockInfo bra_rasblock(bra_ras_nelea, bra_ras_neleb, bra_lblock.nstates);
+            states[ket_rasblock] = ket_rasdvec;
+            states[bra_rasblock] = bra_rasdvec;
+            cout << "ket_rasblock info : " << ket_rasblock.nelea << ", " << ket_lblock.neleb << ", " << ket_lblock.nstates << endl;
+            cout << "bra_rasblock info : " << bra_rasblock.nelea << ", " << bra_lblock.neleb << ", " << bra_lblock.nstates << endl;
+            
+            GammaForestASD<RASDvec> forest(states);
+            forest.compute();
+
+            const size_t bratag = forest.block_tag(bra_rasblock);
+            const size_t kettag = forest.block_tag(ket_rasblock);
+            list<GammaSQ> gammalist_aaa = {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha};
+            auto transition_mat_aaa = forest.template get<0>(bratag, kettag, gammalist_aaa);
+            cout << "printing transiion matrix" << endl;
+            transition_mat_aaa->print();
+
+            list<GammaSQ> gammalist_a = {GammaSQ::CreateAlpha};
+            auto coupling_data_a = left_block->coupling(gammalist_a).at(make_pair(ket_lblock, bra_lblock)).data;
+            cout << "printing coupling data" << endl;
+            double* ptr = coupling_data_a->data();
+            cout << "extent 0 = " << coupling_data_a->extent(0) << endl;
+            cout << "extent 1 = " << coupling_data_a->extent(1) << endl;
+            cout << "extent 2 = " << coupling_data_a->extent(2) << endl;
+            for (int i = 0; i != coupling_data_a->extent(0); ++i) {
+              for (int j = 0; j != coupling_data_a->extent(1); ++j) {
+                for (int k = 0; k != coupling_data_a->extent(2); ++k, ++ptr) {
+                  cout << *ptr<< " ";
+                }
+                cout << endl;
+              }
+            }
+
+            auto target = rdm_mat->clone();
+            contract(1.0, *transition_mat_aaa, {0,1}, group(*coupling_data_a,0,2), {0,2}, 0.0, *target, {1,2});
+            const int sign = 1 - (((bra_lblock.nelea + bra_lblock.neleb)%2) << 1);
+            cout << "sign = " << sign << endl;
+            blas::ax_plus_y_n(sign, target->data(), target->size(), rdm_mat->data());
           }
         }
       }
-      GammaForestASD<RASDvec> forest(states);
-      forest.compute();
     }
-
-    // <r|a^{\dagger}_{\alpha}|r'> <site|a^{\dagger}_{\alpha} a_{\alpha} a_{\alpha} |site'>
-    // short form representation -- alpha, alpha, alpha, alpha
-    list<GammaSQ> gammalist_aaaa = {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha};
-
+    cout << "printing rdm_mat" << endl;
+    rdm_mat->print();
   }
 }
 

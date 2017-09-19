@@ -180,7 +180,6 @@ template<> tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>> RASCivector<double>::co
   const int norb = det_->norb();
   const int nelea = det_->nelea();
   const int neleb = det_->neleb();
-  auto rdm2 = make_shared<RDM<2>>(norb);
 
   auto idet = make_shared<Determinants>(norb, nelea, neleb, false/*compress*/, true/*mute*/);
   auto dbra = make_shared<Dvec>(idet, norb*norb);
