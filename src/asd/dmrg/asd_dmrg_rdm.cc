@@ -133,46 +133,6 @@ void ASD_DMRG::compute_rdm12() {
   }
 #endif
 
-#if 0
-  // play with blas::transpose function
-  cout << "test blas::transpose" << endl;
-  btas::CRange<3> test_range(2, 3, 4);
-  auto test_tensor = make_shared<btas::Tensor3<double>>(test_range);
-  cout << "size of tensor = " << test_tensor->size() << endl;
-  double* tensor_ptr = test_tensor->data();
-  for (int i = 0; i != test_tensor->size(); ++i) {
-    *tensor_ptr++ = i;
-  }
-  tensor_ptr = test_tensor->data();
-  cout << "output by index" << endl;
-  for (int i = 0; i != test_tensor->extent(2); ++i) {
-    for (int j = 0; j != test_tensor->extent(1); ++j) {
-      for (int k = 0; k != test_tensor->extent(0); ++k) {
-        cout << (*test_tensor)(k,j,i) << ", (" << k << "," << j << "," << i << ")";
-      }
-    }
-    cout << endl;
-  }
-  // transpose
-  btas::CRange<3> new_range(3, 2, 4);
-  auto new_tensor = make_shared<btas::Tensor3<double>>(new_range, test_tensor->storage());
-  unique_ptr<double[]> test_buf(new double[6]);
-  for (int i = 0; i != new_tensor->extent(2); ++i) {
-    copy_n(&(*new_tensor)(0,0,i), 2*3, test_buf.get());
-    blas::transpose(test_buf.get(), 2, 3, &(*new_tensor)(0,0,i));
-  }
-  cout << "new_tensor" << endl;
-  for (int i = 0; i != new_tensor->extent(2); ++i) {
-    for (int j = 0; j != new_tensor->extent(1); ++j) {
-      for (int k = 0; k != new_tensor->extent(0); ++k) {
-        cout << (*new_tensor)(k,j,i) << ", (" << k << "," << j << "," << i << ")";
-      }
-    }
-    cout << endl;
-  }
-
-
-#endif
 }
 
 
@@ -248,178 +208,80 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
     for (auto& gammalist_tuple : gammalist_tuple_list) {
       // marco loop over right blocks since we have a delta_{r,r'}
-      for (auto& iblock : right_block->blocks()) {
-        cout << "  * macro iteration over right_blocks" << endl;
-        map<BlockKey, shared_ptr<const RASDvec>> states; // only store transition between left blocks with the same right block
-        BlockKey r_bkey = iblock.key();
-        // collect all left states coupled with the same right block and construct Gammas
-        for (auto& ketblock2 : prod_civec->sectors()) {
-          BlockKey ketkey2 = ketblock2.first;
-          BlockKey brakey2(ketkey2.nelea + get<2>(gammalist_tuple), ketkey2.neleb + get<3>(gammalist_tuple));
-          if (!(prod_civec->contains_block(brakey2))) continue;
-          cout << "    * loop over ket sectors" << endl;
-          // filter out all left blocks coupled with this right block
-          for (auto& ketpair : doubleblock->blockpairs(ketkey2)) {
-            if (!(ketpair.right.key() == r_bkey)) continue;
-            cout << "      * loop over ketpair within sector" << endl;
-            // ket info
-            BlockInfo ket_leftinfo = ketpair.left;
-            BlockInfo rightinfo = ketpair.right; // bra & ket share the same rightinfo
-            const int ketpair_offset = ketpair.offset;
+      for (auto& rblock : right_block->blocks()) {
+        BlockKey rightkey = rblock.key(); 
+        const int rightnstates = rblock.nstates;
+        // micro loop over one specific right block
+        for (int ir = 0; ir != rightnstates; ++ir) {
+          cout << "ir = " << ir << endl;
+          map<BlockKey, shared_ptr<const RASDvec>> states; // store transition density matrices between left block states with the same right block state
+          // find all possible left blocks that can be coupled with the right state and compute GammaForestASD
+          for (auto& lblock : left_block->blocks()) {
+            BlockKey leftkey = lblock.key();
+            const int leftnstates = lblock.nstates;
+            BlockKey combinedkey(rightkey.nelea+leftkey.nelea, rightkey.neleb+leftkey.neleb);
+            if (!(prod_civec->contains_block(combinedkey))) continue;
+            auto bpair = doubleblock->blockpairs(combinedkey);
+            auto iter = find_if(bpair.begin(), bpair.end(), [&lblock, &rblock] (const DMRG::BlockPair& bp)
+              { return make_pair(lblock, rblock) == make_pair(bp.left, bp.right); });
+            assert(iter != bpair.end());
+            const int offset = iter->offset;
             // transform blockkey into raskey
-            const int ket_ras_nelea = tot_nelea - ketkey2.nelea;
-            const int ket_ras_neleb = tot_neleb - ketkey2.neleb;
-            BlockKey ket_ras_key(ket_ras_nelea, ket_ras_neleb);
-            // bra info
-            for (auto& brapair : doubleblock->blockpairs(brakey2)) {
-              if (!(brapair.right.key() == r_bkey)) continue;
-              cout << "        * loop over brapair within sector" << endl;
-              BlockInfo bra_leftinfo = brapair.left;
-              const int brapair_offset = brapair.offset;
-              const int bra_ras_nelea = tot_nelea - brakey2.nelea;
-              const int bra_ras_neleb = tot_neleb - brakey2.neleb;
-              BlockKey bra_ras_key(bra_ras_nelea, bra_ras_neleb);
-              // micro loop over one specific right_state, previously looping over one right_block
-              for (int iright = 0; iright != rightinfo.nstates; ++iright) {
-                cout << "          * loop over one specific right state" << endl;
-                map<BlockKey, shared_ptr<const RASDvec>> states; // only store transition between left blocks with the same right block
-                // ket part first
-                vector<shared_ptr<RASCivec>> ket_tmp_vec;
-                for (int ileft = 0; ileft != ket_leftinfo.nstates; ++ileft) {
-                  ket_tmp_vec.push_back(make_shared<RASCivec>(prod_civec->sector(ketkey2)->civec(ketpair_offset + ket_leftinfo.nstates*iright + ileft)));
-                }
-                states[ket_ras_key] = make_shared<const RASDvec>(ket_tmp_vec);
-                // then bra part
-                vector<shared_ptr<RASCivec>> bra_tmp_vec;
-                for (int jleft = 0; jleft != bra_leftinfo.nstates; ++ jleft) {
-                  bra_tmp_vec.push_back(make_shared<RASCivec>(prod_civec->sector(brakey2)->civec(brapair_offset + bra_leftinfo.nstates*iright + jleft)));
-                }
-                states[bra_ras_key] = make_shared<const RASDvec>(bra_tmp_vec);
-                
-                GammaForestASD<RASDvec> forest(states);
-                forest.compute();
+            const int ras_nelea = tot_nelea - combinedkey.nelea;
+            const int ras_neleb = tot_neleb - combinedkey.neleb;
+            BlockKey ras_key(ras_nelea, ras_neleb);
+            vector<shared_ptr<RASCivec>> tmpvec;
+            for (int ileft = 0; ileft != leftnstates; ++ileft)
+              tmpvec.push_back(make_shared<RASCivec>(prod_civec->sector(combinedkey)->civec(offset + ir*leftnstates + ileft)));
+            states[ras_key] = make_shared<const RASDvec>(tmpvec);
+            cout << "ras_key : (" << ras_key.nelea << ", " << ras_key.neleb << ")" << endl;
+          }
+          GammaForestASD<RASDvec> forest(states);
+          forest.compute();
+          cout << "forest computed" << endl;
 
-                const size_t bra_ras_tag = forest.block_tag(bra_ras_key);
-                const size_t ket_ras_tag = forest.block_tag(ket_ras_key);
+          // loop over left blocks again to obtain all transition density matrices
+          for (auto &lbinfo : left_block->blocks()) {
+            BlockKey ket_leftkey = lbinfo.key();
+            BlockKey ket_combinedkey(ket_leftkey.nelea + rightkey.nelea, ket_leftkey.neleb + rightkey.neleb);
+            const int ket_nstates = lbinfo.nstates;
+            BlockKey bra_leftkey(ket_leftkey.nelea + get<2>(gammalist_tuple), ket_leftkey.neleb + get<3>(gammalist_tuple));
+            BlockKey bra_combinedkey(bra_leftkey.nelea + rightkey.nelea, bra_leftkey.neleb + rightkey.neleb);
+            if (!(left_block->contains(bra_leftkey))) continue;
+            if (!(prod_civec->contains_block(bra_combinedkey))) continue;
+            const int bra_nstates = left_block->blockinfo(bra_leftkey).nstates;
+            // transform blockkey into raskey
+            const int ket_ras_nelea = tot_nelea - ket_combinedkey.nelea;
+            const int ket_ras_neleb = tot_neleb - ket_combinedkey.neleb;
+            BlockKey ket_raskey(ket_ras_nelea, ket_ras_neleb);
+            const int bra_ras_nelea = tot_nelea - bra_combinedkey.nelea;
+            const int bra_ras_neleb = tot_neleb - bra_combinedkey.neleb;
+            BlockKey bra_raskey(bra_ras_nelea, bra_ras_neleb);
 
-                // transpose the first two dimensions
-                btas::CRange<3> range(bra_leftinfo.nstates, ket_leftinfo.nstates, lrint(pow(norb_site, get<0>(gammalist_tuple).size())));
-                auto transition_mat = forest.template get<0>(ket_ras_tag, bra_ras_tag, get<0>(gammalist_tuple));
-                auto transition_tensor = make_shared<btas::Tensor3<double>>(range, move(transition_mat->storage()));
-                unique_ptr<double[]> buf(new double[ket_leftinfo.nstates * bra_leftinfo.nstates]);
-                for (int i = 0; i != transition_tensor->extent(2); ++i) {
-                  copy_n(&(*transition_tensor)(0,0,i), ket_leftinfo.nstates*bra_leftinfo.nstates, buf.get());
-                  blas::transpose(buf.get(), ket_leftinfo.nstates, bra_leftinfo.nstates, &(*transition_tensor)(0,0,i));
-                }
-                cout << "  * printing transition_tensor" << endl;
-                for (int i = 0; i != transition_tensor->extent(2); ++i) {
-                  for (int j = 0; j != transition_tensor->extent(1); ++j) {
-                    for (int k = 0; k != transition_tensor->extent(0); ++k) {
-                      cout << setw(6) << (*transition_tensor)(k, j, i) << "(" << k << "," << j << "," << i << "); ";
-                    }
-                  }
-                  cout << endl;
-                }
-                cout << "  * end of one printing iteration" << endl;
+            const size_t ket_rastag = forest.block_tag(ket_raskey);
+            const size_t bra_rastag = forest.block_tag(bra_raskey);
+            if (!(forest.template exist<0>(ket_rastag, bra_rastag, get<0>(gammalist_tuple)))) continue;
 
-                auto coupling_data = left_block->coupling(get<1>(gammalist_tuple)).at(make_pair(bra_leftinfo, ket_leftinfo)).data;
-                
-                auto target = rdm_mat->clone();
-                assert (target->size() == transition_tensor->extent(2) * coupling_data->extent(2));
-                contract(1.0, *transition_tensor, {2,3,0}, *coupling_data, {2,3,1}, 0.0, *target, {0,1});
-                const double sign = static_cast<double>(1 - (((ket_leftinfo.nelea + ket_leftinfo.neleb)%2) << 1));
-                blas::ax_plus_y_n(sign, target->data(), target->size(), rdm_mat->data());
-              }
+            // transpose the first two dimensions
+            btas::CRange<3> range(bra_nstates, ket_nstates, lrint(pow(norb_site, get<0>(gammalist_tuple).size())));
+            auto transition_mat = forest.template get<0>(ket_rastag, bra_rastag, get<0>(gammalist_tuple));
+            auto transition_tensor = make_shared<btas::Tensor3<double>>(range, move(transition_mat->storage()));
+            unique_ptr<double[]> buf(new double[bra_nstates*ket_nstates]);
+            for (int i = 0; i != transition_tensor->extent(2); ++i) {
+              copy_n(&(*transition_tensor)(0,0,i), ket_nstates*bra_nstates, buf.get());
+              blas::transpose(buf.get(), ket_nstates, bra_nstates, &(*transition_tensor)(0,0,i));
             }
+
+            auto coupling_data = left_block->coupling(get<1>(gammalist_tuple)).at(make_pair(bra_leftkey, ket_leftkey)).data;
+
+            auto target = rdm_mat->clone();
+            assert (target->size() == transition_tensor->extent(2) * coupling_data->extent(2));
+            contract(1.0, group(*transition_tensor,0,2), {2,0}, group(*coupling_data,0,2), {2,1}, 0.0, *target, {0,1});
+            const double sign = static_cast<double>(1 - (((ket_leftkey.nelea + ket_leftkey.neleb)%2) << 1));
+            blas::ax_plus_y_n(sign, target->data(), target->size(), rdm_mat->data());
           }
         }
       }
-
-
-/*      
-      for (auto& ketblock2 : prod_civec->sectors()) { // variables ending with 2 belong to DMRB_Block2
-        BlockKey ketkey2 = ketblock2.first;
-        BlockKey brakey2(ketkey2.nelea+get<2>(gammalist_tuple), ketkey2.neleb+get<3>(gammalist_tuple));
-        if (!prod_civec->contains_block(brakey2)) continue;
-        auto ketci_ptr2 = prod_civec->sector(ketkey2);
-        auto braci_ptr2 = prod_civec->sector(brakey2);
-        for (auto& ketpair : doubleblock->blockpairs(ketkey2)) {
-          const int ket_offset = ketpair.offset;
-          BlockInfo ket_rblock = ketpair.right;
-          BlockInfo ket_lblock = ketpair.left;
-          // aaaa first
-          for (auto& brapair : doubleblock->blockpairs(brakey2)) {
-            // only loop over blockpairs with the same right block
-            if (!(brapair.right == ket_rblock)) continue;
-            const int bra_offset = brapair.offset;
-            for (int iright = 0; iright != ket_rblock.nstates; ++iright) {
-              vector<shared_ptr<RASCivec>> ket_tmpvec;
-              for (int iket = 0; iket != ket_lblock.nstates; ++iket)
-                ket_tmpvec.push_back(make_shared<RASCivec>(ketci_ptr2->civec(ket_offset + iright*ket_lblock.nstates + iket)));
-              BlockInfo bra_lblock = brapair.left;
-              vector<shared_ptr<RASCivec>> bra_tmpvec;
-              for (int ibra = 0; ibra != bra_lblock.nstates; ++ibra)
-                bra_tmpvec.push_back(make_shared<RASCivec>(braci_ptr2->civec(bra_offset + iright*bra_lblock.nstates + ibra)));
-  
-              auto ket_rasdvec = make_shared<const RASDvec>(ket_tmpvec);
-              auto bra_rasdvec = make_shared<const RASDvec>(bra_tmpvec);
-              const int ket_ras_nelea = prod_civec->nelea() - ketkey2.nelea;
-              const int ket_ras_neleb = prod_civec->neleb() - ketkey2.neleb;
-              const int bra_ras_nelea = prod_civec->nelea() - brakey2.nelea;
-              const int bra_ras_neleb = prod_civec->neleb() - brakey2.neleb;
-              BlockInfo ket_rasblock(ket_ras_nelea, ket_ras_neleb, ket_lblock.nstates);
-              BlockInfo bra_rasblock(bra_ras_nelea, bra_ras_neleb, bra_lblock.nstates);
-              states[ket_rasblock] = ket_rasdvec;
-              states[bra_rasblock] = bra_rasdvec;
-              
-              GammaForestASD<RASDvec> forest(states);
-              forest.compute();
-
-              const size_t bratag = forest.block_tag(bra_rasblock);
-              const size_t kettag = forest.block_tag(ket_rasblock);
- 
-              // transpose the first two dimensions
-              btas::CRange<3> range(bra_rasblock.nstates, ket_rasblock.nstates, lrint(pow(norb_site, get<0>(gammalist_tuple).size())));
-              auto transition_mat = forest.template get<0>(kettag, bratag, get<0>(gammalist_tuple));
-              auto transition_tensor = make_shared<btas::Tensor3<double>>(range, move(transition_mat->storage()));
-              unique_ptr<double[]> buf(new double[ket_rasblock.nstates * bra_rasblock.nstates]);
-              for (int i = 0; i != transition_tensor->extent(2); ++i) {
-                copy_n(&(*transition_tensor)(0,0,i), ket_rasblock.nstates*bra_rasblock.nstates, buf.get());
-                blas::transpose(buf.get(), ket_rasblock.nstates, bra_rasblock.nstates, &(*transition_tensor)(0,0,i));
-              }
-              cout << "  * printing transition_tensor" << endl;
-              for (int i = 0; i != transition_tensor->extent(2); ++i) {
-                for (int j = 0; j != transition_tensor->extent(1); ++j) {
-                  for (int k = 0; k != transition_tensor->extent(0); ++k) {
-                    cout << (*transition_tensor)(k, j, i) << ", (" << k << "," << j << "," << i << "); ";
-                  }
-                }
-                cout << endl;
-              }
-              cout << "  * end of one printing iteration" << endl;
-  
-              auto coupling_data = left_block->coupling(get<1>(gammalist_tuple)).at(make_pair(bra_lblock, ket_lblock)).data;
-              cout << "  * printing coupling_data" << endl;
-              for (int i = 0; i != coupling_data->extent(2); ++i) {
-                for (int j = 0; j != coupling_data->extent(1); ++j) {
-                  for (int k = 0; k != coupling_data->extent(0); ++k) {
-                    cout << (*coupling_data)(k, j, i) << ", (" << k << "," << j << "," << i << "); ";
-                  }
-                }
-                cout << endl;
-              }
-              cout << "  * end of one printing iteration" << endl;
-  
-              auto target = rdm_mat->clone();
-              assert (target->size() == transition_tensor->extent(2) * coupling_data->extent(2));
-              contract(1.0, *transition_tensor, {2,3,0}, *coupling_data, {2,3,1}, 0.0, *target, {0,1});
-              const double sign = static_cast<double>(1 - (((ket_lblock.nelea + ket_lblock.neleb)%2) << 1));
-              blas::ax_plus_y_n(sign, target->data(), target->size(), rdm_mat->data());
-            } // end of looping over right blocks
-          }
-        }
-      }
-*/
     }
     cout << "printing rdm_mat" << endl;
     rdm_mat->print();
