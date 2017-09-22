@@ -127,9 +127,9 @@ void ASD_DMRG::compute_rdm12() {
 #if 1
   for (int i = 0; i != nstate_; ++i) {
     cout << "rdm1_[" << i << "] : " << endl;
-    rdm1_->at(i)->print(1e-3);
+    rdm1_->at(i)->print(1e-6);
     cout << "rdm2_[" << i << "] : " << endl;
-    rdm2_->at(i)->print(1e-3);
+    rdm2_->at(i)->print(1e-6);
   }
 #endif
 
@@ -279,7 +279,6 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
     cout << endl << endl << endl;
 
     for (auto& gammalist_tuple : gammalist_tuple_list) {
-      double sum = 0.0;
       // marco loop over right blocks since we have a delta_{r,r'}
       for (auto& rblock : right_block->blocks()) {
         BlockKey rightkey = rblock.key(); 
@@ -310,7 +309,6 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
             for (int ileft = 0; ileft != leftnstates; ++ileft) {
               tmpvec.push_back(make_shared<RASCivec>(prod_civec->sector(combinedkey)->civec(offset + ir*leftnstates + ileft)));
               auto ciptr = prod_civec->sector(combinedkey)->civec(offset + ir*leftnstates + ileft);
-              sum += ciptr.dot_product(ciptr);
             }
             states[ras_key] = make_shared<const RASDvec>(tmpvec);
           }
@@ -338,6 +336,8 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
             const size_t ket_rastag = forest.block_tag(ket_raskey);
             const size_t bra_rastag = forest.block_tag(bra_raskey);
             if (!(forest.template exist<0>(ket_rastag, bra_rastag, get<0>(gammalist_tuple)))) continue;
+            cout << "bra leftkey : (" << bra_leftkey.nelea << ", " << bra_leftkey.neleb << ")" << endl;
+            cout << "ket leftkey : (" << ket_leftkey.nelea << ", " << ket_leftkey.neleb << ")" << endl;
 
             // transpose the first two dimensions
             btas::CRange<3> range(bra_nstates, ket_nstates, lrint(pow(norb_site, get<0>(gammalist_tuple).size())));
@@ -382,10 +382,13 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
             contract(1.0, group(*transition_tensor,0,2), {2,0}, group(*coupling_data,0,2), {2,1}, 0.0, *target, {0,1});
             const double sign = static_cast<double>(1 - (((ket_leftkey.nelea + ket_leftkey.neleb)%2) << 1));
             blas::ax_plus_y_n(sign, target->data(), target->size(), rdm_mat->data());
+            cout << "sign = " << sign << endl;
+            cout << "PRINT TARGET" << endl;
+            target->print();
+            cout << "end of printing target" << endl;
           }
         }
       }
-      cout << "civec sum = " << sum << endl;
     }
     cout << endl << "printing rdm_mat" << endl;
     rdm_mat->print();
