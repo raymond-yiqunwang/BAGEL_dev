@@ -92,7 +92,55 @@ void ASD_DMRG::compute_rdm12() {
         // compute RASCI RDM
         compute_rdm12_ras(cc, site);
 
-        if (site == 1) compute_rdm2_130(cc, site);
+        if (site == 1) {
+          auto prod_civec = cc[0];
+          // block info
+          shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
+          cout << "PRINTING CC[0] INFO :" << endl;
+          for (auto& isector : prod_civec->sectors()) {
+            BlockKey bkey = isector.first;
+            cout << "pair_blockkey(" << bkey.nelea << ", " << bkey.neleb << ")" << endl;
+            auto rasvecs = isector.second;
+            cout << "rasvecs :" << endl;
+            rasvecs->print();
+            // pairmap
+            {
+              for (auto& blockpair : doubleblock->blockpairs(bkey)) {
+                cout << "blockpair.offset : " << blockpair.offset << endl;
+                cout << "    * leftkey : (" << blockpair.left.nelea << ", " << blockpair.left.neleb << "), nstates : " << blockpair.left.nstates << endl;
+                cout << "    * rightkey : (" << blockpair.right.nelea << ", " << blockpair.right.neleb << "), nstates : " << blockpair.right.nstates << endl;
+              }
+            }
+          }
+          // printing left_block info
+          {
+            auto left_block = doubleblock->left_block();
+            cout << "left block info :" << endl;
+            int left_nblocks = 0;
+            for (auto& lblock : left_block->blocks()) {
+              cout << "  * nelea = " << lblock.nelea << ", neleb = " << lblock.neleb << ", nstates = " << lblock.nstates << endl;
+              left_nblocks++;
+            }
+            cout << "left nblock = " << left_nblocks << endl;
+            cout << "left total nstates = " << left_block->nstates() << endl;
+          }
+          auto right_block = doubleblock->right_block();
+          {
+            // printing right_block info
+            cout << "right block info :" << endl;
+            int right_nblocks = 0;
+            for (auto& rblock : right_block->blocks()) {
+              cout << "  * nelea = " << rblock.nelea << ", neleb = " << rblock.neleb << ", nstates = " << rblock.nstates << endl;
+              right_nblocks++;
+            }
+            cout << "right nblock = " << right_nblocks << endl;
+            cout << "right total nstates = " << right_block->nstates() << endl;
+          }
+
+
+
+          compute_rdm2_130(cc, site);
+        }
       }
 
       // special treatment for final configuration
@@ -126,8 +174,6 @@ void ASD_DMRG::compute_rdm12() {
   // printing out results
 #if 1
   for (int i = 0; i != nstate_; ++i) {
-    cout << "rdm1_[" << i << "] : " << endl;
-    rdm1_->at(i)->print(1e-6);
     cout << "rdm2_[" << i << "] : " << endl;
     rdm2_->at(i)->print(1e-6);
   }
@@ -189,92 +235,22 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
   const int nstate = dvec.size();
   // contains : site operator list, left_block operator list, change in alpha electrons at left_block, change in beta electrons at left_block
   list<tuple<list<GammaSQ>, list<GammaSQ>, int, int>> gammalist_tuple_list = { 
-    {{GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, 1, 0} // <block_bra|a+|block_ket> <ras_bra|a+ a- a-|ras_ket>
-//    {{GammaSQ::CreateAlpha, GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::CreateAlpha}, 1, 0}, // <block_bra|a+|block_ket> <ras_bra|b+ b- a-|ras_ket>
-//    {{GammaSQ::CreateBeta,  GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateBeta},  0, 1}, // <block_bra|b+|block_ket> <ras_bra|a+ a- b-|ras_ket>
-//    {{GammaSQ::CreateBeta,  GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::CreateBeta},  0, 1}  // <block_bra|b+|block_ket> <ras_bra|b+ b- b-|ras_ket>
+    {{GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, 1, 0}, // <block_bra|a+|block_ket> <ras_bra|a+ a- a-|ras_ket>
+    {{GammaSQ::CreateAlpha, GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::CreateAlpha}, 1, 0}, // <block_bra|a+|block_ket> <ras_bra|b+ b- a-|ras_ket>
+    {{GammaSQ::CreateBeta,  GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateBeta},  0, 1}, // <block_bra|b+|block_ket> <ras_bra|a+ a- b-|ras_ket>
+    {{GammaSQ::CreateBeta,  GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::CreateBeta},  0, 1}  // <block_bra|b+|block_ket> <ras_bra|b+ b- b-|ras_ket>
   };
   
   for (int istate = 0; istate != nstate; ++istate) {
     auto prod_civec = dvec.at(istate);
     shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
-    {
-      // printing prod_civec info
-      cout << "prod_civec info :" << endl;
-      int i = 0;
-      for (auto& isector : prod_civec->sectors()) {
-        BlockKey bkey = isector.first;
-        auto coeff = isector.second;
-        cout << "sector " << i++ << " : nelea = " << bkey.nelea << ", neleb = " << bkey.neleb << ", coeff size : (" << coeff->ndim() << ", " << coeff->mdim() << ")" << endl;
-        cout << "  block pair info :" << endl;
-        for (auto& bpair : doubleblock->blockpairs(bkey)) {
-          cout << "    left : nelea = " << bpair.left.nelea << ", neleb = " << bpair.left.neleb << ", nstates = " << bpair.left.nstates << endl;
-          cout << "    right : nelea = " << bpair.right.nelea << ", neleb = " << bpair.right.neleb << ", nstates = " << bpair.right.nstates << endl;
-          cout << "    bpair offset = " << bpair.offset << endl;
-        }
-      }
-    }
     auto left_block = doubleblock->left_block();
-    {
-      // printing left_block info
-      cout << endl << endl;
-      cout << "left block info :" << endl;
-      int left_nblocks = 0;
-      for (auto& lblock : left_block->blocks()) {
-        cout << "  * nelea = " << lblock.nelea << ", neleb = " << lblock.neleb << ", nstates = " << lblock.nstates << endl;
-        left_nblocks++;
-      }
-      cout << "left nblock = " << left_nblocks << endl;
-      cout << "left total nstates = " << left_block->nstates() << endl;
-    }
     auto right_block = doubleblock->right_block();
-    {
-      // printing right_block info
-      cout << "right block info :" << endl;
-      int right_nblocks = 0;
-      for (auto& rblock : right_block->blocks()) {
-        cout << "  * nelea = " << rblock.nelea << ", neleb = " << rblock.neleb << ", nstates = " << rblock.nstates << endl;
-        right_nblocks++;
-      }
-      cout << "right nblock = " << right_nblocks << endl;
-      cout << "right total nstates = " << right_block->nstates() << endl;
-    }
     const int norb_site = multisite_->active_sizes().at(site);
     const int norb_left = doubleblock->left_block()->norb();
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
     auto rdm_mat = make_shared<Matrix>(norb_site*norb_site*norb_site, norb_left); // matrix to store RDM, use ax_plus_y...
-
-#if 0
-    // debugging
-    {
-      double sum = 0.0;
-      for (auto& rblock : right_block->blocks()) {
-        BlockKey rightkey = rblock.key();
-        const int rstates = rblock.nstates;
-        for (int ir = 0; ir != rstates; ++ir) {
-          for (auto& lblock : left_block->blocks()) {
-            BlockKey leftkey = lblock.key();
-            const int lstates = lblock.nstates;
-            BlockKey combinedkey(rightkey.nelea + leftkey.nelea, rightkey.neleb+leftkey.neleb);
-            if (!(prod_civec->contains_block(combinedkey))) continue;
-            auto bpair = doubleblock->blockpairs(combinedkey);
-            auto iter = find_if(bpair.begin(), bpair.end(), [&lblock, &rblock] (const DMRG::BlockPair& bp)
-              { return make_pair(lblock, rblock) == make_pair(bp.left, bp.right); });
-            assert(iter != bpair.end());
-            const int offset = iter->offset;
-            for (int ileft = 0; ileft != lstates; ++ileft) {
-              auto civec_ptr = prod_civec->sector(combinedkey)->civec(offset + ir*lstates + ileft);
-              sum += civec_ptr.dot_product(civec_ptr);
-            }
-          }
-        }
-      }
-      cout << "  +++++++++ " << endl;
-      cout << "  DEBUGGING : sum = " << sum << endl;
-      cout << "  +++++++++" << endl;
-    }
-#endif
 
     cout << endl << endl << endl;
 
@@ -306,9 +282,12 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
             const int ras_neleb = tot_neleb - combinedkey.neleb;
             BlockKey ras_key(ras_nelea, ras_neleb);
             vector<shared_ptr<RASCivec>> tmpvec;
+            cout << "coupled left block : (" << leftkey.nelea << "," << leftkey.neleb << "), left_nstates = " << lblock.nstates << endl;
             for (int ileft = 0; ileft != leftnstates; ++ileft) {
               tmpvec.push_back(make_shared<RASCivec>(prod_civec->sector(combinedkey)->civec(offset + ir*leftnstates + ileft)));
               auto ciptr = prod_civec->sector(combinedkey)->civec(offset + ir*leftnstates + ileft);
+              cout << "civec : " << endl;
+              ciptr.print(0.0);
             }
             states[ras_key] = make_shared<const RASDvec>(tmpvec);
           }
@@ -337,7 +316,9 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
             const size_t bra_rastag = forest.block_tag(bra_raskey);
             if (!(forest.template exist<0>(ket_rastag, bra_rastag, get<0>(gammalist_tuple)))) continue;
             cout << "bra leftkey : (" << bra_leftkey.nelea << ", " << bra_leftkey.neleb << ")" << endl;
+            cout << "bra raskey : (" << bra_ras_nelea << ", "  << bra_ras_neleb << ")" << endl;
             cout << "ket leftkey : (" << ket_leftkey.nelea << ", " << ket_leftkey.neleb << ")" << endl;
+            cout << "ket raskey : (" << ket_ras_nelea << ", "  << ket_ras_neleb << ")" << endl;
 
             // transpose the first two dimensions
             btas::CRange<3> range(bra_nstates, ket_nstates, lrint(pow(norb_site, get<0>(gammalist_tuple).size())));
@@ -348,7 +329,7 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
               copy_n(&(*transition_tensor)(0,0,i), ket_nstates*bra_nstates, buf.get());
               blas::transpose(buf.get(), ket_nstates, bra_nstates, &(*transition_tensor)(0,0,i));
             }
-#if 0
+#if 1
             // print transition tensor
             {
               cout << "printing transition tensor" << endl;
@@ -363,7 +344,7 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
             }
 #endif
             auto coupling_data = left_block->coupling(get<1>(gammalist_tuple)).at(make_pair(bra_leftkey, ket_leftkey)).data;
-#if 0
+#if 1
             // printing coupling data
             {
               cout << "printing coupling data" << endl;
@@ -380,18 +361,38 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
             auto target = rdm_mat->clone();
             assert (target->size() == transition_tensor->extent(2) * coupling_data->extent(2));
             contract(1.0, group(*transition_tensor,0,2), {2,0}, group(*coupling_data,0,2), {2,1}, 0.0, *target, {0,1});
-            const double sign = static_cast<double>(1 - (((ket_leftkey.nelea + ket_leftkey.neleb)%2) << 1));
+            const double sign = static_cast<double>(1 - (((bra_ras_nelea + bra_ras_neleb)%2) << 1));
             blas::ax_plus_y_n(sign, target->data(), target->size(), rdm_mat->data());
+#if 1
             cout << "sign = " << sign << endl;
-            cout << "PRINT TARGET" << endl;
+            cout << "PRINT scaled TARGET" << endl;
+            target->scale(sign);
             target->print();
             cout << "end of printing target" << endl;
+#endif
           }
         }
       }
     }
-    cout << endl << "printing rdm_mat" << endl;
+
+#if 1
+    cout << "print rdm_mat : " << endl;
     rdm_mat->print();
+#endif
+#if 0
+    cout << endl << "printing rdm_mat" << endl;
+    const int orb_offset = norb_left;
+    for (int m = 0; m != rdm_mat->mdim(); ++m) {
+      for (int i = 0; i != norb_site; ++i) {
+        for (int j = 0; j != norb_site; ++j) {
+          for (int k = 0; k != norb_site; ++k) {
+            cout << *rdm_mat->element_ptr(k + norb_site*j + norb_site*norb_site*i, m) 
+                 << "(" << m << "," << orb_offset+k << "," << orb_offset+i << "," << orb_offset+j << ")" <<endl;
+          }
+        }
+      }
+    }
+#endif
   }
 }
 
