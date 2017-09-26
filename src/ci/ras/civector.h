@@ -83,7 +83,7 @@ class RASCivector : public RASCivector_impl<DataType> {
 
     std::shared_ptr<RASCivector<DataType>> apply(const int orbital, const bool action, const bool spin) const;
 
-    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> compute_rdm12_from_rasvec() const;
+    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> compute_rdm2_from_rasvec() const;
     std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> 
       compute_rasrdm12_last_step(std::shared_ptr<Dvec>, std::shared_ptr<Dvec>, std::shared_ptr<Civec>) const;
 
@@ -92,7 +92,7 @@ class RASCivector : public RASCivector_impl<DataType> {
 template<> std::shared_ptr<RASCivector<double>> RASCivector<double>::spin() const; // returns S^2 | civec >
 template<> std::shared_ptr<RASCivector<double>> RASCivector<double>::spin_lower(std::shared_ptr<const RASDeterminants>) const; // S_-
 template<> std::shared_ptr<RASCivector<double>> RASCivector<double>::spin_raise(std::shared_ptr<const RASDeterminants>) const; // S_+
-template<> std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> RASCivector<double>::compute_rdm12_from_rasvec() const;
+template<> std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> RASCivector<double>::compute_rdm2_from_rasvec() const;
 template<> std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
   RASCivector<double>::compute_rasrdm12_last_step(std::shared_ptr<Dvec>, std::shared_ptr<Dvec>, std::shared_ptr<Civec>) const;
 

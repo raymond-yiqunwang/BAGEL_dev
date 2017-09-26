@@ -176,7 +176,7 @@ template<> shared_ptr<RASCivector<double>> RASCivecView_<double>::spin_raise(sha
   return out;
 }
 
-template<> tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>> RASCivector<double>::compute_rdm12_from_rasvec() const {
+template<> tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>> RASCivector<double>::compute_rdm2_from_rasvec() const {
   const int norb = det_->norb();
   const int nelea = det_->nelea();
   const int neleb = det_->neleb();
