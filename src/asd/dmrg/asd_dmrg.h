@@ -114,6 +114,7 @@ class ASD_DMRG {
 
     void compute_rdm2_130(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
     void compute_rdm2_310(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_220(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
 
   private:
     /// Prepare several input files used for growing the chain
