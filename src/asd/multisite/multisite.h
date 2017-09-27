@@ -85,7 +85,8 @@ class MultiSite : public std::enable_shared_from_this<MultiSite> {
     std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield, bool metal = false) const;
 
     // Return functions
-    std::shared_ptr<const Reference> ref() const {return ref_;}
+    std::shared_ptr<const Reference> ref() const { return ref_; }
+    std::shared_ptr<const Geometry> geom() const { return geom_; }
 
   public:
     // Constructors

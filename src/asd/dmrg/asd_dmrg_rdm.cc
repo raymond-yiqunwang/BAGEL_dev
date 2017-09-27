@@ -90,6 +90,9 @@ void ASD_DMRG::compute_rdm12() {
         cout << "  * special treatment for site[1]" << endl;
         // compute_310
         compute_rdm2_310(cc);
+
+        // compute_301
+        compute_rdm2_301(cc);
       }
 
       // general treatment
@@ -144,7 +147,7 @@ void ASD_DMRG::compute_rdm12() {
   for (int istate = 0; istate != nstate_; ++istate) {
     cout << "rdm2_[" << istate << "] : " << endl;
 
-    list<int> switchlist = {111, 222, 333, 130, 310, 220};
+    list<int> switchlist = {111, 222, 333, 130, 310, 220, 301};
     for (int swch : switchlist) {
 
       vector<double> tmpvec;
@@ -184,6 +187,13 @@ void ASD_DMRG::compute_rdm12() {
 
         case 220: list_tuplelist = {
           {range2, range2, range1, range1}
+        }; break;
+
+        case 301: list_tuplelist = {
+          {range3, range1, range1, range1},
+          {range1, range3, range1, range1},
+          {range1, range1, range3, range1},
+          {range1, range1, range1, range3}
         }; break;
 
       }
@@ -354,44 +364,28 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
       }
     }
     
-    // copy data into rdm2_, looks stupid but leave it here for the moment 
+    // copy data into rdm2_
     auto rdm2_target = rdm2_->at(istate);
-    for (int p = 0; p != rdm_mat->mdim(); ++p)
-      for (int i = 0; i != norb_site; ++i)
-        for (int j = 0; j != norb_site; ++j)
-          for (int k = 0; k != norb_site; ++k)
-            rdm2_target->element(p,i+norb_left,k+norb_left,j+norb_left) = *rdm_mat->element_ptr(i + norb_site*j + norb_site*norb_site*k, p);
-    // up till now we have Gamma_{Pqrs}, generate other possible ordering of orbitals
-    
-    // Gamma_{rspq} = Gamma_{pqrs}
-    for (int i = 0; i != norb_site; ++i)
-      for (int j = 0; j != norb_site; ++j)
-        for (int k = 0; k != norb_site; ++k)
-          for (int p = 0; p != norb_left; ++p) 
-            rdm2_target->element(j+norb_left, i+norb_left, p, k+norb_left) = rdm2_target->element(p, k+norb_left, j+norb_left, i+norb_left);
-
-    // Gamma_{srqp} = Gamma_{pqrs}
-    for (int i = 0; i != norb_site; ++i)
-      for (int j = 0; j != norb_site; ++j)
-        for (int k = 0; k != norb_site; ++k)
-          for (int p = 0; p != norb_left; ++p)
-            rdm2_target->element(i+norb_left, j+norb_left, k+norb_left, p) = rdm2_target->element(p, k+norb_left, j+norb_left, i+norb_left);
-
-    // Gamma_{srqp} = Gamma_{pqrs}
-    for (int i = 0; i != norb_site; ++i)
-      for (int j = 0; j != norb_site; ++j)
-        for (int k = 0; k != norb_site; ++k)
-          for (int p = 0; p != norb_left; ++p)
-            rdm2_target->element(k+norb_left, p, i+norb_left, j+norb_left) = rdm2_target->element(p, k+norb_left, j+norb_left, i+norb_left);
-
+    for (int i = 0; i != norb_site; ++i) {
+      for (int j = 0; j != norb_site; ++j) {
+        for (int k = 0; k != norb_site; ++k) {
+          for (int p = 0; p != norb_left; ++p) {
+            const double value = *rdm_mat->element_ptr(i + j*norb_site + k*norb_site*norb_site, p);
+            rdm2_target->element(p, i+norb_left, k+norb_left, j+norb_left) = value;
+            rdm2_target->element(i+norb_left, p, j+norb_left, k+norb_left) = value;
+            rdm2_target->element(k+norb_left, j+norb_left, p, i+norb_left) = value;
+            rdm2_target->element(j+norb_left, k+norb_left, i+norb_left, p) = value;
+          }
+        }
+      }
+    }
+  
   } // end of looping over nstates
 }
 
 
-// \Gamma_{qprs}^{310} = \sum_{\{c\},\{lr\}} \sum_{\{c'\},\{l'r'\}} (-1)^{n_c} 
-//     \left< A^{c}_{lr} | a_{q \rho} | A^{c'}_{l'r'} \right> \left< l \right| 
-//     a^{\dagger}_{p \rho} a^{\dagger}_{r \sigma} a_{s \sigma} \left| l' \right>
 void ASD_DMRG::compute_rdm2_310(vector<shared_ptr<ProductRASCivec>> dvec) {
+  // site == 1
   cout << "  * compute_rdm2_310" << endl;
   const int nstate = dvec.size();
   list<tuple<list<GammaSQ>, list<GammaSQ>, int, int>> gammalist_tuple_list = {
@@ -490,32 +484,19 @@ void ASD_DMRG::compute_rdm2_310(vector<shared_ptr<ProductRASCivec>> dvec) {
 
     // copy rdm_mat into rdm2_ TODO make it more efficient
     auto rdm2_target = rdm2_->at(istate);
-    for (int l = 0; l != norb_left; ++l)
-      for (int k = 0; k != norb_left; ++k)
-        for (int i = 0; i != norb_left; ++i)
-          for (int j = 0; j != norb_site; ++j)
-            rdm2_target->element(i,j+norb_left,k,l) = *rdm_mat->element_ptr(i + norb_left*k + norb_left*norb_left*l, j);
-
-    // Gamma_{srqp} = Gamma_{pqrs}
-    for (int i = 0; i != norb_left; ++i)
-      for (int j = 0; j != norb_left; ++j)
-        for (int p = 0; p != norb_site; ++p)
-          for (int k = 0; k != norb_left; ++k)
-            rdm2_target->element(i, j, p+norb_left, k) = rdm2_target->element(k, p+norb_left, j, i);
-    
-    // Gamma_{rspq} = Gamma_{pqrs}
-    for (int i = 0; i != norb_left; ++i)
-      for (int j = 0; j != norb_left; ++j)
-        for (int p = 0; p != norb_site; ++p)
-          for (int k = 0; k != norb_left; ++k)
-            rdm2_target->element(j, i, k, p+norb_left) = rdm2_target->element(k, p+norb_left, j, i);
-
-    // Gamma_{qpsr} = Gamma_{pqrs}
-    for (int i = 0; i != norb_left; ++i)
-      for (int j = 0; j != norb_left; ++j)
-        for (int p = 0; p != norb_site; ++p)
-          for (int k = 0; k != norb_left; ++k)
-            rdm2_target->element(p+norb_left, k, i, j) = rdm2_target->element(k, p+norb_left, j, i);
+    for (int i = 0; i != norb_left; ++i) {
+      for (int j = 0; j != norb_left; ++j) {
+        for (int k = 0; k != norb_left; ++k) {
+          for (int p = 0; p != norb_site; ++p) {
+            const double value = *rdm_mat->element_ptr(k + j*norb_left + i*norb_left*norb_left, p);
+            rdm2_target->element(p+norb_left, k, i, j) = value;
+            rdm2_target->element(k, p+norb_left, j, i) = value;
+            rdm2_target->element(i, j, p+norb_left, k) = value;
+            rdm2_target->element(j, i, k, p+norb_left) = value;
+          }
+        }
+      }
+    }
   
   } // end of looping over istate
 
@@ -614,11 +595,115 @@ void ASD_DMRG::compute_rdm2_220(vector<shared_ptr<ProductRASCivec>> dvec, const 
     
     // copy data into rdm2_, looks stupid but leave it here for the moment 
     auto rdm2_target = rdm2_->at(istate);
-    for (int i = 0; i != norb_site; ++i)
-      for (int j = 0; j != norb_site; ++j)
-        for (int k = 0; k != norb_left; ++k)
-          for (int l = 0; l != norb_left; ++l)
-            rdm2_target->element(l, k, j+norb_left, i+norb_left) = *rdm_mat->element_ptr(l+norb_left*k, j+norb_site*i);
+    for (int j = 0; j != norb_site; ++j) {
+      for (int i = 0; i != norb_site; ++i) {
+        for (int q = 0; q != norb_left; ++q) {
+          for (int p = 0; p != norb_left; ++p) {
+            const double value = *rdm_mat->element_ptr(p + q*norb_left, i + j*norb_site);
+            rdm2_target->element(p, q, i+norb_left, j+norb_left) = value;
+            rdm2_target->element(q, p, j+norb_left, i+norb_left) = value;
+            rdm2_target->element(i+norb_left, j+norb_left, p, q) = value;
+            rdm2_target->element(j+norb_left, i+norb_left, q, p) = value;
+          }
+        }
+      }
+    }
 
+  } // end of looping over nstates
+}
+
+
+void ASD_DMRG::compute_rdm2_301(vector<shared_ptr<ProductRASCivec>> dvec) {
+  // site == 1
+  cout << "  * compute_rdm2_301" << endl;
+  const int nstate = dvec.size();
+  // contains : site operator list, left_block operator list, change in alpha electrons at left_block, change in beta electrons at left_block
+  list<tuple<list<GammaSQ>, list<GammaSQ>, int, int>> gammalist_tuple_list = { 
+    {{GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, 1, 0},
+    {{GammaSQ::CreateAlpha, GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::CreateAlpha}, 1, 0}, 
+    {{GammaSQ::CreateBeta,  GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateBeta},  0, 1}, 
+    {{GammaSQ::CreateBeta,  GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::CreateBeta},  0, 1} 
+  };
+  
+  for (int istate = 0; istate != nstate; ++istate) {
+    auto prod_civec = dvec.at(istate);
+    shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
+    auto left_block = doubleblock->left_block();
+    auto right_block = doubleblock->right_block();
+    const int norb_left = left_block->norb();
+    const int norb_right = right_block->norb();
+    const int right_orboffset = norb_left + multisite_->active_sizes().at(1/*site*/);
+    auto rdm_mat = make_shared<Matrix>(norb_left*norb_left*norb_left, norb_right); // matrix to store RDM, use ax_plus_y...
+
+    for (auto& gammalist_tuple : gammalist_tuple_list) {
+      // loop over product rasci sectors
+      for (auto& isec : prod_civec->sectors()) {
+        BlockKey seckey = isec.first;
+        for (auto& bpair : doubleblock->blockpairs(seckey)) {
+          const int ketpairoffset = bpair.offset;
+          // left bra-ket pair
+          BlockInfo ket_leftinfo = bpair.left;
+          const int lket_nstates = ket_leftinfo.nstates;
+          BlockKey bra_leftkey(ket_leftinfo.nelea + get<2>(gammalist_tuple), ket_leftinfo.neleb + get<3>(gammalist_tuple));
+          if (!left_block->contains(bra_leftkey)) continue;
+          const int lbra_nstates = left_block->blockinfo(bra_leftkey).nstates;
+          // right bra-ket pair
+          BlockInfo ket_rightinfo = bpair.right;
+          const int rket_nstates = ket_rightinfo.nstates;
+          BlockKey bra_rightkey(ket_rightinfo.nelea - get<2>(gammalist_tuple), ket_rightinfo.neleb - get<3>(gammalist_tuple));
+          if (!right_block->contains(bra_rightkey)) continue;
+          const int rbra_nstates = right_block->blockinfo(bra_rightkey).nstates;
+          auto brapair = doubleblock->blockpairs(seckey);
+          auto braiter = find_if(brapair.begin(), brapair.end(), [&left_block, &right_block, &bra_leftkey, &bra_rightkey] (const DMRG::BlockPair& bp)
+            { return make_pair(left_block->blockinfo(bra_leftkey), right_block->blockinfo(bra_rightkey)) == make_pair(bp.left, bp.right); });
+          assert(braiter != brapair.end());
+          const int brapairoffset = braiter->offset;
+          
+          auto left_coupling = left_block->coupling(get<0>(gammalist_tuple)).at(make_pair(bra_leftkey, ket_leftinfo.key())).data;
+          
+          auto right_coupling = right_block->coupling(get<1>(gammalist_tuple)).at(make_pair(ket_rightinfo.key(), bra_rightkey)).data;
+          // transpose first two dimensions of right transition tensor
+          btas::CRange<3> range(rbra_nstates, rket_nstates, lrint(pow(norb_right, get<1>(gammalist_tuple).size())));
+          auto trans_right_coupling = make_shared<btas::Tensor3<double>>(range, move(right_coupling->storage()));
+          unique_ptr<double[]> buf(new double[rbra_nstates*rket_nstates]);
+          for (int i = 0; i != trans_right_coupling->extent(2); ++i) {
+            copy_n(&(*trans_right_coupling)(0,0,i), rbra_nstates*rket_nstates, buf.get());
+            blas::transpose(buf.get(), rket_nstates, rbra_nstates, &(*trans_right_coupling)(0,0,i));
+          }
+
+          // contract coefficient tensor
+          auto contract_mat = make_shared<Matrix>(lbra_nstates*lket_nstates, rbra_nstates*rket_nstates);
+          auto ciptr = prod_civec->sector(seckey);
+          for (int irket = 0; irket != rket_nstates; ++irket)
+            for (int irbra = 0; irbra != rbra_nstates; ++irbra)
+              for (int ilket = 0; ilket != lket_nstates; ++ilket)
+                for (int ilbra = 0; ilbra != lbra_nstates; ++ilbra)
+                  *contract_mat->element_ptr(ilbra+ilket*lbra_nstates, irbra+irket*rbra_nstates) =
+                     ciptr->civec(brapairoffset + ilbra + irbra*lbra_nstates).dot_product(ciptr->civec(ketpairoffset + ilket + irket*lket_nstates));
+
+          auto tmp_mat = make_shared<Matrix>(rbra_nstates*rket_nstates, left_coupling->extent(2));
+          contract(1.0, *contract_mat, {2,0}, group(*left_coupling,0,2), {2,1}, 0.0, *tmp_mat, {0,1});
+
+          auto target = rdm_mat->clone();
+          contract(1.0, *tmp_mat, {2,0}, group(*trans_right_coupling,0,2), {2,1}, 0.0, *target, {0,1});
+          const double sign = static_cast<double>(1 - (((ket_leftinfo.nelea + ket_leftinfo.neleb) % 2) << 1));
+          blas::ax_plus_y_n(sign, target->data(), target->size(), rdm_mat->data());
+        }
+      }
+    }
+
+    // copy data into rdm2_
+    auto rdm2_target = rdm2_->at(istate);
+    for (int p = 0; p != norb_right; ++p)
+      for (int i = 0; i != norb_left; ++i)
+        for (int j = 0; j != norb_left; ++j)
+          for (int k = 0; k != norb_left; ++k) {
+            const double value = *rdm_mat->element_ptr(k+j*norb_left+i*norb_left*norb_left, p);
+            rdm2_target->element(k,p+right_orboffset,j,i) = value;
+            rdm2_target->element(p+right_orboffset,k,i,j) = value;
+            rdm2_target->element(i,j,p+right_orboffset,k) = value;
+            rdm2_target->element(j,i,k,p+right_orboffset) = value;
+          }
+  
   } // end of looping over nstates
 }
