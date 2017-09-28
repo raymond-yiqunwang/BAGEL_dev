@@ -110,12 +110,16 @@ class ASD_DMRG {
 
     // compute RDM
     void compute_rdm12();
-    void compute_rdm2_ras(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
 
+    // site == 1
+    void compute_rdm2_310(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_301(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+
+    // general terms
+    void compute_rdm2_ras(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
     void compute_rdm2_130(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_310(std::vector<std::shared_ptr<ProductRASCivec>> dvec); // site == 1
     void compute_rdm2_220(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_301(std::vector<std::shared_ptr<ProductRASCivec>> dvec); // site == 1
+    void compute_rdm2_031(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
 
   private:
     /// Prepare several input files used for growing the chain
