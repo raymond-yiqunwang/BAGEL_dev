@@ -377,7 +377,7 @@ void FCI::compute() {
     if (nstate_ != 1 && iter) cout << endl;
     for (int i = 0; i != nstate_; ++i) {
       cout << setw(7) << iter << setw(3) << i << setw(2) << (conv[i] ? "*" : " ")
-                              << setw(18) << fixed << setprecision(12) << energies[i]+nuc_core << "   "
+                              << setw(17) << fixed << setprecision(8) << energies[i]+nuc_core << "   "
                               << setw(10) << scientific << setprecision(2) << errors[i] << fixed << setw(10) << setprecision(2)
                               << fcitime.tick() << endl;
       energy_[i] = energies[i]+nuc_core;
@@ -409,105 +409,4 @@ void FCI::compute() {
         dipole.compute();
       }
   }
-
-#if 1
-if (idata_->get<bool>("print_rdm", false)) {
-  // Debug
-
-  for (int i = 0; i != nstate_; ++i) {
-    const int offset1 = 2;
-    const int offset2 = 4;
-    const int offset3 = 6;
-    auto rdm2 = rdm2_->at(i);
-
-#if 0
-    cout << "rdm2_raspart" << endl;
-    for (int l = offset1; l != offset2; ++l) {
-      for (int k = offset1; k != offset2; ++k) {
-        for (int j = offset1; j != offset2; ++j) {
-          for (int i = offset1; i != offset2; ++i) {
-            cout << setprecision(12) << (*rdm2)(i,j,k,l) << ",(" << i << "," << j << "," << k << "," << l << ")" << endl;
-          }
-        }
-      }
-    }
-    cout << "rdm2_130part" << endl;
-    for (int l = offset1; l != offset2; ++l) {
-      for (int k = offset1; k != offset2; ++k) {
-        for (int j = offset1; j != offset2; ++j) {
-          for (int i = 0; i != offset1; ++i) {
-            cout << setprecision(12) << (*rdm2)(i,j,k,l) << ",(" << i << "," << j << "," << k << "," << l << ")" << endl;
-          }
-        }
-      }
-    }
-    cout << "rdm2_310part" << endl;
-    for (int l = 0; l != offset1; ++l) {
-      for (int k = 0; k != offset1; ++k) {
-        for (int j = offset1; j != offset2; ++j) {
-          for (int i = 0; i != offset1; ++i) {
-            cout << setprecision(12) << (*rdm2)(i,j,k,l) << ",(" << i << "," << j << "," << k << "," << l << ")" << endl;
-          }
-        }
-      }
-    }
-    cout << "rdm2_220part" << endl;
-    for (int l = offset1; l != offset2; ++l) {
-      for (int k = offset1; k != offset2; ++k) {
-        for (int j = 0; j != offset1; ++j) {
-          for (int i = 0; i != offset1; ++i) {
-            cout << setprecision(12) << (*rdm2)(i,j,k,l) << ",(" << i << "," << j << "," << k << "," << l << ")" << endl;
-          }
-        }
-      }
-    }
-    
-    cout << "rdm2_301part" << endl;
-    for (int l = 0; l != offset1; ++l) {
-      for (int k = 0; k != offset1; ++k) {
-        for (int j = offset2; j != offset3; ++j) {
-          for (int i = 0; i != offset1; ++i) {
-            cout << setprecision(12) << (*rdm2)(i,j,k,l) << ",(" << i << "," << j << "," << k << "," << l << ")" << endl;
-          }
-        }
-      }
-    }
-
-    cout << "rdm2_031part" << endl;
-    for (int l = offset1; l != offset2; ++l) {
-      for (int k = offset1; k != offset2; ++k) {
-        for (int j = offset2; j != offset3; ++j) {
-          for (int i = offset1; i != offset2; ++i) {
-            cout << setprecision(12) << (*rdm2)(i,j,k,l) << ",(" << i << "," << j << "," << k << "," << l << ")" << endl;
-          }
-        }
-      }
-    }
-
-    cout << "rdm2_013part" << endl;
-    for (int l = offset2; l != offset3; ++l) {
-      for (int k = offset2; k != offset3; ++k) {
-        for (int j = offset1; j != offset2; ++j) {
-          for (int i = offset2; i != offset3; ++i) {
-            cout << setprecision(12) << (*rdm2)(i,j,k,l) << ",(" << i << "," << j << "," << k << "," << l << ")" << endl;
-          }
-        }
-      }
-    }
-#endif
-
-    cout << "rdm2_103part" << endl;
-    for (int l = offset2; l != offset3; ++l) {
-      for (int k = offset2; k != offset3; ++k) {
-        for (int j = offset2; j != offset3; ++j) {
-          for (int i = 0; i != offset1; ++i) {
-            cout << setprecision(12) << (*rdm2)(i,j,k,l) << ",(" << i << "," << j << "," << k << "," << l << ")" << endl;
-          }
-        }
-      }
-    }
-
-  }
-}
-#endif
 }
