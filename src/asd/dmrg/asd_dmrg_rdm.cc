@@ -2170,19 +2170,19 @@ void ASD_DMRG::compute_rdm2_121_part1(vector<shared_ptr<ProductRASCivec>> dvec, 
             const size_t rastag = forest.block_tag(raskey);
             assert(forest.template exist<0>(rastag, rastag, get<0>(gammalist_tuple)));
             shared_ptr<const Matrix> transition_mat = forest.template get<0>(rastag, rastag, get<0>(gammalist_tuple));
-            btas::CRange<3> siterange(bra_leftnstates*ket_leftnstates, bra_rightnstates*ket_rightnstates, norb_site*norb_site);
-            site_transition_tensor = make_shared<btas::Tensor3<double>>(siterange, transition_mat->storage()); // index : bra_left, bra_right, ket_left, ket_right
+            //btas::CRange<3> siterange(bra_leftnstates*ket_leftnstates, bra_rightnstates*ket_rightnstates, norb_site*norb_site);
+            btas::CRange<3> tmprange(ket_leftnstates*bra_leftnstates, bra_rightnstates, ket_rightnstates*norb_site*norb_site);
+            // index : {bra_left, bra_right}, {ket_left}, {ket_right, i, j     }
+            auto tmp_transition_tensor = make_shared<btas::Tensor3<double>>(tmprange, transition_mat->storage()); 
  
-            if (1) {
-              vector<double> buf1(bra_leftnstates*bra_rightnstates*ket_leftnstates);
-              for (int iorb = 0; iorb != site_transition_tensor->extent(2); ++iorb) {
-                for (int ikr = 0; ikr != ket_rightnstates; ++ikr) {
-                  buf1.clear();
-                  copy_n(&(*site_transition_tensor)(0,ikr*ket_leftnstates,iorb),bra_leftnstates*bra_rightnstates*ket_leftnstates, buf1.data());
-                  blas::transpose(buf1.data(), bra_leftnstates*bra_rightnstates, ket_leftnstates, &(*site_transition_tensor)(0,ikr*ket_leftnstates,iorb));
-                }
-              } // index : ket_left, bra_left, bra_right, ket_right
-            }
+            vector<double> buf1(ket_leftnstates*bra_leftnstates*bra_rightnstates);
+            for (int i = 0; i != tmp_transition_tensor->extent(2); ++i) {
+              copy_n(&(*tmp_transition_tensor)(0,0,i),ket_leftnstates*bra_leftnstates*bra_rightnstates, buf1.data());
+              blas::transpose(buf1.data(), bra_leftnstates*bra_rightnstates, ket_leftnstates, &(*tmp_transition_tensor)(0,0,i));
+            } // index : ket_left, bra_left, bra_right, ket_right
+
+            btas::CRange<3> siterange(ket_leftnstates*bra_leftnstates, bra_rightnstates*ket_rightnstates, norb_site*norb_site);
+            site_transition_tensor = make_shared<btas::Tensor3<double>>(siterange, move(tmp_transition_tensor->storage()));
           }
 
           // transposed left coupling tensor
