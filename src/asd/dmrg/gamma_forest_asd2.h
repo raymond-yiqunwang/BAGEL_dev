@@ -44,6 +44,10 @@ class GammaForestASD2 : public GammaForest<VecType, 1> {
       std::vector<std::list<GammaSQ>> possible_couplings = {
         {GammaSQ::CreateAlpha,     GammaSQ::AnnihilateAlpha},
         {GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta},
+        {GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta},
+        {GammaSQ::AnnihilateAlpha, GammaSQ::AnnihilateAlpha},
+        {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha},
+        {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateBeta}
       };
 
       for (auto& ket : ket_states) {
