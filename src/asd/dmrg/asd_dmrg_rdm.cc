@@ -169,7 +169,7 @@ void ASD_DMRG::compute_rdm12() {
   for (int istate = 0; istate != nstate_; ++istate) {
     cout << "rdm2_[" << istate << "] : " << endl;
 
-    list<int> switchlist {111, 222, 333, 130, 310, 301, 31/*031*/, 13/*013*/, 103, 220, 22/*022*/, 202};
+    list<int> switchlist {111, 222, 333, 130, 310, 301, 31/*031*/, 13/*013*/, 103, 220, 22/*022*/, 202, 121};
     for (int swch : switchlist) {
 
       vector<double> tmpvec;
@@ -260,6 +260,13 @@ void ASD_DMRG::compute_rdm12() {
           {range3, range1, range1, range3},
           {range1, range3, range1, range3},
           {range3, range1, range3, range1}
+        }; break;
+
+        case 121: list_tuplelist = {
+          {range2, range2, range1, range3},
+          {range1, range3, range2, range2},
+          {range3, range1, range2, range2},
+          {range2, range2, range3, range1}
         }; break;
 
       }
@@ -2221,12 +2228,26 @@ void ASD_DMRG::compute_rdm2_121_part1(vector<shared_ptr<ProductRASCivec>> dvec, 
           contract(1.0, group(*intermediate_tensor,1,3), {2,0}, group(*right_coupling_tensor,0,2), {2,1}, 0.0, *tmp_rdm_mat, {0,1});
           const double sign = static_cast<double>(1 - (((ket_leftinfo.nelea + ket_leftinfo.neleb) % 2) << 1));
           blas::ax_plus_y_n(sign, tmp_rdm_mat->data(), tmp_rdm_mat->size(), rdm_mat->data());
-          cout << "end of a bpair ...." << endl;
         } // end of looping over one DMRG blockpair
-      }
+      } // end of looping over sector with blockkey
     } // end of looping over gammalist_tuple
-    cout << "print rdm" << endl;
-    rdm_mat->print();
+
+    // copy data into rdm2_
+    auto rdm2_target = rdm2_->at(istate);
+    for (int q = 0; q != norb_right; ++q) {
+      for (int p = 0; p != norb_left; ++p) {
+        for (int j = 0; j != norb_site; ++j) {
+          for (int i = 0; i != norb_site; ++i) {
+            const double value = *rdm_mat->element_ptr(i+j*norb_site, p+q*norb_left);
+            rdm2_target->element(i+norb_left, j+norb_left, p, q+norb_left+norb_site) = value;
+            rdm2_target->element(p, q+norb_left+norb_site, i+norb_left, j+norb_left) = value;
+            rdm2_target->element(q+norb_left+norb_site, p, j+norb_left, i+norb_left) = value;
+            rdm2_target->element(j+norb_left, i+norb_left, q+norb_left+norb_site, p) = value;
+          }
+        }
+      }
+    }
+
   } // end of looping over istate
 
 }
