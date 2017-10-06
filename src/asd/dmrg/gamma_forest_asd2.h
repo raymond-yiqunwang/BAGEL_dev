@@ -42,6 +42,8 @@ class GammaForestASD2 : public GammaForest<VecType, 1> {
   public:
     GammaForestASD2(std::map<BlockKey, std::shared_ptr<const VecType>> bra_states, std::map<BlockKey, std::shared_ptr<const VecType>> ket_states) {
       std::vector<std::list<GammaSQ>> possible_couplings = {
+        {GammaSQ::CreateAlpha},
+        {GammaSQ::CreateBeta},
         {GammaSQ::CreateAlpha,     GammaSQ::AnnihilateAlpha},
         {GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta},
         {GammaSQ::CreateBeta,      GammaSQ::AnnihilateAlpha},
