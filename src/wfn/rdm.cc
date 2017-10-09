@@ -142,7 +142,7 @@ void RDM<2>::print(const double thresh) const {
           if (fabs(*ptr) > thresh)
             cout << setw(3) << l << setw(3)
                       << k << setw(3) << j << setw(3) << i
-                      << setw(12) << setprecision(7) << *ptr << endl;
+                      << setw(16) << setprecision(12) << *ptr << endl;
 }
 
 
