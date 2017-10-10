@@ -123,7 +123,7 @@ void ASD_DMRG::compute_rdm12() {
       if (site == nsites_-2) {
         cout << "  * special treatment for site[" << site << "]" << endl;
         // compute_013
-//        compute_rdm2_013(cc);
+        compute_rdm2_013(cc);
 
         // compute_103
 //        compute_rdm2_103(cc);
@@ -189,7 +189,7 @@ void ASD_DMRG::compute_rdm12() {
     if (site == 1) {
       switchlist = {40/*RAS*/, 130, 31/*031*/, 310, 301};
     } else if (site == nsites_-2) {
-      switchlist = {40/*RAS*/, 130, 31/*031*/};
+      switchlist = {40/*RAS*/, 130, 31/*031*/, 13/*013*/};
     } else {
       switchlist = {40/*RAS*/, 130, 31/*031*/};
     }
@@ -228,6 +228,13 @@ void ASD_DMRG::compute_rdm12() {
           {range1, range3, range1, range1},
           {range1, range1, range3, range1},
           {range1, range1, range1, range3}
+        }; break;
+
+        case 13 : list_tuplelist = {
+          {range2, range3, range3, range3},
+          {range3, range2, range3, range3},
+          {range3, range3, range2, range3},
+          {range3, range3, range3, range2}
         }; break;
       }
 
@@ -453,7 +460,7 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
 void ASD_DMRG::compute_rdm2_031(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
   cout << "  * compute_rdm2_031" << endl;
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
-    // { {ops on site}, {ops on left}, {right nele change}}
+    // { {ops on site}, {ops on right}, {right nele change}}
     { {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, {-1, 0} },
     { {GammaSQ::CreateAlpha, GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::CreateAlpha}, {-1, 0} },
     { {GammaSQ::CreateBeta,  GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::CreateBeta},  { 0,-1} },
@@ -854,131 +861,146 @@ void ASD_DMRG::compute_rdm2_301(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_013(vector<shared_ptr<ProductRASCivec>> dvec) {
-  // final configuration
   cout << "  * compute_rdm2_013" << endl;
-  const int nstate = dvec.size();
-  list<tuple<list<GammaSQ>, list<GammaSQ>, int, int>> gammalist_tuple_list = { 
-    // ({operators on site}, {operators on right}, sitebra_deltaAlpha, sitebra_deltaBeta}
-    {{GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, 1, 0},
-    {{GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  1, 0},
-    {{GammaSQ::CreateBeta},  {GammaSQ::CreateBeta,  GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  0, 1},
-    {{GammaSQ::CreateBeta},  {GammaSQ::CreateBeta,  GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, 0, 1}
+  const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
+    // { {ops on site}, {ops on right}, {right nele change}}
+    { {GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {-1, 0} },
+    { {GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  {-1, 0} },
+    { {GammaSQ::CreateBeta},  {GammaSQ::CreateBeta,  GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},  { 0,-1} },
+    { {GammaSQ::CreateBeta},  {GammaSQ::CreateBeta,  GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, { 0,-1} }
   };
   
-  for (int istate = 0; istate != nstate; ++istate) {
+  for (int istate = 0; istate != dvec.size(); ++istate) {
     auto prod_civec = dvec.at(istate);
     shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
     auto left_block = doubleblock->left_block();
     auto right_block = doubleblock->right_block();
-    const int norb_left = left_block->norb();
     const int norb_site = multisite_->active_sizes().at(nsites_-2);
+    const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
-    auto rdm_mat = make_shared<Matrix>(norb_right*norb_right*norb_right, norb_site);
+    auto rdm_mat = make_shared<Matrix>(norb_right*norb_right*norb_right, norb_site); // matrix to store RDM, use ax_plus_y...
 
     for (auto& gammalist_tuple : gammalist_tuple_list) {
-      // macro loop over right blocks
-      for (auto& lblock : left_block->blocks()) {
-        BlockKey leftkey = lblock.key();
-        const int leftnstates = lblock.nstates;
-        // micro loop over one specific left block
-        for (int il = 0; il != leftnstates; ++il) {
-          map<BlockKey, shared_ptr<const RASDvec>> states;
-          // find all possible right blocks that can be coupled with the left state and compute GammaForestASD
-          for (auto& rblock : right_block->blocks()) {
-            BlockKey rightkey = rblock.key();
-            const int rightnstates = rblock.nstates;
-            BlockKey combinedkey(rightkey.nelea+leftkey.nelea, rightkey.neleb+leftkey.neleb);
-            if (!prod_civec->contains_block(combinedkey)) continue;
-            auto bpair = doubleblock->blockpairs(combinedkey);
-            auto iter = find_if(bpair.begin(), bpair.end(), [&lblock, &rblock] (const DMRG::BlockPair& bp)
-              { return make_pair(lblock, rblock) == make_pair(bp.left, bp.right); });
-            assert (iter != bpair.end());
-            const int offset = iter->offset;
-            // transform blockkey into raskey
-            const int ras_nelea = tot_nelea - combinedkey.nelea;
-            const int ras_neleb = tot_neleb - combinedkey.neleb;
-            BlockKey ras_key(ras_nelea, ras_neleb);
-            vector<shared_ptr<RASCivec>> tmpvec;
-            for (int iright = 0; iright != rightnstates; ++iright)
-              tmpvec.push_back(make_shared<RASCivec>(prod_civec->sector(combinedkey)->civec(offset + il + iright*leftnstates)));
-            states[ras_key] = make_shared<const RASDvec>(tmpvec);
-          }
-          GammaForestASD<RASDvec> forest(states);
-          forest.compute();
+      for (auto& isec : prod_civec->sectors()) {
+        BlockKey ket_seckey = isec.first;
+        for (auto& ketpair : doubleblock->blockpairs(ket_seckey)) {
+          const int ketpairoffset = ketpair.offset;
+          // right bra-ket pair
+          BlockKey ket_rightkey = ketpair.right;
+          const int ket_rightnstates = ketpair.right.nstates;
+          BlockKey bra_rightkey(ket_rightkey.nelea + get<2>(gammalist_tuple).first, ket_rightkey.neleb + get<2>(gammalist_tuple).second);
+          if (!right_block->contains(bra_rightkey)) continue;
+          const int bra_rightnstates = right_block->blockinfo(bra_rightkey).nstates;
 
-          // loop over left blocks again to obtain all transition density matrices
-          for (auto& rbinfo : right_block->blocks()) {
-            BlockKey ket_rightkey = rbinfo.key();
-            BlockKey ket_combinedkey(ket_rightkey.nelea+leftkey.nelea, ket_rightkey.neleb+leftkey.neleb);
-            if (!prod_civec->contains_block(ket_combinedkey)) continue;
-            const int ket_nstates = rbinfo.nstates;
-            BlockKey bra_rightkey(ket_rightkey.nelea - get<2>(gammalist_tuple), ket_rightkey.neleb - get<3>(gammalist_tuple));
-            if (!right_block->contains(bra_rightkey)) continue;
-            BlockKey bra_combinedkey(bra_rightkey.nelea+leftkey.nelea, bra_rightkey.neleb+leftkey.neleb);
-            if (!prod_civec->contains_block(bra_combinedkey)) continue;
-            const int bra_nstates = right_block->blockinfo(bra_rightkey).nstates;
-            // transform blockkey into raskey
-            const int ket_ras_nelea = tot_nelea - ket_combinedkey.nelea;
-            const int ket_ras_neleb = tot_neleb - ket_combinedkey.neleb;
+          // left block info
+          BlockKey leftkey = ketpair.left;
+          const int leftnstates = ketpair.left.nstates;
+          // bra info
+          BlockKey bra_seckey(leftkey.nelea + bra_rightkey.nelea, leftkey.neleb + bra_rightkey.neleb);
+          if (!prod_civec->contains_block(bra_seckey)) continue;
+          auto brapair = doubleblock->blockpairs(bra_seckey);
+          auto braiter = find_if(brapair.begin(), brapair.end(), [&left_block, &right_block, &leftkey, &bra_rightkey] (const DMRG::BlockPair& bp)
+            { return make_pair(left_block->blockinfo(leftkey), right_block->blockinfo(bra_rightkey)) == make_pair(bp.left, bp.right); });
+          assert(braiter != brapair.end());
+          const int brapairoffset = braiter->offset;
+
+          const int bra_ras_nelea = tot_nelea - bra_seckey.nelea;
+          const int bra_ras_neleb = tot_neleb - bra_seckey.neleb;
+          const int ket_ras_nelea = tot_nelea - ket_seckey.nelea;
+          const int ket_ras_neleb = tot_neleb - ket_seckey.neleb;
+
+          // site transition tensor
+          shared_ptr<btas::Tensor3<double>> site_transition_tensor;
+          {
+            map<BlockKey, shared_ptr<const RASDvec>> ket_states;
+            vector<shared_ptr<RASCivec>> ket_vecs;
+            for (int ket_ir = 0; ket_ir != ket_rightnstates; ++ket_ir)
+              for (int ileft = 0; ileft != leftnstates; ++ileft)
+                ket_vecs.push_back(make_shared<RASCivec>(prod_civec->sector(ket_seckey)->civec(ketpairoffset + ileft + ket_ir*leftnstates)));
             BlockKey ket_raskey(ket_ras_nelea, ket_ras_neleb);
-            const int bra_ras_nelea = tot_nelea - bra_combinedkey.nelea;
-            const int bra_ras_neleb = tot_neleb - bra_combinedkey.neleb;
+            ket_states[ket_raskey] = make_shared<const RASDvec>(ket_vecs);
+
+            map<BlockKey, shared_ptr<const RASDvec>> bra_states;
+            vector<shared_ptr<RASCivec>> bra_vecs;
+            for (int bra_ir = 0; bra_ir != bra_rightnstates; ++bra_ir)
+              for (int ileft = 0; ileft != leftnstates; ++ileft)
+                bra_vecs.push_back(make_shared<RASCivec>(prod_civec->sector(bra_seckey)->civec(brapairoffset + ileft + bra_ir*leftnstates)));
             BlockKey bra_raskey(bra_ras_nelea, bra_ras_neleb);
+            bra_states[bra_raskey] = make_shared<const RASDvec>(bra_vecs);
+
+            GammaForestASD2<RASDvec> forest(bra_states, ket_states);
+            forest.compute();
 
             const size_t bra_rastag = forest.block_tag(bra_raskey);
             const size_t ket_rastag = forest.block_tag(ket_raskey);
-            if (!forest.template get<0>(bra_rastag, ket_rastag, get<0>(gammalist_tuple))) continue;
-
-            // build site transition tensor
-            shared_ptr<btas::Tensor3<double>> transition_tensor;
-            {
-              btas::CRange<3> range(bra_nstates, ket_nstates, lrint(pow(norb_site, get<0>(gammalist_tuple).size())));
-              shared_ptr<const Matrix> transition_mat = forest.template get<0>(bra_rastag, ket_rastag, get<0>(gammalist_tuple));
-              transition_tensor = make_shared<btas::Tensor3<double>>(range, move(transition_mat->storage()));
+            assert(forest.template exist<0>(bra_rastag, ket_rastag, get<0>(gammalist_tuple)));
+            shared_ptr<const Matrix> transition_mat = forest.template get<0>(bra_rastag, ket_rastag, get<0>(gammalist_tuple));
+            btas::CRange<3> range1(leftnstates*leftnstates, bra_rightnstates, ket_rightnstates*norb_site);
+            auto tmp_tensor = make_shared<btas::Tensor3<double>>(range1, transition_mat->storage());
+            vector<double> buf1(leftnstates*leftnstates*bra_rightnstates);
+            for (int i = 0; i != tmp_tensor->extent(2); ++i) {
+              copy_n(&(*tmp_tensor)(0,0,i), buf1.size(), buf1.data());
+              blas::transpose(buf1.data(), leftnstates*bra_rightnstates, leftnstates, &(*tmp_tensor)(0,0,i));
             }
 
-            // build right block transition density matrix
-            shared_ptr<btas::Tensor3<double>> right_coupling;
-            {
-              shared_ptr<const btas::Tensor3<double>> coupling_data = right_block->coupling(get<1>(gammalist_tuple)).at(make_pair(ket_rightkey, bra_rightkey)).data;
-              btas::CRange<3> right_range(bra_nstates, ket_nstates, lrint(pow(norb_right, get<1>(gammalist_tuple).size())));
-              right_coupling = make_shared<btas::Tensor3<double>>(right_range, move(coupling_data->storage()));
-              unique_ptr<double[]> buf(new double[bra_nstates*ket_nstates]);
-              for (int i = 0; i != right_coupling->extent(2); ++i) {
-                copy_n(&(*right_coupling)(0,0,i), ket_nstates*bra_nstates, buf.get());
-                blas::transpose(buf.get(), ket_nstates, bra_nstates, &(*right_coupling)(0,0,i));
-              }
-            }
-
-            auto target = rdm_mat->clone();
-            assert (target->size() == transition_tensor->extent(2) * right_coupling->extent(2));
-            contract(1.0, group(*right_coupling,0,2), {2,0}, group(*transition_tensor,0,2), {2,1}, 0.0, *target, {0,1});
-            const double sign = static_cast<double>(1 - (((ket_ras_nelea + ket_ras_neleb + leftkey.nelea + leftkey.neleb) % 2) << 1));
-            blas::ax_plus_y_n(sign, target->data(), target->size(), rdm_mat->data());
+            btas::CRange<3> site_range(leftnstates*leftnstates, bra_rightnstates*ket_rightnstates, norb_site);
+            site_transition_tensor = make_shared<btas::Tensor3<double>>(site_range, move(tmp_tensor->storage()));
           }
+
+          // left coupling tensor
+          shared_ptr<const Matrix> left_coupling_tensor;
+          {
+            auto eye = make_shared<Matrix>(leftnstates, leftnstates);
+            eye->unit();
+            left_coupling_tensor = eye;
+          }
+          
+          // right coupling tensor
+          shared_ptr<btas::Tensor3<double>> right_coupling_tensor;
+          {
+            btas::CRange<3> right_range(bra_rightnstates, ket_rightnstates, lrint(pow(norb_right, 3)));
+            shared_ptr<const btas::Tensor3<double>> right_coupling = right_block->coupling(get<1>(gammalist_tuple)).at(make_pair(ket_rightkey, bra_rightkey)).data;
+            right_coupling_tensor = make_shared<btas::Tensor3<double>>(right_range, right_coupling->storage());
+            vector<double> buf(bra_rightnstates*ket_rightnstates);
+            for (int i = 0; i != right_coupling_tensor->extent(2); ++i) {
+              copy_n(&(*right_coupling_tensor)(0,0,i), buf.size(), buf.data());
+              blas::transpose(buf.data(), ket_rightnstates, bra_rightnstates, &(*right_coupling_tensor)(0,0,i));
+            }
+          }
+
+          // contraction
+          auto contract_site_left = make_shared<Matrix>(site_transition_tensor->extent(1), site_transition_tensor->extent(2));
+          auto gmat = group(*contract_site_left,0,2);
+          contract(1.0, group(*site_transition_tensor,1,3), {1,0}, group(*left_coupling_tensor,0,2), {1}, 0.0, gmat, {0});
+          auto outmat = make_shared<Matrix>(right_coupling_tensor->extent(2), site_transition_tensor->extent(2));
+          contract(1.0, group(*right_coupling_tensor,0,2), {2,0}, *contract_site_left, {2,1}, 0.0, *outmat, {0,1});
+          const double sign = static_cast<double>(1 - (((ket_ras_nelea+ket_ras_neleb + leftkey.nelea + leftkey.neleb) % 2) << 1));
+          blas::ax_plus_y_n(sign, outmat->data(), outmat->size(), rdm_mat->data());
         }
       }
     }
     
     // copy data into rdm2_
     auto rdm2_target = rdm2_->at(istate);
-    for (int p = 0; p != norb_site; ++p) {
-      for (int i = 0; i != norb_right; ++i) {
-        for (int j = 0; j != norb_right; ++j) {
-          for (int k = 0; k != norb_right; ++k) {
-            const double value = *rdm_mat->element_ptr(k + j*norb_right + i*norb_right*norb_right, p);
-            rdm2_target->element(p+norb_left, k+norb_left+norb_site, i+norb_left+norb_site, j+norb_left+norb_site) = value;
-            rdm2_target->element(k+norb_left+norb_site, p+norb_left, j+norb_left+norb_site, i+norb_left+norb_site) = value;
-            rdm2_target->element(i+norb_left+norb_site, j+norb_left+norb_site, p+norb_left, k+norb_left+norb_site) = value;
-            rdm2_target->element(j+norb_left+norb_site, i+norb_left+norb_site, k+norb_left+norb_site, p+norb_left) = value;
+    for (int i = 0; i != norb_site; ++i) {
+      for (int q = 0; q != norb_right; ++q) {
+        for (int r = 0; r != norb_right; ++r) {
+          for (int p = 0; p != norb_right; ++p) {
+            const double value = *rdm_mat->element_ptr(p + r*norb_right + q*norb_right*norb_right, i);
+            rdm2_target->element(i+norb_left, p+norb_left+norb_site, q+norb_left+norb_site, r+norb_left+norb_site) = value;
+            rdm2_target->element(q+norb_left+norb_site, r+norb_left+norb_site, i+norb_left, p+norb_left+norb_site) = value;
+            rdm2_target->element(p+norb_left+norb_site, i+norb_left, r+norb_left+norb_site, q+norb_left+norb_site) = value;
+            rdm2_target->element(r+norb_left+norb_site, q+norb_left+norb_site, p+norb_left+norb_site, i+norb_left) = value;
           }
         }
       }
     }
-  } // end of looping over istate
+  
+  } // end of looping over nstates
 } // end of compute_013
+
 
 
 void ASD_DMRG::compute_rdm2_103(vector<shared_ptr<ProductRASCivec>> dvec) {
