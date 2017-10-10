@@ -88,6 +88,8 @@ class DMRG_Block1 : public std::enable_shared_from_this<DMRG_Block1>, public DMR
     std::map<BlockKey, std::shared_ptr<const Matrix>> H2e_;
     std::map<BlockKey, std::shared_ptr<const Matrix>> spin_;
 
+    std::vector<int> left_index_;
+
   public:
     /// default constructor
     DMRG_Block1() { }
@@ -108,6 +110,10 @@ class DMRG_Block1 : public std::enable_shared_from_this<DMRG_Block1>, public DMR
     std::shared_ptr<Matrix> spin_raise(const BlockKey b) const override;
 
     std::shared_ptr<const BlockOperators> compute_block_ops(std::shared_ptr<DimerJop> jop) const override;
+
+    std::vector<int> left_index() const { return left_index_; }
+    int left_index(const int i) const { return left_index_.at(i); }
+    void compute_left_index(const int, const std::vector<int>);
 };
 
 namespace DMRG {

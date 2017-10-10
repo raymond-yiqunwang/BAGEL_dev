@@ -49,7 +49,11 @@ class GammaForestASD2 : public GammaForest<VecType, 1> {
         {GammaSQ::CreateBeta,      GammaSQ::AnnihilateAlpha},
         {GammaSQ::AnnihilateAlpha, GammaSQ::AnnihilateAlpha},
         {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha},
-        {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateBeta}
+        {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateBeta},
+        {GammaSQ::CreateBeta,      GammaSQ::CreateAlpha,     GammaSQ::AnnihilateAlpha},
+        {GammaSQ::CreateAlpha,     GammaSQ::CreateAlpha,     GammaSQ::AnnihilateAlpha},
+        {GammaSQ::CreateBeta,      GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta},
+        {GammaSQ::CreateAlpha,     GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta}
       };
 
       for (auto& ket : ket_states) {

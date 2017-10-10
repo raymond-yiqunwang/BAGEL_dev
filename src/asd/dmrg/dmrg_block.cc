@@ -155,6 +155,17 @@ shared_ptr<const BlockOperators> DMRG_Block1::compute_block_ops(shared_ptr<Dimer
   return make_shared<BlockOperators1>(shared_from_this(), jop);
 }
 
+
+void DMRG_Block1::compute_left_index(const int site, const vector<int> active_sizes) {
+  for (int isite = site; isite != 0; --isite) {
+    const int orbstart = accumulate(active_sizes.begin(), active_sizes.begin()+isite-1, 0);
+    for (int iorb = 0; iorb != active_sizes[isite]; ++iorb) {
+      left_index_.push_back(orbstart+iorb);
+    }
+  }
+}
+
+
 DMRG_Block2::DMRG_Block2(shared_ptr<const DMRG_Block1> lb, shared_ptr<const DMRG_Block1> rb) : left_block_(lb), right_block_(rb) {
   // left block runs first in the resulting pairmap_ vectors
   for (auto& left : lb->blocks()) {
