@@ -1305,7 +1305,7 @@ void ASD_DMRG::compute_rdm2_220(vector<shared_ptr<ProductRASCivec>> dvec, const 
             if (duplicate) {
               auto dup_mat = tmp_mat->copy();
               vector<double> buf3(norb_site*norb_site);
-              for (int i = 0; i != left_coupling_tensor->extent(2); ++i) {
+              for (int i = 0; i != dup_mat->mdim(); ++i) {
                 copy_n(dup_mat->element_ptr(0,i), buf3.size(), buf3.data());
                 blas::transpose(buf3.data(), norb_site, norb_site, dup_mat->element_ptr(0,i));
               }
@@ -1613,27 +1613,26 @@ void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
   cout << "  * compute_rdm2_202" << endl;
-  const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool, bool>>> gammalist_tuple_list_list = { 
-    // { {ops on left}, {ops on right}, {left nele change}, trans_left, trans_right, swap_left, swap_right }
+  const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = { 
+    // { {ops on left}, {ops on right}, {left nele change}, trans_left, trans_right, duplicate }
     {
-      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     { 0, 0}, false, false, false, false },
-      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      { 0, 0}, false, false, false, false },
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      { 0, 0}, false, false, false, false },
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     { 0, 0}, false, false, false, false }
+      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     { 0, 0}, false, false, false },
+      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      { 0, 0}, false, false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      { 0, 0}, false, false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     { 0, 0}, false, false, false },
     },
 
     {
-      { {GammaSQ::AnnihilateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::AnnihilateAlpha, GammaSQ::AnnihilateAlpha}, { 2, 0}, true,  false, false, false },
-      { {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha}, {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha}, { 1, 1}, true,  false, false, false },
-      { {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateBeta},  { 0, 2}, true,  false, false, false },
-      { {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha}, {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha}, { 1, 1}, true,  false, true,  true  }
+      { {GammaSQ::AnnihilateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::AnnihilateAlpha, GammaSQ::AnnihilateAlpha}, {-2, 0}, false, true,  false },
+      { {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha}, {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha}, {-1,-1}, false, true,  true  },
+      { {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateBeta},  {GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateBeta},  { 0,-2}, false, true,  false },
     },
 
     {
-      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     { 0, 0}, false, false, false, false },
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     { 1,-1}, true,  false, true,  false },
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      { 0, 0}, false, false, false, false }, 
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {-1, 1}, false, true,  false, true  } 
+      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     { 0, 0}, false, false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     { 1,-1}, true,  false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      { 0, 0}, false, false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {-1, 1}, false, true,  false }
     }
   };
   
@@ -1644,7 +1643,7 @@ void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
     auto right_block = doubleblock->right_block();
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
-    const int norb_site =  multisite_->active_sizes().at(1); 
+    const int norb_site =  multisite_->active_sizes().at(nsites_-2); 
     const int rightoffset = norb_left + norb_site;
 
     int scheme = 0;
@@ -1653,10 +1652,9 @@ void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
       auto rdm_mat = make_shared<Matrix>(norb_right*norb_right, norb_left*norb_left); // matrix to store RDM, use ax_plus_y...
       auto unordered_rdm = rdm_mat->clone();
       for (auto& gammalist_tuple : gammalist_tuple_list) {
-        const int trans_left = get<3>(gammalist_tuple);
-        const int trans_right = get<4>(gammalist_tuple);
-        const int swap_left = get<5>(gammalist_tuple);
-        const int swap_right = get<6>(gammalist_tuple);
+        const bool trans_left = get<3>(gammalist_tuple);
+        const bool trans_right = get<4>(gammalist_tuple);
+        const bool duplicate = get<5>(gammalist_tuple);
         for (auto& isec : prod_civec->sectors()) {
           BlockKey seckey = isec.first;
           for (auto& ketpair : doubleblock->blockpairs(seckey)) {
@@ -1732,20 +1730,34 @@ void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
             auto tmp_mat = make_shared<Matrix>(right_coupling_tensor->extent(2), left_coupling_tensor->extent(2));
             contract(1.0, group(*right_coupling_tensor,0,2), {2,0}, *contract_site_left, {2,1}, 0.0, *tmp_mat, {0,1});
 
-            // swap index
-            if (swap_left) {
+            // swap indices
+            if (trans_left) {
               auto tmp = tmp_mat->clone();
               for (int i = 0; i != norb_left; ++i)
                 for (int j = 0; j != norb_left; ++j)
                   copy_n(tmp_mat->element_ptr(0, j+i*norb_left), tmp_mat->ndim(), tmp->element_ptr(0, i+j*norb_left));
               tmp_mat = tmp;
             }
-            if (swap_right) {
+            if (trans_right) {
               vector<double> buf(norb_right*norb_right);
               for (int i = 0; i != tmp_mat->mdim(); ++i) {
                 copy_n(tmp_mat->element_ptr(0, i), buf.size(), buf.data());
                 blas::transpose(buf.data(), norb_right, norb_right, tmp_mat->element_ptr(0, i));
               }
+            }
+            if (duplicate){
+              auto dup_mat = tmp_mat->copy();
+              vector<double> buf3(norb_right*norb_right);
+              for (int i = 0; i != dup_mat->mdim(); ++i) {
+                copy_n(tmp_mat->element_ptr(0, i), buf3.size(), buf3.data());
+                blas::transpose(buf3.data(), norb_right, norb_right, tmp_mat->element_ptr(0, i));
+              }
+              auto dup = dup_mat->clone();
+              for (int i = 0; i != norb_left; ++i)
+                for (int j = 0; j != norb_left; ++j)
+                  copy_n(tmp_mat->element_ptr(0, j+i*norb_left), dup_mat->ndim(), dup->element_ptr(0, i+j*norb_left));
+              
+              *tmp_mat += *dup;
             }
 
             // copy to target
@@ -1787,8 +1799,8 @@ void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
             for (int q = 0; q != norb_right; ++q) {
               for (int p = 0; p != norb_right; ++p) {
                 const double value = *rdm_mat->element_ptr(p+q*norb_right, i+j*norb_left);
-                rdm2_target->element(j, q+rightoffset, i, p+rightoffset) = value;
-                rdm2_target->element(q+rightoffset, j, p+rightoffset, i) = value;
+                rdm2_target->element(i, q+rightoffset, j, p+rightoffset) = value;
+                rdm2_target->element(q+rightoffset, i, p+rightoffset, j) = value;
               }
             }
           }
@@ -1805,7 +1817,6 @@ void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
             }
           }
         }
-      
       }
   
     } // end of looping over operation list
