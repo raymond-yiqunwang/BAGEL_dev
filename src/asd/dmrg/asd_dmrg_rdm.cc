@@ -1382,27 +1382,26 @@ void ASD_DMRG::compute_rdm2_220(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
   cout << "  * compute_rdm2_022" << endl;
-  const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool, bool>>> gammalist_tuple_list_list = { 
-    // { {ops on site}, {ops on right}, {right nele change}, trans_site, trans_right, swap_site, swap_right }
+  const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = { 
+    // { {ops on site}, {ops on right}, {right nele change}, trans_site, trans_right, duplicate }
     {
-      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},       { 0, 0}, false, false, false, false },
-      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},        { 0, 0}, false, false, false, false },
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},        { 0, 0}, false, false, false, false },
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},       { 0, 0}, false, false, false, false }
+      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},       { 0, 0}, false, false, false },
+      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},        { 0, 0}, false, false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},        { 0, 0}, false, false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},       { 0, 0}, false, false, false }
     },
 
     {
-      { {GammaSQ::AnnihilateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::AnnihilateAlpha,  GammaSQ::AnnihilateAlpha},  {-2, 0}, true,  false, false, false },
-      { {GammaSQ::AnnihilateBeta, GammaSQ::AnnihilateAlpha},  {GammaSQ::AnnihilateBeta,   GammaSQ::AnnihilateAlpha},  {-1,-1}, true,  false, false, false },
-      { {GammaSQ::AnnihilateBeta, GammaSQ::AnnihilateBeta},   {GammaSQ::AnnihilateBeta,   GammaSQ::AnnihilateBeta},   { 0,-2}, true,  false, false, false },
-      { {GammaSQ::AnnihilateBeta, GammaSQ::AnnihilateAlpha},  {GammaSQ::AnnihilateBeta,   GammaSQ::AnnihilateAlpha},  {-1,-1}, true,  false, true,  true  }
+      { {GammaSQ::AnnihilateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::AnnihilateAlpha,  GammaSQ::AnnihilateAlpha},  { 2, 0}, false, true,  false },
+      { {GammaSQ::AnnihilateBeta, GammaSQ::AnnihilateAlpha},  {GammaSQ::AnnihilateBeta,   GammaSQ::AnnihilateAlpha},  { 1, 1}, false, true,  true  },
+      { {GammaSQ::AnnihilateBeta, GammaSQ::AnnihilateBeta},   {GammaSQ::AnnihilateBeta,   GammaSQ::AnnihilateBeta},   { 0, 2}, false, true,  false }
     },
 
     {
-      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},       { 0, 0}, false, false, false, false },
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},       {-1, 1}, true,  false, true,  false },
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},        { 0, 0}, false, false, false, false },
-      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},       { 1,-1}, false, true,  false, true  }
+      { {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha},       { 0, 0}, false, false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},       {-1, 1}, true,  false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},      {GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta},        { 0, 0}, false, false, false },
+      { {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},     {GammaSQ::CreateBeta,  GammaSQ::AnnihilateAlpha},       { 1,-1}, false, true,  false }
     }
   };
 
@@ -1420,14 +1419,13 @@ void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
 
     int scheme = 0;
     for (auto& gammalist_tuple_list : gammalist_tuple_list_list) {
+      ++scheme;
       auto rdm_mat = make_shared<Matrix>(norb_site*norb_site, norb_right*norb_right); // matrix to store RDM, use ax_plus_y...
       auto unordered_rdm = rdm_mat->clone();
-      ++scheme;
       for (auto& gammalist_tuple : gammalist_tuple_list) {
         const bool trans_site = get<3>(gammalist_tuple);
         const bool trans_right = get<4>(gammalist_tuple);
-        const bool swap_site = get<5>(gammalist_tuple);
-        const bool swap_right = get<6>(gammalist_tuple);
+        const bool duplicate = get<5>(gammalist_tuple);
         for (auto& isec : prod_civec->sectors()) {
           BlockKey ket_seckey = isec.first;
           for (auto& ketpair : doubleblock->blockpairs(ket_seckey)) {
@@ -1531,20 +1529,34 @@ void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
             auto tmp_mat = make_shared<Matrix>(site_transition_tensor->extent(2), right_coupling_tensor->extent(2));
             contract(1.0, *contract_site_left, {2,0}, group(*right_coupling_tensor,0,2), {2,1}, 0.0, *tmp_mat, {0,1});
 
-            // swap index
-            if (swap_site) {
-              vector<double> buf(norb_site*norb_site);
+            // swap indices
+            if (trans_site) {
+              vector<double> buf2(norb_site*norb_site);
               for (int i = 0; i != right_coupling_tensor->extent(2); ++i) {
-                copy_n(tmp_mat->element_ptr(0,i), buf.size(), buf.data());
-                blas::transpose(buf.data(), norb_site, norb_site, tmp_mat->element_ptr(0,i));
+                copy_n(tmp_mat->element_ptr(0,i), buf2.size(), buf2.data());
+                blas::transpose(buf2.data(), norb_site, norb_site, tmp_mat->element_ptr(0,i));
               }
             }
-            if (swap_right) {
+            if (trans_right) {
               auto tmp2 = tmp_mat->clone();
               for (int i = 0; i != norb_right; ++i)
                 for (int j = 0; j != norb_right; ++j)
                   copy_n(tmp_mat->element_ptr(0, j+i*norb_right), tmp_mat->ndim(), tmp2->element_ptr(0, i+j*norb_right));
               tmp_mat = tmp2;
+            }
+            if (duplicate) {
+              auto dup_mat = tmp_mat->copy();
+              vector<double> buf3(norb_site*norb_site);
+              for (int i = 0; i != right_coupling_tensor->extent(2); ++i) {
+                copy_n(dup_mat->element_ptr(0,i), buf3.size(), buf3.data());
+                blas::transpose(buf3.data(), norb_site, norb_site, dup_mat->element_ptr(0,i));
+              }
+              auto tmp3 = dup_mat->clone();
+              for (int i = 0; i != norb_right; ++i)
+                for (int j = 0; j != norb_right; ++j)
+                  copy_n(dup_mat->element_ptr(0, j+i*norb_right), dup_mat->ndim(), tmp3->element_ptr(0, i+j*norb_right));
+              dup_mat = tmp3;
+              *tmp_mat += *dup_mat;
             }
             
             // copy this bra-ket pair density matrix to target
@@ -1574,8 +1586,8 @@ void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
             for (int j = 0; j != norb_site; ++j) {
               for (int i = 0; i != norb_site; ++i) {
                 const double value = *rdm_mat->element_ptr(i+j*norb_site, p+q*norb_right);
-                rdm2_target->element(j+norb_left, q+rightoffset, i+norb_left, p+rightoffset) = value;
-                rdm2_target->element(q+rightoffset, j+norb_left, p+rightoffset, i+norb_left) = value;
+                rdm2_target->element(i+norb_left, q+rightoffset, j+norb_left, p+rightoffset) = value;
+                rdm2_target->element(q+rightoffset, i+norb_left, p+rightoffset, j+norb_left) = value;
               }
             }
           }
