@@ -119,9 +119,6 @@ class ASD_DMRG {
     void compute_rdm2_ras(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
     void compute_rdm2_130(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
     void compute_rdm2_220(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_220_part1(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_220_part2(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_220_part3(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
     void compute_rdm2_031(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
     void compute_rdm2_121(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
     void compute_rdm2_121_part1(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
@@ -136,9 +133,6 @@ class ASD_DMRG {
     void compute_rdm2_013(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
     void compute_rdm2_103(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
     void compute_rdm2_022(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_022_part1(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_022_part2(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_022_part3(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
     void compute_rdm2_202(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
     void compute_rdm2_202_part1(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
     void compute_rdm2_202_part2(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
