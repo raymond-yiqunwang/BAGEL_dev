@@ -158,5 +158,46 @@ void RASCI::excite_alpha(shared_ptr<const RASCivec> cc, shared_ptr<RASDvec> d) c
 
 
 void RASCI::excite_beta(shared_ptr<const RASCivec> cc, shared_ptr<RASDvec> d) const {
+  auto det = cc->det();
+  const double* const source_base = cc->data();
+
+  for (auto& source_block : det->blockinfo()) {
+    // source info
+    auto source_astrings = source_block->stringsa();
+    auto source_bstrings = source_block->stringsb();
+    const size_t source_lenb = source_bstrings->size();
+    const int nha = source_astrings->nholes();
+    const int npa = source_astrings->nparticles();
+    const int source_offset = source_block->offset();
+
+    for (auto& istringa : *source_astrings) {
+      const size_t lexzero_a = source_astrings->lexical_zero(istringa);
+      for (auto& istringb : *source_bstrings) {
+        const size_t source_lexoffset_b = source_bstrings->lexical_offset(istringb);
+        const size_t source_lexzero_b = source_bstrings->lexical_zero(istringb);
+        // locate source
+        const double* const source_location = source_base + source_offset + lexzero_a*source_lenb + source_lexzero_b;
+        // excitation info
+        for (auto& iterij : det->phib(source_lexoffset_b)) {
+          // locate target
+          const size_t ij = iterij.ij;
+          const double sign = static_cast<double>(iterij.sign);
+          const size_t target_lexoffset_b = iterij.source;
+          const bitset<nbit__> target_bstring = det->stringspaceb()->strings(target_lexoffset_b);
+          auto target_bstrings = det->stringspaceb()->find_string(target_bstring);
+          const int target_lenb = target_bstrings->size();
+          const size_t target_lexzero_b = target_bstrings->lexical_zero(target_bstring);
+          const int target_nhb = target_bstrings->nholes();
+          const int target_npb = target_bstrings->nparticles();
+          if (!det->allowed(nha, target_nhb, npa, target_npb)) continue;
+          auto target_blockinfo = det->blockinfo(nha, target_nhb, npa, target_npb);
+          const int target_offset = target_blockinfo->offset();
+          double* const target_location = d->data(ij)->data() + target_offset + lexzero_a*target_lenb + target_lexzero_b;
+          
+          *target_location += sign * *source_location;
+        }
+      }
+    }
+  }
 
 }
