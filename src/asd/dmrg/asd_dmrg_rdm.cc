@@ -370,8 +370,8 @@ void ASD_DMRG::compute_rdm2_ras(vector<shared_ptr<ProductRASCivec>> dvec, const 
     for (auto& block : dvec[istate]->sectors()) {
       const int n_lr = block.second->mdim();
       for (int i = 0; i != n_lr; ++i) {
-        auto rasvec = make_shared<RASCivec>(block.second->civec(i));
-        tie(rdm1_ptr, rdm2_ptr) = rasvec->compute_rdm2_from_rasvec();
+        auto rasvec = make_shared<const RASCivec>(block.second->civec(i));
+        tie(rdm1_ptr, rdm2_ptr) = rasvec->compute_rdm12_from_rascivec(rasvec);
         assert(rdm1_ptr->size() == rdm1_tmp->size());
         assert(rdm2_ptr->size() == rdm2_tmp->size());
         blas::ax_plus_y_n(1.0, rdm1_ptr->data(), rdm1_ptr->size(), rdm1_tmp->data());

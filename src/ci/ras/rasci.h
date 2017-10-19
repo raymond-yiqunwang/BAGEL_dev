@@ -124,11 +124,6 @@ class RASCI : public Method {
     void compute_rdm12(const int istate, const int jstate);
     //std::tuple<std::shared_ptr<RDM<3>>, std::shared_ptr<RDM<4>>> compute_rdm34(const int istate) const;
 
-    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
-      compute_rdm12_from_rascivec(std::shared_ptr<const RASCivec>, std::shared_ptr<const RASCivec>) const;
-    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
-      compute_rdm12_last_step(std::shared_ptr<const RASDvec>, std::shared_ptr<const RASDvec>, std::shared_ptr<const RASCivec>) const;
-
     std::shared_ptr<VecRDM<1>> rdm1() { return rdm1_; }
     std::shared_ptr<VecRDM<2>> rdm2() { return rdm2_; }
     std::shared_ptr<RDM<1>> rdm1(const int i, const int j) { return rdm1_->at(i, j); }

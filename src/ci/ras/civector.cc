@@ -176,112 +176,172 @@ template<> shared_ptr<RASCivector<double>> RASCivecView_<double>::spin_raise(sha
   return out;
 }
 
-template<> tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>> RASCivector<double>::compute_rdm2_from_rasvec() const {
-  const int norb = det_->norb();
-  const int nelea = det_->nelea();
-  const int neleb = det_->neleb();
 
-  auto idet = make_shared<Determinants>(norb, nelea, neleb, false/*compress*/, true/*mute*/);
-  auto dbra = make_shared<Dvec>(idet, norb*norb);
-  auto fcivec = make_shared<Civec>(idet);
+template<>
+tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
+  RASCivector<double>::compute_rdm12_from_rascivec(shared_ptr<const RASCivec> cket) const {
   
-  // map RASCI vec into FCI vec
-  for (auto& iblock : blocks_) {
-    if (!iblock) continue;
-    // beta_string runs first
-    for (auto& abit : iblock->stringsa()->strings()) {
-      const int block_index_a = iblock->stringsa()->lexical_zero(abit);
-      for (auto & bbit : iblock->stringsb()->strings()) {
-        // now I have a pair of legal bits, identify the source index in RASCivec and target index in Civec
-        const int block_index_b = iblock->stringsb()->lexical_zero(bbit);
-        double* const source_ptr = iblock->data() + block_index_b + (block_index_a * iblock->lenb());
-        // FCI part
-        const int fci_index_a = fcivec->det()->lexical<0>(abit);
-        const int fci_index_b = fcivec->det()->lexical<1>(bbit);
-        double* const target_ptr = fcivec->data() + fci_index_b + (fci_index_a * fcivec->det()->lenb());
-        *target_ptr = *source_ptr;
-      }
-    }
-  }
-  // form RDM<2>
-  { // sigma_2a1
-    const int lb = dbra->lenb();
-    const int ij = dbra->ij();
-    const double* const source_base = fcivec->data();
-    for (int ip = 0; ip != ij; ++ip) {
-      double* const target_base = dbra->data(ip)->data();
-      for (auto& iter : fcivec->det()->phia(ip)) {
-        const double sign = static_cast<double>(iter.sign);
-        double* const target_array = target_base + iter.source*lb;
-        blas::ax_plus_y_n(sign, source_base + iter.target*lb, lb, target_array);
-      }
-    }
-  }
-  { // sigma_2a2
-    const int la = dbra->lena();
-    const int ij = dbra->ij();
-    for (int i = 0; i < la; ++i) {
-      const double* const source_array0 = fcivec->element_ptr(0, i);
-      for (int ip = 0; ip != ij; ++ip) {
-        double* const target_array0 = dbra->data(ip)->element_ptr(0, i);
-        for (auto& iter : fcivec->det()->phib(ip)) {
-          const double sign = static_cast<double>(iter.sign);
-          target_array0[iter.source] += sign * source_array0[iter.target];
-        }
-      }
-    }
+  auto cbra = shared_from_this();
+  const int norb = cbra->det()->norb();
+  auto dbra = make_shared<RASDvec>(cbra->det(), norb*norb);
+  excite_alpha(cbra, dbra);
+  excite_beta(cbra, dbra);
+
+  shared_ptr<RASDvec> dket;
+  if(cbra != cket) {
+    dket = make_shared<RASDvec>(cket->det(), norb*norb);
+    excite_alpha(cket, dket);
+    excite_beta(cket, dket);
+  } else {
+    dket = dbra;
   }
 
-  return compute_rasrdm12_last_step(dbra, dbra, fcivec);
+  return compute_rdm12_last_step(dbra, dket, cbra);
 }
 
-template<> tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>> RASCivector<double>::compute_rasrdm12_last_step(shared_ptr<Dvec> dbra, shared_ptr<Dvec> dket,
-                                                                                                         shared_ptr<Civec> cibra) const {
-  const int nri = cibra->asize() * cibra->lenb();
-  const int norb = det_->norb();
+
+template<>
+tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
+  RASCivector<double>::compute_rdm12_last_step(shared_ptr<const RASDvec> dbra, shared_ptr<const RASDvec> dket, shared_ptr<const RASCivec> cibra) const {
+
+  const int nri = cibra->det()->size();
+  const int norb = cibra->det()->norb();
   const int ij = norb * norb;
 
   auto rdm1 = make_shared<RDM<1>>(norb);
-  auto rdm2 = make_shared<RDM<2>>(norb);
+  auto rdm2_raw = make_shared<RDM<2>>(norb);
   {
     auto cibra_data = make_shared<VectorB>(nri);
     copy_n(cibra->data(), nri, cibra_data->data());
 
     auto dket_data = make_shared<Matrix>(nri, ij);
-    for (int i = 0; i != ij; ++i)
-      copy_n(dket->data(i)->data(), nri, dket_data->element_ptr(0, i));
-    auto rdm1t = btas::group(*rdm1,0,2);
-    btas::contract(1.0, *dket_data, {0,1}, *cibra_data, {0}, 0.0, rdm1t, {1});
+    for (int i = 0; i != norb; ++i)
+      for (int j = 0; j != norb; ++j)
+        copy_n(dket->data(j+i*norb)->data(), nri, dket_data->element_ptr(0, i+j*norb));
+    auto rdm1tmp = btas::group(*rdm1,0,2);
+    btas::contract(1.0, *dket_data, {0,1}, *cibra_data, {0}, 0.0, rdm1tmp, {1});
 
-    auto dbra_data = dket_data;
-    if (dbra != dket) {
-      dbra_data = make_shared<Matrix>(nri, ij);
-      for (int i = 0; i != ij; ++i)
-        copy_n(dbra->data(i)->data(), nri, dbra_data->element_ptr(0, i));
-    }
-    auto rdm2t = group(group(*rdm2, 2,4), 0,2);
-    btas::contract(1.0, *dbra_data, {1,0}, *dket_data, {1,2}, 0.0, rdm2t, {0,2});
+    auto dbra_data = dket_data->clone();
+    for (int k = 0; k != ij; ++k)
+      copy_n(dbra->data(k)->data(), nri, dbra_data->element_ptr(0, k));
+    auto rdm2tmp = group(group(*rdm2_raw,2,4),0,2);
+    btas::contract(1.0, *dbra_data, {2,0}, *dket_data, {2,1}, 0.0, rdm2tmp, {0,1});
   }
 
-  // sorting... a bit stupid but cheap anyway
-  // This is since we transpose operator pairs in dgemm - cheaper to do so after dgemm (usually Nconfig >> norb_**2).
-  unique_ptr<double[]> buf(new double[norb*norb]);
-  for (int i = 0; i != norb; ++i) {
-    for (int k = 0; k != norb; ++k) {
-      copy_n(&rdm2->element(0,0,k,i), norb*norb, buf.get());
-      blas::transpose(buf.get(), norb, norb, rdm2->element_ptr(0,0,k,i));
-    }
-  }
+  auto rdm2 = make_shared<RDM<2>>(norb);
+  // collect ij >= kl from rdm2_raw
+  for (int k = 0; k != norb; ++k)
+    for (int j = 0; j != norb; ++j)
+      for (int l = 0; l != norb; ++l)
+        for (int i = 0; i != norb; ++i) 
+          if ((i-1)*norb+j >= (k-1)*norb+l)
+            // tensor(i,j,k,l) == rdm(i,l,j,k)
+            rdm2->element(i,l,j,k) = rdm2_raw->element(i,l,j,k);
 
-  // put in diagonal into 2RDM
-  // Gamma{i+ k+ l j} = Gamma{i+ j k+ l} - delta_jk Gamma{i+ l}
+  for (int k = 0; k != norb; ++k)
+    for (int j = 0; j != norb; ++j)
+      for (int l = 0; l != norb; ++l)
+        for (int i = 0; i != norb; ++i)
+          if ((i-1)*norb+j < (k-1)*norb+l)
+            // tensor(i,j,k,l) == tensor(k,l,i,j)
+            // rdm(i,l,j,k) == rdm(k,j,l,i)
+            rdm2->element(i,l,j,k) = rdm2->element(k,j,l,i);
+
   for (int i = 0; i != norb; ++i)
     for (int k = 0; k != norb; ++k)
       for (int j = 0; j != norb; ++j)
         rdm2->element(j,k,k,i) -= rdm1->element(j,i);
 
   return tie(rdm1, rdm2);
-}                                                                                                        
+}
+
+template<>
+void RASCivector<double>::excite_alpha(shared_ptr<const RASCivec> cc, shared_ptr<RASDvec> d) const {
+  assert(cc->det() == d->det());
+  auto det = cc->det();
+  const double* const source_base = cc->data();
+
+  for (auto& source_block : det->blockinfo()) {
+    // source info
+    auto source_astrings = source_block->stringsa();
+    auto bstrings = source_block->stringsb();
+    const size_t lenb = bstrings->size();
+    const int nhb = bstrings->nholes();
+    const int npb = bstrings->nparticles();
+    const int source_offset = source_block->offset();
+
+    for (auto& istring : *source_astrings) {
+      // locate source
+      const size_t source_lexoffset_a = source_astrings->lexical_offset(istring);
+      const size_t source_lexzero_a = source_astrings->lexical_zero(istring);
+      const double* const source_location = source_base + source_offset + source_lexzero_a*lenb;
+      // excitation info
+      for (auto& iterij : det->phia(source_lexoffset_a)) {
+        // locate target
+        const size_t ij = iterij.ij;
+        const int sign = iterij.sign;
+        const size_t target_lexoffset_a = iterij.source;
+        const bitset<nbit__> target_astring = det->stringspacea()->strings(target_lexoffset_a);
+        auto target_astrings = det->stringspacea()->find_string(target_astring);
+        const size_t target_lexzero_a = target_astrings->lexical_zero(target_astring);
+        const int target_nha = target_astrings->nholes();
+        const int target_npa = target_astrings->nparticles();
+        if (!det->allowed(target_nha, nhb, target_npa, npb)) continue; // ignore illegal excitations
+        auto target_blockinfo = det->blockinfo(target_nha, nhb, target_npa, npb);
+        const int target_offset = target_blockinfo->offset();
+        double* const target_location = d->data(ij)->data() + target_offset + target_lexzero_a*lenb;
+        
+        blas::ax_plus_y_n(sign, source_location, lenb, target_location);
+      }
+    }
+  }
+}
+
+
+template<>
+void RASCivector<double>::excite_beta(shared_ptr<const RASCivec> cc, shared_ptr<RASDvec> d) const {
+  auto det = cc->det();
+  const double* const source_base = cc->data();
+
+  for (auto& source_block : det->blockinfo()) {
+    // source info
+    auto source_astrings = source_block->stringsa();
+    auto source_bstrings = source_block->stringsb();
+    const size_t source_lenb = source_bstrings->size();
+    const int nha = source_astrings->nholes();
+    const int npa = source_astrings->nparticles();
+    const int source_offset = source_block->offset();
+
+    for (auto& istringa : *source_astrings) {
+      const size_t lexzero_a = source_astrings->lexical_zero(istringa);
+      for (auto& istringb : *source_bstrings) {
+        const size_t source_lexoffset_b = source_bstrings->lexical_offset(istringb);
+        const size_t source_lexzero_b = source_bstrings->lexical_zero(istringb);
+        // locate source
+        const double* const source_location = source_base + source_offset + lexzero_a*source_lenb + source_lexzero_b;
+        // excitation info
+        for (auto& iterij : det->phib(source_lexoffset_b)) {
+          // locate target
+          const size_t ij = iterij.ij;
+          const double sign = static_cast<double>(iterij.sign);
+          const size_t target_lexoffset_b = iterij.source;
+          const bitset<nbit__> target_bstring = det->stringspaceb()->strings(target_lexoffset_b);
+          auto target_bstrings = det->stringspaceb()->find_string(target_bstring);
+          const int target_lenb = target_bstrings->size();
+          const size_t target_lexzero_b = target_bstrings->lexical_zero(target_bstring);
+          const int target_nhb = target_bstrings->nholes();
+          const int target_npb = target_bstrings->nparticles();
+          if (!det->allowed(nha, target_nhb, npa, target_npb)) continue;
+          auto target_blockinfo = det->blockinfo(nha, target_nhb, npa, target_npb);
+          const int target_offset = target_blockinfo->offset();
+          double* const target_location = d->data(ij)->data() + target_offset + lexzero_a*target_lenb + target_lexzero_b;
+          
+          *target_location += sign * *source_location;
+        }
+      }
+    }
+  }
+}
 
 
 template class bagel::RASCivector<double>;

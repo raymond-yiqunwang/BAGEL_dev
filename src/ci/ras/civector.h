@@ -35,7 +35,7 @@ namespace bagel {
 template <typename DataType> class RASCivecView_;
 
 template <typename DataType>
-class RASCivector : public RASCivector_impl<DataType> {
+class RASCivector : public RASCivector_impl<DataType>, public std::enable_shared_from_this<RASCivector<DataType>> {
   public:
     using DetType = RASDeterminants;
     using RBlock = RASBlock<DataType>;
@@ -83,18 +83,27 @@ class RASCivector : public RASCivector_impl<DataType> {
 
     std::shared_ptr<RASCivector<DataType>> apply(const int orbital, const bool action, const bool spin) const;
 
-    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> compute_rdm2_from_rasvec() const;
-    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> 
-      compute_rasrdm12_last_step(std::shared_ptr<Dvec>, std::shared_ptr<Dvec>, std::shared_ptr<Civec>) const;
+    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
+      compute_rdm12_from_rascivec(std::shared_ptr<const RASCivector<DataType>> cket) const;
+    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
+      compute_rdm12_last_step(std::shared_ptr<const Dvector_base<RASCivector<DataType>>> dbra,
+      std::shared_ptr<const Dvector_base<RASCivector<DataType>>> dket, std::shared_ptr<const RASCivector<DataType>> cibra) const;
+    void excite_alpha(std::shared_ptr<const RASCivector<DataType>> cc, std::shared_ptr<Dvector_base<RASCivector<DataType>>> d) const;
+    void excite_beta(std::shared_ptr<const RASCivector<DataType>> cc, std::shared_ptr<Dvector_base<RASCivector<DataType>>> d) const;
 
 };
+
+template<> std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
+      RASCivector<double>::compute_rdm12_from_rascivec(std::shared_ptr<const RASCivector<double>>) const;
+template<> std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
+      RASCivector<double>::compute_rdm12_last_step(std::shared_ptr<const Dvector_base<RASCivector<double>>> dbra,
+      std::shared_ptr<const Dvector_base<RASCivector<double>>> dket, std::shared_ptr<const RASCivector<double>> cibra) const;
+template<> void RASCivector<double>::excite_alpha(std::shared_ptr<const RASCivector<double>> cc, std::shared_ptr<Dvector_base<RASCivector<double>>> d) const;
+template<> void RASCivector<double>::excite_beta(std::shared_ptr<const RASCivector<double>> cc, std::shared_ptr<Dvector_base<RASCivector<double>>> d) const;
 
 template<> std::shared_ptr<RASCivector<double>> RASCivector<double>::spin() const; // returns S^2 | civec >
 template<> std::shared_ptr<RASCivector<double>> RASCivector<double>::spin_lower(std::shared_ptr<const RASDeterminants>) const; // S_-
 template<> std::shared_ptr<RASCivector<double>> RASCivector<double>::spin_raise(std::shared_ptr<const RASDeterminants>) const; // S_+
-template<> std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>> RASCivector<double>::compute_rdm2_from_rasvec() const;
-template<> std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
-  RASCivector<double>::compute_rasrdm12_last_step(std::shared_ptr<Dvec>, std::shared_ptr<Dvec>, std::shared_ptr<Civec>) const;
 
 using RASCivec = RASCivector<double>;
 using RASDvec  = Dvector_base<RASCivec>;

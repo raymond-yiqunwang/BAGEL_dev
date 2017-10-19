@@ -97,11 +97,9 @@ void RASCI::common_init() {
   if (nelea_ < 0 || neleb_ < 0) throw runtime_error("#electrons cannot be negative in RASCI");
   //for (int i = 0; i != nstate_; ++i) weight_.push_back(1.0/static_cast<double>(nstate_));
 
-#ifndef NORDMS
-  // resizing rdm vectors (with null pointers)
-  rdm1_.resize(nstate_);
-  rdm2_.resize(nstate_);
-#endif
+  // initialize VecRDM
+  rdm1_ = make_shared<VecRDM<1>>();
+  rdm2_ = make_shared<VecRDM<2>>();
   energy_.resize(nstate_);
 
   // construct a determinant space in which this RASCI will be performed.
