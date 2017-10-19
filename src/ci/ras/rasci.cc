@@ -100,6 +100,7 @@ void RASCI::common_init() {
   // initialize VecRDM
   rdm1_ = make_shared<VecRDM<1>>();
   rdm2_ = make_shared<VecRDM<2>>();
+  weight_ = vector<double>(nstate_, 1.0/static_cast<double>(nstate_));
   energy_.resize(nstate_);
 
   // construct a determinant space in which this RASCI will be performed.
