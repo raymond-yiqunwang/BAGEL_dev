@@ -515,7 +515,7 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
           auto tmp_mat = make_shared<Matrix>(site_transition_tensor->extent(2), left_coupling_tensor->extent(2));
           auto gmat = group(*tmp_mat,0,2);
           contract(1.0, group(*right_coupling_tensor,0,2), {1}, group(*intermediate_tensor,1,3), {1,0}, 0.0, gmat, {0});
-          const double sign = static_cast<double>(1 - (((ket_ras_nelea+ket_ras_neleb) % 2) << 1));
+          const double sign = static_cast<double>(1 - (((ket_ras_nelea+ket_ras_neleb) & 1) << 1));
           blas::ax_plus_y_n(sign, tmp_mat->data(), tmp_mat->size(), unordered_rdm->data());
         }
       }
@@ -664,7 +664,7 @@ void ASD_DMRG::compute_rdm2_031(vector<shared_ptr<ProductRASCivec>> dvec, const 
           contract(1.0, group(*site_transition_tensor,1,3), {1,0}, group(*left_coupling_tensor,0,2), {1}, 0.0, gmat, {0});
           auto outmat = make_shared<Matrix>(site_transition_tensor->extent(2), right_coupling_tensor->extent(2));
           contract(1.0, *contract_site_left, {2,0}, group(*right_coupling_tensor,0,2), {2,1}, 0.0, *outmat, {0,1});
-          const double sign = static_cast<double>(1 - (((ket_ras_nelea+ket_ras_neleb + leftkey.nelea + leftkey.neleb) % 2) << 1));
+          const double sign = static_cast<double>(1 - (((ket_ras_nelea+ket_ras_neleb + leftkey.nelea + leftkey.neleb) & 1) << 1));
           blas::ax_plus_y_n(sign, outmat->data(), outmat->size(), rdm_mat->data());
         }
       }
@@ -802,7 +802,7 @@ void ASD_DMRG::compute_rdm2_310(vector<shared_ptr<ProductRASCivec>> dvec) {
           auto tmp_mat = make_shared<Matrix>(site_transition_tensor->extent(2), left_coupling_tensor->extent(2));
           auto gmat = group(*tmp_mat,0,2);
           contract(1.0, group(*right_coupling_tensor,0,2), {1}, group(*intermediate_tensor,1,3), {1,0}, 0.0, gmat, {0});
-          const double sign = static_cast<double>(1 - (((ket_ras_nelea+ket_ras_neleb) % 2) << 1));
+          const double sign = static_cast<double>(1 - (((ket_ras_nelea+ket_ras_neleb) & 1) << 1));
           blas::ax_plus_y_n(sign, tmp_mat->data(), tmp_mat->size(), unordered_rdm->data());
         }
       }
@@ -911,7 +911,7 @@ void ASD_DMRG::compute_rdm2_301(vector<shared_ptr<ProductRASCivec>> dvec) {
           contract(1.0, *site_transition_mat, {2,0}, group(*left_coupling_tensor,0,2), {2,1}, 0.0, *contract_site_left, {0,1});
           auto tmp = make_shared<Matrix>(right_coupling_tensor->extent(2), left_coupling_tensor->extent(2));
           contract(1.0, group(*right_coupling_tensor,0,2), {2,0}, *contract_site_left, {2,1}, 0.0, *tmp, {0,1});
-          const double sign = static_cast<double>(1 - (((ket_leftkey.nelea+ket_leftkey.neleb) % 2) << 1));
+          const double sign = static_cast<double>(1 - (((ket_leftkey.nelea+ket_leftkey.neleb) & 1) << 1));
           blas::ax_plus_y_n(sign, tmp->data(), tmp->size(), rdm_mat->data());
         }
       }
@@ -1054,7 +1054,7 @@ void ASD_DMRG::compute_rdm2_013(vector<shared_ptr<ProductRASCivec>> dvec) {
           contract(1.0, group(*site_transition_tensor,1,3), {1,0}, group(*left_coupling_tensor,0,2), {1}, 0.0, gmat, {0});
           auto outmat = make_shared<Matrix>(right_coupling_tensor->extent(2), site_transition_tensor->extent(2));
           contract(1.0, group(*right_coupling_tensor,0,2), {2,0}, *contract_site_left, {2,1}, 0.0, *outmat, {0,1});
-          const double sign = static_cast<double>(1 - (((ket_ras_nelea+ket_ras_neleb + leftkey.nelea + leftkey.neleb) % 2) << 1));
+          const double sign = static_cast<double>(1 - (((ket_ras_nelea+ket_ras_neleb + leftkey.nelea + leftkey.neleb) & 1) << 1));
           blas::ax_plus_y_n(sign, outmat->data(), outmat->size(), rdm_mat->data());
         }
       }
@@ -1149,7 +1149,7 @@ void ASD_DMRG::compute_rdm2_103(vector<shared_ptr<ProductRASCivec>> dvec) {
           contract(1.0, *site_transition_mat, {2,0}, group(*left_coupling_tensor,0,2), {2,1}, 0.0, *contract_site_left, {0,1});
           auto tmp = make_shared<Matrix>(right_coupling_tensor->extent(2), left_coupling_tensor->extent(2));
           contract(1.0, group(*right_coupling_tensor,0,2), {2,0}, *contract_site_left, {2,1}, 0.0, *tmp, {0,1});
-          const double sign = static_cast<double>(1 - (((ket_leftkey.nelea+ket_leftkey.neleb) % 2) << 1));
+          const double sign = static_cast<double>(1 - (((ket_leftkey.nelea+ket_leftkey.neleb) & 1) << 1));
           blas::ax_plus_y_n(sign, tmp->data(), tmp->size(), unordered_rdm->data());
         }
       }
@@ -2052,7 +2052,7 @@ void ASD_DMRG::compute_rdm2_121(vector<shared_ptr<ProductRASCivec>> dvec, const 
             }
             
             // copy to target
-            const double sign = static_cast<double>(1 - (((ket_leftkey.nelea + ket_leftkey.neleb) % 2) << 1)) * (1.0 - 2.0*static_cast<double>(swap_site));
+            const double sign = static_cast<double>(1 - (((ket_leftkey.nelea + ket_leftkey.neleb) & 1) << 1)) * (1.0 - 2.0*static_cast<double>(swap_site));
             blas::ax_plus_y_n(sign, tmp_rdm->data(), tmp_rdm->size(), unordered_rdm->data());
           } 
         } 
@@ -2287,7 +2287,7 @@ void ASD_DMRG::compute_rdm2_211(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
             // copy to target
             const int sign_phase = ket_ras_nelea + ket_ras_neleb + ket_leftkey.nelea + ket_leftkey.neleb + ((scheme == 3) ? 1 : 0);
-            const double sign = static_cast<double>(1 - ((sign_phase % 2) << 1)) * (1.0 - 2.0*static_cast<double>(swap_left));
+            const double sign = static_cast<double>(1 - ((sign_phase & 1) << 1)) * (1.0 - 2.0*static_cast<double>(swap_left));
             blas::ax_plus_y_n(sign, resize_mat->data(), resize_mat->size(), unordered_rdm->data());
           }
         }
@@ -2526,7 +2526,7 @@ void ASD_DMRG::compute_rdm2_112(vector<shared_ptr<ProductRASCivec>> dvec) {
 
             // copy to target
             const int sign_phase = ket_ras_nelea + ket_ras_neleb + ((scheme == 3) ? 1 : 0);
-            const double sign = static_cast<double>(1 - ((sign_phase % 2) << 1)) * (1.0 - 2.0*static_cast<double>(swap_right));
+            const double sign = static_cast<double>(1 - ((sign_phase & 1) << 1)) * (1.0 - 2.0*static_cast<double>(swap_right));
             blas::ax_plus_y_n(sign, tmp_mat->data(), tmp_mat->size(), unordered_rdm->data());
           }
         }
@@ -2585,9 +2585,8 @@ void ASD_DMRG::compute_rdm2_112(vector<shared_ptr<ProductRASCivec>> dvec) {
         }
       }
     
-    }
+    } // end of looping over operation list
   } // end of looping over istate
-
 } // end of compute_112
 
 

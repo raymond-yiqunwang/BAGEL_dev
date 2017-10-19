@@ -25,7 +25,6 @@
 #ifndef __BAGEL_RAS_RASCI_H
 #define __BAGEL_RAS_RASCI_H
 
-//#define NORDMS
 
 #include <src/ci/fci/mofile.h>
 #include <src/ci/ras/civector.h>
@@ -66,15 +65,13 @@ class RASCI : public Method {
     // CI vector at convergence
     std::shared_ptr<RASDvec> cc_;
 
-#ifndef NORDMS
     // RDMs; should be resized in constructors
-    std::vector<std::shared_ptr<RDM<1>>> rdm1_;
-    std::vector<std::shared_ptr<RDM<2>>> rdm2_;
+    std::shared_ptr<VecRDM<1>> rdm1_;
+    std::shared_ptr<VecRDM<2>> rdm2_;
     // state averaged RDM
     std::vector<double> weight_;
     std::shared_ptr<RDM<1>> rdm1_av_;
     std::shared_ptr<RDM<2>> rdm2_av_;
-#endif
 
     // MO integrals
     std::shared_ptr<MOFile> jop_;
@@ -100,11 +97,8 @@ class RASCI : public Method {
     // functions related to natural orbitals
     void update_rdms(const std::shared_ptr<Matrix>& coeff);
 
-#ifndef NORDMS
-    // internal function for RDM1 and RDM2 computations
-    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
-      compute_rdm12_last_step(std::shared_ptr<RASDvec>, std::shared_ptr<const RASDvec>, std::shared_ptr<const RASCivec>) const;
-#endif
+    void excite_alpha(std::shared_ptr<const RASCivec>, std::shared_ptr<RASDvec>) const;
+    void excite_beta(std::shared_ptr<const RASCivec>, std::shared_ptr<RASDvec>) const;
 
     // print functions
     void print_header() const;
@@ -125,35 +119,34 @@ class RASCI : public Method {
     template <int space> int ras() const { return std::get<space>(ras_); }
     double core_energy() const { return jop_->core_energy(); }
 
-#ifndef NORDMS
     // rdms
     void compute_rdm12(); // compute all states at once + averaged rdm
-    void compute_rdm12(const int istate);
-    std::tuple<std::shared_ptr<RDM<3>>, std::shared_ptr<RDM<4>>> compute_rdm34(const int istate) const;
+    void compute_rdm12(const int istate, const int jstate);
+    //std::tuple<std::shared_ptr<RDM<3>>, std::shared_ptr<RDM<4>>> compute_rdm34(const int istate) const;
 
     std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
-      compute_rdm12_from_civec(std::shared_ptr<const RASCivec>, std::shared_ptr<const RASCivec>) const;
+      compute_rdm12_from_rascivec(std::shared_ptr<const RASCivec>, std::shared_ptr<const RASCivec>) const;
     std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
-      compute_rdm12_av_from_dvec(std::shared_ptr<const RASDvec>, std::shared_ptr<const RASDvec>, std::shared_ptr<const Determinants> o = nullptr) const;
+      compute_rdm12_last_step(std::shared_ptr<const RASDvec>, std::shared_ptr<const RASDvec>, std::shared_ptr<const RASCivec>) const;
 
-    std::vector<std::shared_ptr<RDM<1>>> rdm1() { return rdm1_; }
-    std::vector<std::shared_ptr<RDM<2>>> rdm2() { return rdm2_; }
-    std::shared_ptr<RDM<1>> rdm1(const int i) { return rdm1_.at(i); }
-    std::shared_ptr<RDM<2>> rdm2(const int i) { return rdm2_.at(i); }
-    std::shared_ptr<const RDM<1>> rdm1(const int i) const { return rdm1_.at(i); }
-    std::shared_ptr<const RDM<2>> rdm2(const int i) const { return rdm2_.at(i); }
+    std::shared_ptr<VecRDM<1>> rdm1() { return rdm1_; }
+    std::shared_ptr<VecRDM<2>> rdm2() { return rdm2_; }
+    std::shared_ptr<RDM<1>> rdm1(const int i, const int j) { return rdm1_->at(i, j); }
+    std::shared_ptr<RDM<2>> rdm2(const int i, const int j) { return rdm2_->at(i, j); }
+    std::shared_ptr<const RDM<1>> rdm1(const int i, const int j) const { return rdm1_->at(i, j); }
+    std::shared_ptr<const RDM<2>> rdm2(const int i, const int j) const { return rdm2_->at(i, j); }
+    std::shared_ptr<RDM<1>> rdm1(const int i) { return rdm1(i, i); }
+    std::shared_ptr<RDM<2>> rdm2(const int i) { return rdm2(i, i); }
+    std::shared_ptr<const RDM<1>> rdm1(const int i) const { return rdm1(i, i); }
+    std::shared_ptr<const RDM<2>> rdm2(const int i) const { return rdm2(i, i); }
     std::shared_ptr<RDM<1>> rdm1_av() { return rdm1_av_; }
     std::shared_ptr<RDM<2>> rdm2_av() { return rdm2_av_; }
     std::shared_ptr<const RDM<1>> rdm1_av() const { return rdm1_av_; }
     std::shared_ptr<const RDM<2>> rdm2_av() const { return rdm2_av_; }
 
-    // rdm ci derivatives
-    std::shared_ptr<RASDvec> rdm1deriv() const;
-    std::shared_ptr<RASDvec> rdm2deriv() const;
 
     // move to natural orbitals
-    std::pair<std::shared_ptr<Matrix>, std::vector<double>> natorb_convert();
-#endif
+//    std::pair<std::shared_ptr<Matrix>, std::vector<double>> natorb_convert();
 
     const std::shared_ptr<const Geometry> geom() const { return geom_; }
 
