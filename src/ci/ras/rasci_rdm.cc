@@ -94,7 +94,7 @@ tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
   const int ij = norb_ * norb_;
 
   auto rdm1 = make_shared<RDM<1>>(norb_);
-  auto rdm2 = make_shared<RDM<2>>(norb_);
+  auto rdm2_raw = make_shared<RDM<2>>(norb_);
   {
     auto cibra_data = make_shared<VectorB>(nri);
     copy_n(cibra->data(), nri, cibra_data->data());
@@ -109,7 +109,33 @@ tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
     auto dbra_data = dket_data->clone();
     for (int k = 0; k != ij; ++k)
       copy_n(dbra->data(k)->data(), nri, dbra_data->element_ptr(0, k));
+    auto rdm2tmp = group(group(*rdm2_raw,2,4),0,2);
+    btas::contract(1.0, *dbra_data, {2,0}, *dket_data, {2,1}, 0.0, rdm2tmp, {0,1});
   }
+
+  auto rdm2 = make_shared<RDM<2>>(norb_);
+  // collect ij >= kl from rdm2_raw
+  for (int k = 0; k != norb_; ++k)
+    for (int j = 0; j != norb_; ++j)
+      for (int l = 0; l != norb_; ++l)
+        for (int i = 0; i != norb_; ++i) 
+          if ((i-1)*norb_+j >= (k-1)*norb_+l)
+            // tensor(i,j,k,l) is rdm(i,l,j,k)
+            rdm2->element(i,l,j,k) = rdm2_raw->element(i,l,j,k);
+
+  for (int k = 0; k != norb_; ++k)
+    for (int j = 0; j != norb_; ++j)
+      for (int l = 0; l != norb_; ++l)
+        for (int i = 0; i != norb_; ++i) 
+          if ((i-1)*norb_+j < (k-1)*norb_+l)
+            // tensor(i,j,k,l) == tensor(k,l,i,j)
+            // rdm(i,l,j,k) == rdm(k,j,l,i)
+            rdm2->element(i,l,j,k) = rdm2->element(k,j,l,i);
+
+  for (int i = 0; i != norb_; ++i)
+    for (int k = 0; k != norb_; ++k)
+      for (int j = 0; j != norb_; ++j)
+        rdm2->element(j,k,k,i) -= rdm1->element(j,i);
 
   return tie(rdm1, rdm2);
 }
