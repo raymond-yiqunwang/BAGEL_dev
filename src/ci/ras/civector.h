@@ -85,9 +85,6 @@ class RASCivector : public RASCivector_impl<DataType>, public std::enable_shared
 
     std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
       compute_rdm12_from_rascivec(std::shared_ptr<const RASCivector<DataType>> cket) const;
-    std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
-      compute_rdm12_last_step(std::shared_ptr<const Dvector_base<RASCivector<DataType>>> dbra,
-      std::shared_ptr<const Dvector_base<RASCivector<DataType>>> dket, std::shared_ptr<const RASCivector<DataType>> cibra) const;
     void excite_alpha(std::shared_ptr<const RASCivector<DataType>> cc, std::shared_ptr<Dvector_base<RASCivector<DataType>>> d) const;
     void excite_beta(std::shared_ptr<const RASCivector<DataType>> cc, std::shared_ptr<Dvector_base<RASCivector<DataType>>> d) const;
 
@@ -95,9 +92,6 @@ class RASCivector : public RASCivector_impl<DataType>, public std::enable_shared
 
 template<> std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
       RASCivector<double>::compute_rdm12_from_rascivec(std::shared_ptr<const RASCivector<double>>) const;
-template<> std::tuple<std::shared_ptr<RDM<1>>, std::shared_ptr<RDM<2>>>
-      RASCivector<double>::compute_rdm12_last_step(std::shared_ptr<const Dvector_base<RASCivector<double>>> dbra,
-      std::shared_ptr<const Dvector_base<RASCivector<double>>> dket, std::shared_ptr<const RASCivector<double>> cibra) const;
 template<> void RASCivector<double>::excite_alpha(std::shared_ptr<const RASCivector<double>> cc, std::shared_ptr<Dvector_base<RASCivector<double>>> d) const;
 template<> void RASCivector<double>::excite_beta(std::shared_ptr<const RASCivector<double>> cc, std::shared_ptr<Dvector_base<RASCivector<double>>> d) const;
 

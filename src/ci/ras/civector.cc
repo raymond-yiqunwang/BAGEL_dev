@@ -181,32 +181,23 @@ template<>
 tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
   RASCivector<double>::compute_rdm12_from_rascivec(shared_ptr<const RASCivec> cket) const {
   
-  auto cbra = shared_from_this();
-  const int norb = cbra->det()->norb();
-  auto dbra = make_shared<RASDvec>(cbra->det(), norb*norb);
-  excite_alpha(cbra, dbra);
-  excite_beta(cbra, dbra);
+  auto cibra = shared_from_this();
+  const int norb = cibra->det()->norb();
+  const int nri = cibra->det()->size();
+  const int ij = norb * norb;
+
+  auto dbra = make_shared<RASDvec>(cibra->det(), norb*norb);
+  excite_alpha(cibra, dbra);
+  excite_beta(cibra, dbra);
 
   shared_ptr<RASDvec> dket;
-  if(cbra != cket) {
+  if(cibra != cket) {
     dket = make_shared<RASDvec>(cket->det(), norb*norb);
     excite_alpha(cket, dket);
     excite_beta(cket, dket);
   } else {
     dket = dbra;
   }
-
-  return compute_rdm12_last_step(dbra, dket, cbra);
-}
-
-
-template<>
-tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
-  RASCivector<double>::compute_rdm12_last_step(shared_ptr<const RASDvec> dbra, shared_ptr<const RASDvec> dket, shared_ptr<const RASCivec> cibra) const {
-
-  const int nri = cibra->det()->size();
-  const int norb = cibra->det()->norb();
-  const int ij = norb * norb;
 
   auto rdm1 = make_shared<RDM<1>>(norb);
   auto rdm2_raw = make_shared<RDM<2>>(norb);
