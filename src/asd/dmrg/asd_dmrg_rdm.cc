@@ -22,12 +22,15 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include <iostream>
+#define DEBUG
 
 #include <src/asd/dmrg/asd_dmrg.h>
 #include <src/asd/dmrg/gamma_forest_asd2.h>
 #include <src/util/muffle.h>
+
+#ifdef DEBUG
 #include <src/ci/fci/knowles.h>
+#endif
 
 using namespace std;
 using namespace bagel;
@@ -89,7 +92,9 @@ void ASD_DMRG::compute_rdm12() {
     } else {
       // special treatment for first configuration as described by Garnet Chan, 2008
       if (site == 1) {
+#ifdef DEBUG
         cout << "  * special treatment for site[1]" << endl;
+#endif
         // compute_310
         compute_rdm2_310(cc);
 
@@ -99,7 +104,9 @@ void ASD_DMRG::compute_rdm12() {
 
       // general treatment
       {
+#ifdef DEBUG
         cout << "  * general treatment for site[" << site << "]" << endl;
+#endif
         // compute RASCI RDM
         compute_rdm2_ras(cc, site);
 
@@ -121,7 +128,9 @@ void ASD_DMRG::compute_rdm12() {
 
       // special treatment for final configuration
       if (site == nsites_-2) {
+#ifdef DEBUG
         cout << "  * special treatment for site[" << site << "]" << endl;
+#endif
         // compute_013
         compute_rdm2_013(cc);
 
@@ -161,7 +170,7 @@ void ASD_DMRG::compute_rdm12() {
   }
 
   // DEBUGGING -- compare results with FCI RDM
-#if 1
+#ifdef DEBUG
   cout << string(12,'=') << endl;
   cout << "DEBUGGING..." << endl;
   cout << string(12,'=') << endl;
@@ -177,10 +186,8 @@ void ASD_DMRG::compute_rdm12() {
   for (int site = 1; site != nsites_-1; ++site) {
     cout << "* site = " << site << endl;
     const int site_start = accumulate(active_size.begin(), active_size.begin()+site, 0);
-    cout << "site_start = " << site_start << endl;
     const int norb_site = multisite_->active_sizes().at(site);
     const int right_start = site_start + norb_site;
-    cout << "right_start = " << right_start << endl;
     
     pair<int, int> range1(0, site_start), range2(site_start, right_start), range3(right_start, norb);
     list<tuple<pair<int, int>, pair<int, int>, pair<int, int>, pair<int, int>>> list_tuplelist;
@@ -336,13 +343,14 @@ void ASD_DMRG::compute_rdm12() {
               for (int i = get<0>(tuple_list).first; i != get<0>(tuple_list).second; ++i) {
                 diff_vec.push_back(fabs(diff_tensor->element(i,j,k,l)));
                 if (diff_vec.back() > 1.0e-6) {
-                  cout << "diff large (" << i << "," << j << "," << k << "," << l <<"), fci : " << fci_rdm2->element(i,j,k,l) << ", dmrg : " << dmrg_rdm2->element(i,j,k,l) << endl;
+                  cout << "large diff (" << i << "," << j << "," << k << "," << l 
+                       << "), fci : " << fci_rdm2->element(i,j,k,l) << ", dmrg : " << dmrg_rdm2->element(i,j,k,l) << endl;
                 }
               }
             }
           }
         }
-      }
+      } // poor design, but only for debugging anyways
       
       double diff_sum = 0.0;
       std::for_each(diff_vec.begin(), diff_vec.end(), [&diff_sum] (const double v) { diff_sum += v*v; });
@@ -355,47 +363,41 @@ void ASD_DMRG::compute_rdm12() {
 }
 
 
-// TODO find a better algorithm
 void ASD_DMRG::compute_rdm2_ras(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_ras" << endl;
-  vector<shared_ptr<RDM<1>>> rdm1_vec;
+#endif
   vector<shared_ptr<RDM<2>>> rdm2_vec;
-  const int norb = dvec.front()->space()->norb();
+  vector<int> active_sizes = multisite_->active_sizes();
+  const int norb = active_sizes.at(site);
   const int nstate = dvec.size();
   shared_ptr<const RDM<1>> rdm1_ptr;
   shared_ptr<const RDM<2>> rdm2_ptr;
   for (int istate = 0; istate != nstate; ++istate) {
-    auto rdm1_tmp = make_shared<RDM<1>>(norb);
     auto rdm2_tmp = make_shared<RDM<2>>(norb);
     for (auto& block : dvec[istate]->sectors()) {
       const int n_lr = block.second->mdim();
       for (int i = 0; i != n_lr; ++i) {
         auto rasvec = make_shared<const RASCivec>(block.second->civec(i));
         tie(rdm1_ptr, rdm2_ptr) = rasvec->compute_rdm12_from_rascivec(rasvec);
-        assert(rdm1_ptr->size() == rdm1_tmp->size());
         assert(rdm2_ptr->size() == rdm2_tmp->size());
-        blas::ax_plus_y_n(1.0, rdm1_ptr->data(), rdm1_ptr->size(), rdm1_tmp->data());
         blas::ax_plus_y_n(1.0, rdm2_ptr->data(), rdm2_ptr->size(), rdm2_tmp->data());
       }
     }
-    rdm1_vec.push_back(rdm1_tmp);
     rdm2_vec.push_back(rdm2_tmp);
   }
 
-  // copy rdm12 elements into total rdm1_ and rdm2_
-  vector<int> active_sizes = multisite_->active_sizes();
+  // copy rdm2 elements into total rdm2_
   const int orb_start = accumulate(active_sizes.begin(), active_sizes.begin()+site, 0);
   for (int istate = 0; istate != nstate; ++istate) {
-    auto rdm1 = rdm1_vec.at(istate);
     auto rdm2 = rdm2_vec.at(istate);
-    const double* const rdm1_source = rdm1->data();
-    auto rdm1_target = rdm1_->at(istate);
     auto rdm2_target = rdm2_->at(istate);
     for (int k = 0; k != norb; ++k) {
-      copy_n(rdm1_source + k*norb, norb, rdm1_target->element_ptr(orb_start, orb_start + k));
+      const int ok = orb_start + k;
       for (int j = 0; j != norb; ++j) {
+        const int oj = orb_start + j;
         for (int i = 0; i != norb; ++i) {
-          copy_n(rdm2->element_ptr(0,i,j,k), norb, rdm2_target->element_ptr(orb_start, (orb_start + i), (orb_start + j), (orb_start + k)));
+          copy_n(rdm2->element_ptr(0,i,j,k), norb, rdm2_target->element_ptr(orb_start, (orb_start + i), oj, ok));
         }
       }
     }
@@ -404,7 +406,9 @@ void ASD_DMRG::compute_rdm2_ras(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_130" << endl;
+#endif
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on site}, {ops on left}, {left nele change}}
     { {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, {-1, 0} },
@@ -548,7 +552,9 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_031(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_031" << endl;
+#endif
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on site}, {ops on right}, {right nele change}}
     { {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, {-1, 0} },
@@ -691,7 +697,9 @@ void ASD_DMRG::compute_rdm2_031(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_310(vector<shared_ptr<ProductRASCivec>> dvec) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_310" << endl;
+#endif
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on site}, {ops on left}, {left nele change}}
     { {GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {-1, 0} },
@@ -844,7 +852,9 @@ void ASD_DMRG::compute_rdm2_310(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_301(vector<shared_ptr<ProductRASCivec>> dvec) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_301" << endl;
+#endif
   list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on left}, {ops on right}, {left nele change} }
     { {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, {1,0} },
@@ -938,7 +948,9 @@ void ASD_DMRG::compute_rdm2_301(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_013(vector<shared_ptr<ProductRASCivec>> dvec) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_013" << endl;
+#endif
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on site}, {ops on right}, {right nele change}}
     { {GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {-1, 0} },
@@ -1081,7 +1093,9 @@ void ASD_DMRG::compute_rdm2_013(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_103(vector<shared_ptr<ProductRASCivec>> dvec) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_103" << endl;
+#endif
   list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on left}, {ops on right}, {left nele change} }
     { {GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {1,0} },
@@ -1182,7 +1196,9 @@ void ASD_DMRG::compute_rdm2_103(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_220(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_220" << endl;
+#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = { 
     // { {ops on site}, {ops on left}, {left nele change}, trans_site, trans_left, duplicate }
     {
@@ -1425,7 +1441,9 @@ void ASD_DMRG::compute_rdm2_220(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_022" << endl;
+#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = { 
     // { {ops on site}, {ops on right}, {right nele change}, trans_site, trans_right, duplicate }
     {
@@ -1656,7 +1674,9 @@ void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_202" << endl;
+#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = { 
     // { {ops on left}, {ops on right}, {left nele change}, trans_left, trans_right, duplicate }
     {
@@ -1869,7 +1889,9 @@ void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_121(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_121" << endl;
+#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, list<GammaSQ>, pair<int, int>, pair<int, int>, bool, bool, bool, bool>>> gammalist_tuple_list_list = {
     // { {ops on site}, {ops on left}, {ops on right}, {left nele change}, {right nele change}, trans_site, trans_left, trans_right, swap_site }
     {
@@ -2118,7 +2140,9 @@ void ASD_DMRG::compute_rdm2_121(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_211(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_211" << endl;
+#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, list<GammaSQ>, pair<int, int>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = {
     // { {ops on site}, {ops on left}, {ops on right}, {left nele change}, {right nele change}, trans_left, trans_right, swap_left }
     {
@@ -2356,7 +2380,9 @@ void ASD_DMRG::compute_rdm2_211(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_112(vector<shared_ptr<ProductRASCivec>> dvec) {
+#ifdef DEBUG
   cout << "  * compute_rdm2_112" << endl;
+#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, list<GammaSQ>, pair<int, int>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = {
     // { {ops on site}, {ops on left}, {ops on right}, {left nele change}, {right nele change}, trans_left, trans_right, swap_right }
     {
