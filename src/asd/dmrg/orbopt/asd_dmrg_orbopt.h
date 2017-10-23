@@ -30,14 +30,14 @@
 
 namespace bagel {
 
-class ASD_DMRG_Orbopt : public std::enable_shared_from_this<ASD_DMRG_Orbopt> {
+class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
 
   protected:
     int nclosed_;
     int nact_;
     int nocc_; // sum of nclosed_ + nact_
     int nvirt_;
-    int nmo_;
+    int norb_;
     int nstate_;
   
     // parameters for iteration
@@ -53,43 +53,24 @@ class ASD_DMRG_Orbopt : public std::enable_shared_from_this<ASD_DMRG_Orbopt> {
     std::shared_ptr<const Coeff> coeff_;
     std::vector<double> energy_;
     std::shared_ptr<const Reference> ref_;
-  
+    std::shared_ptr<const Matrix> hcore_;
+    std::shared_ptr<const Geometry> geom_;
+
     // util functions
     void print_header() const;
     void common_init();
   
-    // second-order optimization functions
-    // compute orbital gradient
-    std::shared_ptr<ASD_DMRG_RotFile> compute_gradient(std::shared_ptr<const Matrix> cfock, std::shared_ptr<const Matrix> afock,
-                                                       std::shared_ptr<const Matrix> qxr) const;
-  
-    // compute exact diagonal Hessian
-    std::shared_ptr<ASD_DMRG_RotFile> compute_denom(std::shared_ptr<const DFHalfDist> half, std::shared_ptr<const DFHalfDist> half_1j,
-                                                    std::shared_ptr<const DFHalfDist> halfa, std::shared_ptr<const Matrix> cfock,
-                                                    std::shared_ptr<const Matrix> afock) const;
-  
-    // compute Hessian times trial vector
-    std::shared_ptr<ASD_DMRG_RotFile> compute_hess_trial(std::shared_ptr<const ASD_DMRG_RotFile> trot, std::shared_ptr<const DFHalfDist> hafl,
-                                                         std::shared_ptr<const DFHalfDist> halfa, std::shared_ptr<const Matrix> cfock,
-                                                         std::shared_ptr<const Matrix> afock, std::shared_ptr<const Matrix> qxr) const;
-  
-    // apply denominator in micro-iterations
-    std::shared_ptr<ASD_DMRG_RotFile> apply_denom(std::shared_ptr<const ASD_DMRG_RotFile> grad, std::shared_ptr<const ASD_DMRG_RotFile> denom, 
-                                                  const double shift, const double scale) const;
-
   public:
-    ASD_DMRG_Orbopt(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> iref);
+    ASD_DMRG_OrbOpt(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> iref);
   
-    void compute();
+    virtual void compute() = 0;
   
     // return functions
-    std::shared_ptr<const Reference> conv_to_ref() const { std::cout << "111" << std::endl; return ref_; }
-  
     int nclosed() const { return nclosed_; }
     int nact() const { return nact_; }
     int nocc() const { return nocc_; }
     int nvirt() const { return nvirt_; }
-    int nmo() const { return nmo_; }
+    int norb() const { return norb_; }
     int nstate() const { return nstate_; }
     int max_iter() const { return max_iter_; }
     int max_micro_iter() const { return max_micro_iter_; }
@@ -100,6 +81,9 @@ class ASD_DMRG_Orbopt : public std::enable_shared_from_this<ASD_DMRG_Orbopt> {
     double energy_av() const { return blas::average(energy_); }
     const std::vector<double>& energy() const { return energy_; }
     std::shared_ptr<const Coeff> coeff() const { return coeff_; }
+
+    std::shared_ptr<Matrix> compute_active_fock(const MatView acoeff, std::shared_ptr<const RDM<1>> rdm1) const;
+    std::shared_ptr<Matrix> compute_qvec(const MatView acoeff, std::shared_ptr<const RDM<2>> rdm2) const;
 
 };
 

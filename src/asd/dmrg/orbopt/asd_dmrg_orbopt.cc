@@ -23,32 +23,35 @@
 //
 
 #include <src/asd/dmrg/orbopt/asd_dmrg_orbopt.h>
+#include <src/scf/hf/fock.h>
 
 using namespace std;
 using namespace bagel;
 
-ASD_DMRG_Orbopt::ASD_DMRG_Orbopt(shared_ptr<const PTree> idata, shared_ptr<const Reference> iref) : input_(idata) {
+ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const Reference> iref) : input_(idata) {
   
   print_header();
   
   // first construct multisite
   asd_info_ = idata->get_child("asd_info");
   multisite_ = make_shared<MultiSite>(asd_info_, iref);
+  geom_ = multisite_->geom();
   ref_ = multisite_->ref();
   coeff_ = ref_->coeff();
+  hcore_ = ref_->hcore();
   
   common_init();
 
 }
 
-void ASD_DMRG_Orbopt::common_init() {
+void ASD_DMRG_OrbOpt::common_init() {
 
   nclosed_ = ref_->nclosed();
   nact_ = ref_->nact();
   nocc_ = nclosed_ + nact_;
   nvirt_ = ref_->nvirt();
-  nmo_ = ref_->coeff()->mdim();
-  
+  norb_ = ref_->coeff()->mdim();
+
   nstate_ = input_->get<int>("opt_nstate", 1);
   max_iter_ = input_->get<int>("opt_max_iter", 50);
   max_micro_iter_ = input_->get<int>("opt_max_micro_iter", 100);
@@ -67,29 +70,36 @@ void ASD_DMRG_Orbopt::common_init() {
 
 }
 
-void ASD_DMRG_Orbopt::print_header() const {
+void ASD_DMRG_OrbOpt::print_header() const {
   cout << "  --------------------------------------------------" << endl;
   cout << "     ASD-DMRG Second Order Orbital Optimization     " << endl;
   cout << "  --------------------------------------------------" << endl << endl;
 }
 
-void ASD_DMRG_Orbopt::compute() {
-  assert(nvirt_ && nact_);
 
-  for (int iter = 0; iter != max_iter_; ++iter) {
-    
-    // first obtain RDM from ASD_DMRG
-    {
-      if (iter) asd_dmrg_->update_multisite(coeff_);
-      asd_dmrg_->compute();
-      asd_dmrg_->compute_rdm12();
-      energy_ = asd_dmrg_->energies();
-    }
+shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_active_fock(const MatView acoeff, shared_ptr<const RDM<1>> rdm1) const {
+  Matrix dkl(nact_, nact_);
+  copy_n(rdm1->data(), dkl.size(), dkl.data());
+  dkl.sqrt();
+  dkl.scale(1.0/sqrt(2.0));
+  return make_shared<Fock<1>>(geom_, hcore_->clone(), nullptr, acoeff*dkl, false, true);
+}
 
 
+shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_qvec(const MatView acoeff, shared_ptr<const RDM<2>> rdm2) const {
   
-  }
+  auto half = geom_->df()->compute_half_transform(acoeff);
 
+  // TODO MPI modification
+  shared_ptr<const DFFullDist> full = half->apply_JJ()->compute_second_transform(coeff_->slice(nclosed_, nocc_));
+
+  // [D|tu] = (D|xy) Gamma_{xy,tu}
+  shared_ptr<const DFFullDist> prdm = full->apply_2rdm(*rdm2);
+
+  // (r,u) = (rt|D) [D|tu]
+  shared_ptr<const Matrix> tmp = half->form_2index(prdm, 1.0);
+
+  return make_shared<Matrix>(*coeff_ % *tmp);
 }
 
 
