@@ -49,6 +49,7 @@ void ASD_DMRG::compute_rdm12() {
 
   // one additional sweeping after convergence to collect terms required to construct RDM
   shared_ptr<DMRG_Block1> left_block, right_block;
+  vector<int> actvec = multisite_->active_electrons();
   for (int site = 0; site != nsites_; ++site) {
     left_block = (site==0) ? nullptr : left_blocks_[site-1];
     right_block = (site==nsites_-1) ? nullptr : right_blocks_[nsites_-site-2];
@@ -68,7 +69,6 @@ void ASD_DMRG::compute_rdm12() {
         input->put("nclosed", ref->nclosed());
         input->put("metal", metal_);
         read_restricted(input, site);
-        vector<int> actvec = multisite_->active_electrons();
         const int nactele = accumulate(actvec.begin(), actvec.end(), input->get<int>("charge"));
         input->put("nactele", nactele);
       }
@@ -149,6 +149,16 @@ void ASD_DMRG::compute_rdm12() {
     }
   }
 
+  // compute RDM<1> from RDM<2>
+  for (int istate = 0; istate != nstate_; ++istate) {
+    auto rdm2 = rdm2_->at(istate);
+    auto rdm1 = rdm1_->at(istate);
+    const int nactele = accumulate(actvec.begin(), actvec.end(), 0);
+    for (int k = 0; k != nactorb_; ++k) {
+      blas::ax_plus_y_n((1.0/static_cast<double>(nactele-1)), rdm2->element_ptr(0,0,k,k), rdm1->size(), rdm1->data());
+    }
+  }
+
   // for nstate==1, rdm1_av_ = rdm1_->at(0)
   // Needs initialization here because we use daxpy
   if (rdm1_av_ == nullptr && nstate_ > 1) {
@@ -172,13 +182,20 @@ void ASD_DMRG::compute_rdm12() {
   // DEBUGGING -- compare results with FCI RDM
 #ifdef DEBUG
   cout << string(12,'=') << endl;
-  cout << "DEBUGGING..." << endl;
-  cout << string(12,'=') << endl;
   auto fci_input = input_->get_child("fci");
   auto fci = make_shared<KnowlesHandy>(fci_input, multisite_->geom(), multisite_->ref());
   fci->compute();
   const int istate = 0;
   const int norb = fci->norb();
+
+  // RDM<1>
+  auto dmrg_rdm1 = rdm1_->at(istate);
+  auto fci_rdm1 = fci->rdm1()->at(istate);
+  auto diff_tensor1 = make_shared<const RDM<1>>(*dmrg_rdm1 - *fci_rdm1);
+  VectorB rmsvec(nactorb_*nactorb_);
+  copy_n(diff_tensor1->data(), diff_tensor1->size(), rmsvec.data());
+  cout << "RDM1 rms = " << setw(16) << setprecision(12) << rmsvec.rms() << endl;
+  // RDM<2>
   auto dmrg_rdm2 = rdm2_->at(istate);
   auto fci_rdm2 = fci->rdm2()->at(istate);
   auto diff_tensor = make_shared<const RDM<2>>(*dmrg_rdm2 - *fci_rdm2);

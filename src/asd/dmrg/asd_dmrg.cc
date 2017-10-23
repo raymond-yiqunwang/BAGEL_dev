@@ -146,9 +146,6 @@ void ASD_DMRG::read_restricted(shared_ptr<PTree> input, const int site) const {
       parent->push_back(tmp);
     }
     input->add_child("active", parent);
-#ifdef DEBUG
-    //cout << "RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
-#endif
   };
 
   if (restricted->size() == 1)
