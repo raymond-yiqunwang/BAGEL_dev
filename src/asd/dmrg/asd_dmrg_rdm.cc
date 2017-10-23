@@ -22,15 +22,9 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#define DEBUG
-
 #include <src/asd/dmrg/asd_dmrg.h>
 #include <src/asd/dmrg/gamma_forest_asd2.h>
 #include <src/util/muffle.h>
-
-#ifdef DEBUG
-#include <src/ci/fci/knowles.h>
-#endif
 
 using namespace std;
 using namespace bagel;
@@ -38,7 +32,6 @@ using namespace bagel;
 
 void ASD_DMRG::compute_rdm12() {
 
-  cout << endl << " " << string(10, '=') << " computing RDM12 " << string(10, '=') << endl << endl; 
   // initialize RDM12 with 0.0 then do ax_plus_y
   auto rdm1 = make_shared<RDM<1>>(nactorb_);
   auto rdm2 = make_shared<RDM<2>>(nactorb_);
@@ -87,14 +80,10 @@ void ASD_DMRG::compute_rdm12() {
     // construct RDM by collecting terms during sweeping
     if ((site == 0) || (site == nsites_-1)) {
       // only collect on-site RASCI RDM from these two sites
-      cout << "  * special treatment for site[" << site << "]" << endl;
       compute_rdm2_ras(cc, site);
     } else {
       // special treatment for first configuration as described by Garnet Chan, 2008
       if (site == 1) {
-#ifdef DEBUG
-        cout << "  * special treatment for site[1]" << endl;
-#endif
         // compute_310
         compute_rdm2_310(cc);
 
@@ -104,9 +93,6 @@ void ASD_DMRG::compute_rdm12() {
 
       // general treatment
       {
-#ifdef DEBUG
-        cout << "  * general treatment for site[" << site << "]" << endl;
-#endif
         // compute RASCI RDM
         compute_rdm2_ras(cc, site);
 
@@ -128,9 +114,6 @@ void ASD_DMRG::compute_rdm12() {
 
       // special treatment for final configuration
       if (site == nsites_-2) {
-#ifdef DEBUG
-        cout << "  * special treatment for site[" << site << "]" << endl;
-#endif
         // compute_013
         compute_rdm2_013(cc);
 
@@ -179,211 +162,10 @@ void ASD_DMRG::compute_rdm12() {
     rdm2_av_ = rdm2_->at(0,0);
   }
 
-  // DEBUGGING -- compare results with FCI RDM
-#ifdef DEBUG
-  cout << string(12,'=') << endl;
-  auto fci_input = input_->get_child("fci");
-  auto fci = make_shared<KnowlesHandy>(fci_input, multisite_->geom(), multisite_->ref());
-  fci->compute();
-  const int istate = 0;
-  const int norb = fci->norb();
-
-  // RDM<1>
-  auto dmrg_rdm1 = rdm1_->at(istate);
-  auto fci_rdm1 = fci->rdm1()->at(istate);
-  auto diff_tensor1 = make_shared<const RDM<1>>(*dmrg_rdm1 - *fci_rdm1);
-  VectorB rmsvec(nactorb_*nactorb_);
-  copy_n(diff_tensor1->data(), diff_tensor1->size(), rmsvec.data());
-  cout << "RDM1 rms = " << setw(16) << setprecision(12) << rmsvec.rms() << endl;
-  // RDM<2>
-  auto dmrg_rdm2 = rdm2_->at(istate);
-  auto fci_rdm2 = fci->rdm2()->at(istate);
-  auto diff_tensor = make_shared<const RDM<2>>(*dmrg_rdm2 - *fci_rdm2);
-  vector<int> active_size = multisite_->active_sizes();
-  for (int site = 1; site != nsites_-1; ++site) {
-    cout << "* site = " << site << endl;
-    const int site_start = accumulate(active_size.begin(), active_size.begin()+site, 0);
-    const int norb_site = multisite_->active_sizes().at(site);
-    const int right_start = site_start + norb_site;
-    
-    pair<int, int> range1(0, site_start), range2(site_start, right_start), range3(right_start, norb);
-    list<tuple<pair<int, int>, pair<int, int>, pair<int, int>, pair<int, int>>> list_tuplelist;
-    
-    // general list
-    list<int> switchlist = {40/*RAS*/, 130, 31/*031*/, 220, 121, 211};
-    if (site == 1) {
-      switchlist.insert(switchlist.end(), 310);
-      switchlist.insert(switchlist.end(), 301);
-    } 
-    if (site == nsites_-2) {
-      switchlist.insert(switchlist.end(), 13/*013*/);
-      switchlist.insert(switchlist.end(), 103);
-      switchlist.insert(switchlist.end(), 22/*022*/);
-      switchlist.insert(switchlist.end(), 202);
-      switchlist.insert(switchlist.end(), 112);
-    }
-
-    for (int swch : switchlist) {
-      vector<double> diff_vec;
-      switch (swch) {
-        // RAS
-        case 40 : list_tuplelist = {
-          {range2, range2, range2, range2}
-        }; break;
-
-        case 130 : list_tuplelist = {
-          {range1, range2, range2, range2},
-          {range2, range1, range2, range2},
-          {range2, range2, range1, range2},
-          {range2, range2, range2, range1}
-        }; break;
-
-        case 31 : list_tuplelist = {
-          {range3, range2, range2, range2},
-          {range2, range3, range2, range2},
-          {range2, range2, range3, range2},
-          {range2, range2, range2, range3}
-        }; break;
-
-        case 310 : list_tuplelist = {
-          {range2, range1, range1, range1},
-          {range1, range2, range1, range1},
-          {range1, range1, range2, range1},
-          {range1, range1, range1, range2}
-        }; break;
-
-        case 301 : list_tuplelist = {
-          {range3, range1, range1, range1},
-          {range1, range3, range1, range1},
-          {range1, range1, range3, range1},
-          {range1, range1, range1, range3}
-        }; break;
-
-        case 13 : list_tuplelist = {
-          {range2, range3, range3, range3},
-          {range3, range2, range3, range3},
-          {range3, range3, range2, range3},
-          {range3, range3, range3, range2}
-        }; break;
-
-        case 103 : list_tuplelist = {
-          {range1, range3, range3, range3},
-          {range3, range1, range3, range3},
-          {range3, range3, range1, range3},
-          {range3, range3, range3, range1}
-        }; break;
-
-        case 220 : list_tuplelist = {
-          {range1, range1, range2, range2},
-          {range2, range2, range1, range1},
-          {range2, range1, range2, range1},
-          {range1, range2, range1, range2},
-          {range2, range1, range1, range2},
-          {range1, range2, range2, range1}
-        }; break;
-
-        case 22 : list_tuplelist = {
-          {range2, range2, range3, range3},
-          {range3, range3, range2, range2},
-          {range2, range3, range2, range3},
-          {range3, range2, range3, range2},
-          {range2, range3, range3, range2},
-          {range3, range2, range2, range3}
-        }; break;
-
-        case 202 : list_tuplelist = {
-          {range1, range1, range3, range3},
-          {range3, range3, range1, range1},
-          {range1, range3, range1, range3},
-          {range3, range1, range3, range1},
-          {range1, range3, range3, range1},
-          {range3, range1, range1, range3}
-        }; break;
-
-        case 121 : list_tuplelist = {
-          {range2, range2, range1, range3},
-          {range1, range3, range2, range2},
-          {range2, range2, range3, range1},
-          {range3, range1, range2, range2},
-          
-          {range3, range2, range1, range2},
-          {range1, range2, range3, range2},
-          {range2, range3, range2, range1},
-          {range2, range1, range2, range3},
-
-          {range2, range1, range3, range2},
-          {range3, range2, range2, range1},
-          {range1, range2, range2, range3},
-          {range2, range3, range1, range2}
-        }; break;
-
-        case 211 : list_tuplelist = {
-          {range1, range1, range2, range3},
-          {range2, range3, range1, range1},
-          {range1, range1, range3, range2},
-          {range3, range2, range1, range1},
-
-          {range2, range1, range3, range1},
-          {range3, range1, range2, range1},
-          {range1, range2, range1, range3},
-          {range1, range3, range1, range2},
-
-          {range2, range1, range1, range3},
-          {range1, range3, range2, range1},
-          {range1, range2, range3, range1},
-          {range3, range1, range1, range2}
-        }; break;
-
-        case 112 : list_tuplelist = {
-          {range2, range1, range3, range3},
-          {range3, range3, range2, range1},
-          {range1, range2, range3, range3},
-          {range3, range3, range1, range2},
-          
-          {range2, range3, range1, range3},
-          {range1, range3, range2, range3},
-          {range3, range2, range3, range1},
-          {range3, range1, range3, range2},
-
-          {range2, range3, range3, range1},
-          {range3, range1, range2, range3},
-          {range3, range2, range1, range3},
-          {range1, range3, range3, range2}
-        }; break;
-      }
-
-      cout << "switch : " << setfill('0') << setw(3) << swch << setfill(' ') << endl;
-      for (auto& tuple_list : list_tuplelist) {
-        for (int l = get<3>(tuple_list).first; l != get<3>(tuple_list).second; ++l) {
-          for (int k = get<2>(tuple_list).first; k != get<2>(tuple_list).second; ++k) {
-            for (int j = get<1>(tuple_list).first; j != get<1>(tuple_list).second; ++j) {
-              for (int i = get<0>(tuple_list).first; i != get<0>(tuple_list).second; ++i) {
-                diff_vec.push_back(fabs(diff_tensor->element(i,j,k,l)));
-                if (diff_vec.back() > 1.0e-6) {
-                  cout << "large diff (" << i << "," << j << "," << k << "," << l 
-                       << "), fci : " << fci_rdm2->element(i,j,k,l) << ", dmrg : " << dmrg_rdm2->element(i,j,k,l) << endl;
-                }
-              }
-            }
-          }
-        }
-      } // poor design, but only for debugging anyways
-      
-      double diff_sum = 0.0;
-      std::for_each(diff_vec.begin(), diff_vec.end(), [&diff_sum] (const double v) { diff_sum += v*v; });
-      const double rms = std::sqrt(diff_sum / static_cast<double>(diff_vec.size()));
-      cout << "diff_rms = " << setw(16) << setprecision(12) << rms << ", RDM block size = " << diff_vec.size() << endl;
-    } // end of looping over switchlist
-  }
-
-#endif
 }
 
 
 void ASD_DMRG::compute_rdm2_ras(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_ras" << endl;
-#endif
   vector<shared_ptr<RDM<2>>> rdm2_vec;
   vector<int> active_sizes = multisite_->active_sizes();
   const int norb = active_sizes.at(site);
@@ -569,9 +351,6 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_031(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_031" << endl;
-#endif
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on site}, {ops on right}, {right nele change}}
     { {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, {-1, 0} },
@@ -714,9 +493,6 @@ void ASD_DMRG::compute_rdm2_031(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_310(vector<shared_ptr<ProductRASCivec>> dvec) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_310" << endl;
-#endif
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on site}, {ops on left}, {left nele change}}
     { {GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {-1, 0} },
@@ -869,9 +645,6 @@ void ASD_DMRG::compute_rdm2_310(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_301(vector<shared_ptr<ProductRASCivec>> dvec) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_301" << endl;
-#endif
   list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on left}, {ops on right}, {left nele change} }
     { {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, {1,0} },
@@ -965,9 +738,6 @@ void ASD_DMRG::compute_rdm2_301(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_013(vector<shared_ptr<ProductRASCivec>> dvec) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_013" << endl;
-#endif
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on site}, {ops on right}, {right nele change}}
     { {GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {-1, 0} },
@@ -1110,9 +880,6 @@ void ASD_DMRG::compute_rdm2_013(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_103(vector<shared_ptr<ProductRASCivec>> dvec) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_103" << endl;
-#endif
   list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on left}, {ops on right}, {left nele change} }
     { {GammaSQ::CreateAlpha}, {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {1,0} },
@@ -1213,9 +980,6 @@ void ASD_DMRG::compute_rdm2_103(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_220(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_220" << endl;
-#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = { 
     // { {ops on site}, {ops on left}, {left nele change}, trans_site, trans_left, duplicate }
     {
@@ -1458,9 +1222,6 @@ void ASD_DMRG::compute_rdm2_220(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_022" << endl;
-#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = { 
     // { {ops on site}, {ops on right}, {right nele change}, trans_site, trans_right, duplicate }
     {
@@ -1691,9 +1452,6 @@ void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_202" << endl;
-#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = { 
     // { {ops on left}, {ops on right}, {left nele change}, trans_left, trans_right, duplicate }
     {
@@ -1906,9 +1664,6 @@ void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_121(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_121" << endl;
-#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, list<GammaSQ>, pair<int, int>, pair<int, int>, bool, bool, bool, bool>>> gammalist_tuple_list_list = {
     // { {ops on site}, {ops on left}, {ops on right}, {left nele change}, {right nele change}, trans_site, trans_left, trans_right, swap_site }
     {
@@ -2157,9 +1912,6 @@ void ASD_DMRG::compute_rdm2_121(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_211(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_211" << endl;
-#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, list<GammaSQ>, pair<int, int>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = {
     // { {ops on site}, {ops on left}, {ops on right}, {left nele change}, {right nele change}, trans_left, trans_right, swap_left }
     {
@@ -2397,9 +2149,6 @@ void ASD_DMRG::compute_rdm2_211(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_112(vector<shared_ptr<ProductRASCivec>> dvec) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_112" << endl;
-#endif
   const list<list<tuple<list<GammaSQ>, list<GammaSQ>, list<GammaSQ>, pair<int, int>, pair<int, int>, bool, bool, bool>>> gammalist_tuple_list_list = {
     // { {ops on site}, {ops on left}, {ops on right}, {left nele change}, {right nele change}, trans_left, trans_right, swap_right }
     {

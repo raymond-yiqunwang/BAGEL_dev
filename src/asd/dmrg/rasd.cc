@@ -32,8 +32,6 @@
 #include <src/ci/ras/rasci.h>
 #include <src/util/muffle.h>
 
-//#define DEBUG
-
 using namespace std;
 using namespace bagel;
 
