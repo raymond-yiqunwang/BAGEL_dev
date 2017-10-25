@@ -38,6 +38,12 @@ class CASSecond : public CASSCF {
     // convergence threshold for micro iteration relative to stepsize
     double thresh_microstep_;
 
+    std::shared_ptr<const RotFile> grad0_;
+    std::shared_ptr<const RotFile> denom0_;
+    std::shared_ptr<const Matrix> cfock0_;
+    std::shared_ptr<const Matrix> afock0_;
+    std::shared_ptr<const Matrix> qxr0_;
+
     // compute orbital gradient
     std::shared_ptr<RotFile> compute_gradient(std::shared_ptr<const Matrix> cfock, std::shared_ptr<const Matrix> afock, std::shared_ptr<const Matrix> qxr) const;
     // compute exact diagonal Hessian
@@ -59,6 +65,12 @@ class CASSecond : public CASSCF {
     }
 
     void compute() override;
+
+    std::shared_ptr<const Matrix> cfock0() const { return cfock0_; }
+    std::shared_ptr<const Matrix> afock0() const { return afock0_; }
+    std::shared_ptr<const Matrix> qxr0() const { return qxr0_; }
+    std::shared_ptr<const RotFile> gradient0() const { return grad0_; }
+    std::shared_ptr<const RotFile> denom0() const { return denom0_; }
 };
 
 }

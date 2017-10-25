@@ -25,11 +25,25 @@
 #include <src/asd/dmrg/orbopt/asd_dmrg_second.h>
 #include <src/scf/hf/fock.h>
 
+#define DEBUG
+
+#ifdef DEBUG
+#include <src/multi/casscf/cassecond.h>
+#endif
+
 using namespace std;
 using namespace bagel;
 
 void ASD_DMRG_Second::compute() {
   assert(nvirt_ && nact_);
+
+#ifdef DEBUG
+  cout << string(12,'=') << endl;
+  auto casscf_input = input_->get_child("casscf");
+  auto casscf = make_shared<CASSecond>(casscf_input, geom_, ref_); // same orbital ordering with ASD
+  casscf->compute();
+  auto casscf_grad0 = casscf->gradient0();
+#endif
 
   for (int iter = 0; iter != max_iter_; ++iter) {
     
@@ -51,6 +65,18 @@ void ASD_DMRG_Second::compute() {
     shared_ptr<const Matrix> qxr = compute_qvec(coeff_->slice(nclosed_, nocc_), asd_dmrg_->rdm2_av());
 
     shared_ptr<const ASD_DMRG_RotFile> grad = compute_gradient(cfock, afock, qxr);
+#ifdef DEBUG
+    auto cfock_diff = make_shared<Matrix>(*cfock - *casscf->cfock0());
+    cout << "cfock_diff RMS = " << cfock_diff->rms() << endl;
+    auto afock_diff = make_shared<Matrix>(*afock - *casscf->afock0());
+    cout << "afock_diff RMS = " << afock_diff->rms() << endl;
+    auto qxr_diff = make_shared<Matrix>(*qxr - *casscf->qxr0());
+    cout << "qxr_diff RMS = " << qxr_diff->rms() << endl;
+    shared_ptr<ASD_DMRG_RotFile> casscf_grad = grad->clone();
+    copy_n(casscf_grad0->data(), casscf_grad->size(), casscf_grad->data());
+    auto grad_diff = make_shared<ASD_DMRG_RotFile>(*grad - *casscf_grad);
+    cout << "grad_diff RMS = " << grad_diff->rms() << endl;
+#endif
 
     // check gradient and break if converged
     const double gradient = grad->rms();
@@ -68,8 +94,15 @@ void ASD_DMRG_Second::compute() {
     
     // compute_denominator
     shared_ptr<const ASD_DMRG_RotFile> denom = compute_denom(half, half_1j, halfa, cfock, afock);
+#ifdef DEBUG
+    auto casscf_denom0 = casscf->denom0();
+    auto casscf_denom = denom->clone();
+    copy_n(casscf_denom0->data(), casscf_denom->size(), casscf_denom->data());
+    auto denom_diff = make_shared<ASD_DMRG_RotFile>(*denom - *casscf_denom);
+    cout << "denom_diff RMS = " << denom_diff->rms() << endl;
+#endif
 
-  } // end of iter
+  } // end of macro iter
 }
 
 
@@ -85,22 +118,22 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
       blas::ax_plus_y_n(4.0, afock->element_ptr(0, nclosed_+t), nclosed_, target);
       blas::ax_plus_y_n(-2.0, qxr->element_ptr(0, t), nclosed_, target);
       for (int u = 0; u != nact_; ++u)
-        blas::ax_plus_y_n(-2.0*rdm1->element(t, u), cfock->element_ptr(0, nclosed_+u), nclosed_, target);
+        blas::ax_plus_y_n(-2.0*rdm1->element(u, t), cfock->element_ptr(0, nclosed_+u), nclosed_, target);
     }
   }
   // virtual-active section, virtual runs first
   {
     double* target = grad->ptr_va();
-    for (int t = 0; t != nact_; ++t) {
+    for (int t = 0; t != nact_; ++t, target += nvirt_) {
       blas::ax_plus_y_n(2.0, qxr->element_ptr(nocc_, t), nvirt_, target);
       for (int u = 0; u != nact_; ++u)
-        blas::ax_plus_y_n(2.0*rdm1->element(t, u), cfock->element_ptr(nocc_, nclosed_+u), nvirt_, target);
+        blas::ax_plus_y_n(2.0*rdm1->element(u, t), cfock->element_ptr(nocc_, nclosed_+u), nvirt_, target);
     }
   }
   // virtual-closed asection, virtual runs firsgt
   if (nclosed_){
     double* target = grad->ptr_vc();
-    for (int i = 0; i != nclosed_; ++i) {
+    for (int i = 0; i != nclosed_; ++i, target += nvirt_) {
       blas::ax_plus_y_n(4.0, cfock->element_ptr(nocc_, i), nvirt_, target);
       blas::ax_plus_y_n(4.0, afock->element_ptr(nocc_, i), nvirt_, target);
     }
