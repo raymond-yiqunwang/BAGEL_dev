@@ -103,3 +103,13 @@ shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_qvec(const MatView acoeff, shared_pt
 }
 
 
+shared_ptr<const Coeff> ASD_DMRG_OrbOpt::update_coeff(const shared_ptr<const Matrix> cold, shared_ptr<const Matrix> natorb) const {
+  auto cnew = make_shared<Coeff>(*cold);
+  int nbasis = cold->ndim();
+  assert(nbasis == geom_->nbasis());
+  dgemm_("N", "N", nbasis, nact_, nact_, 1.0, cold->data() + nbasis*nclosed_, nbasis,
+                   natorb->data(), nact_, 0.0, cnew->data() + nbasis*nclosed_, nbasis);
+  return cnew;
+}
+
+

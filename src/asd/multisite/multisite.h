@@ -86,6 +86,7 @@ class MultiSite : public std::enable_shared_from_this<MultiSite> {
 
     // Return functions
     std::shared_ptr<const Reference> ref() const { return ref_; }
+    std::shared_ptr<const Reference> hf_ref() const { return hf_ref_; }
     std::shared_ptr<const Geometry> geom() const { return geom_; }
 
   public:

@@ -26,7 +26,6 @@
 #define __ASD_DMRG_SECOND_H
 
 #include <src/asd/dmrg/orbopt/asd_dmrg_orbopt.h>
-//#include <src/wfn/rdm.h>
 
 namespace bagel {
 
@@ -38,10 +37,9 @@ class ASD_DMRG_Second : public ASD_DMRG_OrbOpt {
                                                        std::shared_ptr<const Matrix> qxr) const;
   
     // compute exact diagonal Hessian
-/*    std::shared_ptr<ASD_DMRG_RotFile> compute_denom(std::shared_ptr<const DFHalfDist> half, std::shared_ptr<const DFHalfDist> half_1j,
+    std::shared_ptr<ASD_DMRG_RotFile> compute_denom(std::shared_ptr<const DFHalfDist> half, std::shared_ptr<const DFHalfDist> half_1j,
                                                     std::shared_ptr<const DFHalfDist> halfa, std::shared_ptr<const Matrix> cfock,
                                                     std::shared_ptr<const Matrix> afock) const;
-*/
 
     // compute Hessian times trial vector
 /*    std::shared_ptr<ASD_DMRG_RotFile> compute_hess_trial(std::shared_ptr<const ASD_DMRG_RotFile> trot, std::shared_ptr<const DFHalfDist> hafl,

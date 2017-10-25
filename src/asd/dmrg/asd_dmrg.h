@@ -146,6 +146,8 @@ class ASD_DMRG {
     std::shared_ptr<const RDM<1>> rdm1_av() const { return rdm1_av_; }
     std::shared_ptr<const RDM<2>> rdm2_av() const { return rdm2_av_; }
 
+    std::pair<std::shared_ptr<Matrix>, VectorB> natorb_convert();
+
 
   private:
     /// Prepare several input files used for growing the chain
