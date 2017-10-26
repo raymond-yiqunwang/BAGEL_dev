@@ -380,6 +380,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       sigma->ax_plus_y_va(-4.0, *fcvc * *ca * rdm1);
     }
   }
+  sigma->scale(0.5);
 
   return sigma;
 }
