@@ -265,5 +265,121 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
 
   shared_ptr<ASD_DMRG_RotFile> sigma = trot->clone();
 
+  shared_ptr<const Matrix> va = trot->va_mat();
+  shared_ptr<const Matrix> ca = nclosed_ ? trot->ca_mat() : nullptr;
+  shared_ptr<const Matrix> vc = nclosed_ ? trot->vc_mat() : nullptr;
+
+  shared_ptr<const Matrix> fcaa = cfock->get_submatrix(nclosed_, nclosed_, nact_, nact_);
+  shared_ptr<const Matrix> faaa = afock->get_submatrix(nclosed_, nclosed_, nact_, nact_);
+  shared_ptr<const Matrix> fcva = cfock->get_submatrix(nocc_, nclosed_, nvirt_, nact_);
+  shared_ptr<const Matrix> fava = afock->get_submatrix(nocc_, nclosed_, nvirt_, nact_);
+  shared_ptr<const Matrix> fcvv = cfock->get_submatrix(nocc_, nocc_, nvirt_, nvirt_);
+  shared_ptr<const Matrix> favv = afock->get_submatrix(nocc_, nocc_, nvirt_, nvirt_);
+  shared_ptr<const Matrix> fccc = nclosed_ ? cfock->get_submatrix(0, 0, nclosed_, nclosed_) : nullptr;
+  shared_ptr<const Matrix> facc = nclosed_ ? afock->get_submatrix(0, 0, nclosed_, nclosed_) : nullptr;
+  shared_ptr<const Matrix> fcca = nclosed_ ? cfock->get_submatrix(0, nclosed_, nclosed_, nact_) : nullptr;
+  shared_ptr<const Matrix> faca = nclosed_ ? afock->get_submatrix(0, nclosed_, nclosed_, nact_) : nullptr;
+  shared_ptr<const Matrix> fcvc = nclosed_ ? cfock->get_submatrix(nocc_, 0, nvirt_, nclosed_) : nullptr;
+  shared_ptr<const Matrix> favc = nclosed_ ? afock->get_submatrix(nocc_, 0, nvirt_, nclosed_) : nullptr;
+
+  const MatView ccoeff = coeff_->slice(0, nclosed_);
+  const MatView acoeff = coeff_->slice(nclosed_, nocc_);
+  const MatView vcoeff = coeff_->slice(nocc_, nocc_+nvirt_);
+
+  Matrix rdm1(nact_, nact_);
+  copy_n(asd_dmrg_->rdm1_av()->data(), nact_*nact_, rdm1.data());
+
+  // lambda for computing g(D)
+  auto compute_gd = [&, this] (shared_ptr<const DFHalfDist> halft, shared_ptr<const DFHalfDist> halfjj, const MatView pcoeff) {
+    shared_ptr<const Matrix> pcoefft = make_shared<Matrix>(pcoeff)->transpose();
+    shared_ptr<Matrix> gd = geom_->df()->compute_Jop(halft, pcoefft);
+    shared_ptr<Matrix> ex0 = halfjj->form_2index(halft, 1.0);
+    ex0->symmetrize();
+    gd->ax_plus_y(-0.5, ex0);
+    return gd;
+  };
+
+  // g(t_vc) operator and g(t_ca) operator
+  if (nclosed_) {
+    const Matrix tcoeff = vcoeff * *vc + acoeff * *ca->transpose();
+    auto halft = geom_->df()->compute_half_transform(tcoeff);
+    const Matrix gt = *compute_gd(halft, half, ccoeff);
+    sigma->ax_plus_y_va(16.0, vcoeff % gt * acoeff * rdm1);
+    sigma->ax_plus_y_ca(32.0, ccoeff % gt * acoeff);
+    sigma->ax_plus_y_ca(-16.0, ccoeff % gt * acoeff * rdm1);
+    sigma->ax_plus_y_vc(32.0, vcoeff % gt * ccoeff);
+  }
+
+  const Matrix tcoeff = nclosed_ ? (vcoeff * *va - ccoeff * *ca) : (vcoeff *  *va);
+  shared_ptr<const DFHalfDist> halfta = geom_->df()->compute_half_transform(tcoeff);
+  
+  // g(t_va - t_ca)
+  if (nclosed_) {
+    shared_ptr<DFHalfDist> halftad = halfta->copy();
+    halftad->rotate_occ(make_shared<Matrix>(rdm1));
+    const Matrix gt = *compute_gd(halftad, halfa_JJ, acoeff);
+    sigma->ax_plus_y_ca(16.0, ccoeff % gt * acoeff);
+    sigma->ax_plus_y_vc(16.0, vcoeff % gt * ccoeff);
+  }
+
+  // terms with Qvec
+  {
+    shared_ptr<const Matrix> qaa = qxr->cut(nclosed_, nocc_);
+    sigma->ax_plus_y_va(-2.0, *va ^ *qaa);
+    sigma->ax_plus_y_va(-2.0, *va * *qaa);
+    if (nclosed_) {
+      shared_ptr<const Matrix> qva = qxr->cut(nocc_, nocc_+nvirt_);
+      shared_ptr<const Matrix> qca = qxr->cut(0, nclosed_);
+      sigma->ax_plus_y_va(-2.0, *vc * *qca);
+      sigma->ax_plus_y_ca(-2.0, *ca ^ *qaa);
+      sigma->ax_plus_y_ca(-2.0, *ca * *qaa);
+      sigma->ax_plus_y_ca(-2.0, *vc % *qva);
+      sigma->ax_plus_y_vc(-2.0, *va ^ *qca);
+      sigma->ax_plus_y_vc(-2.0, *qva ^ *ca);
+    }
+  }
+
+  // Q' and Q'' part
+  {
+    shared_ptr<const DFFullDist> fullaa = halfa_JJ->compute_second_transform(acoeff);
+    shared_ptr<DFFullDist> fullta = halfta->compute_second_transform(acoeff);
+    shared_ptr<const DFFullDist> fulltas = fullta->swap();
+    fullta->ax_plus_y(1.0, fulltas);
+    shared_ptr<const DFFullDist> fullaaD = fullaa->apply_2rdm(*asd_dmrg_->rdm2_av());
+    shared_ptr<const DFFullDist> fulltaD = fullta->apply_2rdm(*asd_dmrg_->rdm2_av());
+    shared_ptr<const Matrix> qp = halfa_JJ->form_2index(fulltaD, 1.0);
+    shared_ptr<const Matrix> qpp = halfta->form_2index(fullaaD, 1.0);
+
+    sigma->ax_plus_y_va(4.0, vcoeff % (*qp + *qpp));
+    if (nclosed_)
+      sigma->ax_plus_y_ca(-4.0, ccoeff % (*qp + *qpp));
+  }
+
+  // Fock related terms
+  {
+    sigma->ax_plus_y_va( 4.0, *fcvv * *va * rdm1);
+    sigma->ax_plus_y_va(-2.0, *va * (rdm1 * *fcaa + *fcaa * rdm1));
+    if (nclosed_) {
+      sigma->ax_plus_y_vc( 8.0, (*fcvv + *favv) * *vc);
+      sigma->ax_plus_y_vc(-8.0, *vc * (*fccc + *facc));
+      sigma->ax_plus_y_vc( 8.0, (*fcva + *fava) ^ *ca);
+      sigma->ax_plus_y_vc(-2.0, *fcva * rdm1 ^ *ca);
+      sigma->ax_plus_y_vc(-4.0, *va ^ (*fcca + *faca));
+      sigma->ax_plus_y_vc(-2.0, *va * rdm1 ^ *fcca);
+      sigma->ax_plus_y_ca( 8.0, *vc % (*fcva + *fava));
+      sigma->ax_plus_y_ca(-2.0, *vc % *fcva * rdm1);
+      sigma->ax_plus_y_ca( 4.0, (*fcvc + *favc) % *va);
+      sigma->ax_plus_y_ca(-4.0, *fcvc % *va * rdm1);
+      sigma->ax_plus_y_ca( 8.0, *ca * (*fcaa + *faaa));
+      sigma->ax_plus_y_ca(-2.0, *ca * (rdm1 * *fcaa + *fcaa * rdm1));
+      sigma->ax_plus_y_ca(-8.0, (*fccc + *facc) * *ca);
+      sigma->ax_plus_y_ca( 4.0, *fccc * *ca * rdm1);
+      sigma->ax_plus_y_va(-4.0, *vc * (*fcca + *faca));
+      sigma->ax_plus_y_va(-2.0, *vc * *fcca * rdm1);
+      sigma->ax_plus_y_va( 4.0, (*fcvc + *favc) * *ca);
+      sigma->ax_plus_y_va(-4.0, *fcvc * *ca * rdm1);
+    }
+  }
+
   return sigma;
 }
