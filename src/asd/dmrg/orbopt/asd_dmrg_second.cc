@@ -24,6 +24,7 @@
 
 #include <src/asd/dmrg/orbopt/asd_dmrg_second.h>
 #include <src/scf/hf/fock.h>
+#include <src/util/math/aughess.h>
 
 #define DEBUG
 
@@ -42,7 +43,6 @@ void ASD_DMRG_Second::compute() {
   auto casscf_input = input_->get_child("casscf");
   auto casscf = make_shared<CASSecond>(casscf_input, geom_, ref_); // same orbital ordering with ASD
   casscf->compute();
-  auto casscf_grad0 = casscf->gradient0();
 #endif
 
   for (int iter = 0; iter != max_iter_; ++iter) {
@@ -65,18 +65,6 @@ void ASD_DMRG_Second::compute() {
     shared_ptr<const Matrix> qxr = compute_qvec(coeff_->slice(nclosed_, nocc_), asd_dmrg_->rdm2_av());
 
     shared_ptr<const ASD_DMRG_RotFile> grad = compute_gradient(cfock, afock, qxr);
-#ifdef DEBUG
-    auto cfock_diff = make_shared<Matrix>(*cfock - *casscf->cfock0());
-    cout << "cfock_diff RMS = " << cfock_diff->rms() << endl;
-    auto afock_diff = make_shared<Matrix>(*afock - *casscf->afock0());
-    cout << "afock_diff RMS = " << afock_diff->rms() << endl;
-    auto qxr_diff = make_shared<Matrix>(*qxr - *casscf->qxr0());
-    cout << "qxr_diff RMS = " << qxr_diff->rms() << endl;
-    shared_ptr<ASD_DMRG_RotFile> casscf_grad = grad->clone();
-    copy_n(casscf_grad0->data(), casscf_grad->size(), casscf_grad->data());
-    auto grad_diff = make_shared<ASD_DMRG_RotFile>(*grad - *casscf_grad);
-    cout << "grad_diff RMS = " << grad_diff->rms() << endl;
-#endif
 
     // check gradient and break if converged
     const double gradient = grad->rms();
@@ -91,16 +79,20 @@ void ASD_DMRG_Second::compute() {
     shared_ptr<const DFHalfDist> half = nclosed_ ? half_1j->apply_J() : nullptr;
     // TODO is this the right way to do it?
     shared_ptr<const DFHalfDist> halfa = geom_->df()->compute_half_transform(coeff_->slice(nclosed_, nocc_));
+    shared_ptr<const DFHalfDist> halfa_JJ = halfa->apply_JJ();
     
     // compute_denominator
-    shared_ptr<const ASD_DMRG_RotFile> denom = compute_denom(half, half_1j, halfa, cfock, afock);
-#ifdef DEBUG
-    auto casscf_denom0 = casscf->denom0();
-    auto casscf_denom = denom->clone();
-    copy_n(casscf_denom0->data(), casscf_denom->size(), casscf_denom->data());
-    auto denom_diff = make_shared<ASD_DMRG_RotFile>(*denom - *casscf_denom);
-    cout << "denom_diff RMS = " << denom_diff->rms() << endl;
-#endif
+    shared_ptr<const ASD_DMRG_RotFile> denom = compute_denom(half, half_1j, halfa, halfa_JJ, cfock, afock);
+
+    AugHess<ASD_DMRG_RotFile> solver(max_micro_iter_, grad);
+
+    // initial trial vector
+    shared_ptr<ASD_DMRG_RotFile> trot = apply_denom(grad, denom, 0.001, 1.0);
+    trot->normalize();
+
+    for (int miter = 0; miter != max_micro_iter_; ++miter) {
+      shared_ptr<const ASD_DMRG_RotFile> sigma = compute_hess_trial(trot, half, halfa_JJ, cfock, afock, qxr);
+    } // end of micro iter
 
   } // end of macro iter
 }
@@ -144,7 +136,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
 
 
 shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFHalfDist> half, shared_ptr<const DFHalfDist> half_1j, shared_ptr<const DFHalfDist> halfa,
-                                                                  shared_ptr<const Matrix> cfock, shared_ptr<const Matrix> afock) const {
+    shared_ptr<const DFHalfDist> halfa_JJ, shared_ptr<const Matrix> cfock, shared_ptr<const Matrix> afock) const {
+
   auto denom = make_shared<ASD_DMRG_RotFile>(nclosed_, nact_, nvirt_);
   const MatView ccoeff = coeff_->slice(0, nclosed_);
   const MatView acoeff = coeff_->slice(nclosed_, nocc_);
@@ -178,7 +171,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
   // rdm-integral part
   {
     // [tt|pq] = \Gamma_{vw,tt}(vw|pq)
-    shared_ptr<const DFFullDist> vaa = halfa->apply_JJ()->compute_second_transform(acoeff);
+    shared_ptr<const DFFullDist> vaa = halfa_JJ->compute_second_transform(acoeff);
     const int nri = vaa->block(0)->asize();
     shared_ptr<const DFFullDist> vgaa = vaa->apply_2rdm(*asd_dmrg_->rdm2_av());
     Matrix tmp_ao(nao, nao);
@@ -257,3 +250,20 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
 }
 
 
+shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::apply_denom(shared_ptr<const ASD_DMRG_RotFile> grad, shared_ptr<const ASD_DMRG_RotFile> denom, 
+                                                          const double shift, const double scale) const {
+  shared_ptr<ASD_DMRG_RotFile> out = grad->copy();
+  for (int i = 0; i != out->size(); ++i)
+    if (fabs(denom->data(i)*scale + shift) > 1.0e-12)
+      out->data(i) /= denom->data(i)*scale + shift;
+  return out;
+}
+
+
+shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<const ASD_DMRG_RotFile> trot, shared_ptr<const DFHalfDist> half,
+    shared_ptr<const DFHalfDist> halfa_JJ, shared_ptr<const Matrix> cfock, shared_ptr<const Matrix> afock, shared_ptr<const Matrix> qxr) const {
+
+  shared_ptr<ASD_DMRG_RotFile> sigma = trot->clone();
+
+  return sigma;
+}

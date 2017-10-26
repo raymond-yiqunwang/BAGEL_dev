@@ -33,15 +33,18 @@ ASD_DMRG_RotFile::ASD_DMRG_RotFile(const int iclo, const int iact, const int ivi
   zero();  
 }
 
+
 ASD_DMRG_RotFile::ASD_DMRG_RotFile(const ASD_DMRG_RotFile& o)
   : nclosed_(o.nclosed_), nact_(o.nact_), nvirt_(o.nvirt_), size_(o.size_), data_(new double[o.size_]) {
   *this = o;
 }
 
+
 ASD_DMRG_RotFile::ASD_DMRG_RotFile(shared_ptr<const ASD_DMRG_RotFile> o)
   : nclosed_(o->nclosed_), nact_(o->nact_), nvirt_(o->nvirt_), size_(o->size_), data_(new double[o->size_]) {
   *this = *o;
 }
+
 
 // overloaded operators
 ASD_DMRG_RotFile& ASD_DMRG_RotFile::operator=(const ASD_DMRG_RotFile& o) {
@@ -49,15 +52,18 @@ ASD_DMRG_RotFile& ASD_DMRG_RotFile::operator=(const ASD_DMRG_RotFile& o) {
   return *this;
 }
 
+
 ASD_DMRG_RotFile& ASD_DMRG_RotFile::operator+=(const ASD_DMRG_RotFile& o) {
   ax_plus_y(1.0, o);
   return *this;
 }
 
+
 ASD_DMRG_RotFile& ASD_DMRG_RotFile::operator-=(const ASD_DMRG_RotFile& o) {
   ax_plus_y(-1.0, o);
   return *this;
 }
+
 
 ASD_DMRG_RotFile& ASD_DMRG_RotFile::operator*=(const ASD_DMRG_RotFile& o) {
   for (int i = 0; i != size(); ++i)
@@ -65,11 +71,13 @@ ASD_DMRG_RotFile& ASD_DMRG_RotFile::operator*=(const ASD_DMRG_RotFile& o) {
   return *this;
 }
 
+
 ASD_DMRG_RotFile& ASD_DMRG_RotFile::operator/=(const ASD_DMRG_RotFile& o) {
   for (int i = 0; i != size(); ++i)
     data(i) /= o.data(i);
   return *this;
 }
+
 
 ASD_DMRG_RotFile ASD_DMRG_RotFile::operator+(const ASD_DMRG_RotFile& o) const {
   ASD_DMRG_RotFile out(*this);
@@ -77,49 +85,66 @@ ASD_DMRG_RotFile ASD_DMRG_RotFile::operator+(const ASD_DMRG_RotFile& o) const {
   return out;
 }
 
+
 ASD_DMRG_RotFile ASD_DMRG_RotFile::operator-(const ASD_DMRG_RotFile& o) const {
   ASD_DMRG_RotFile out(*this);
   out.ax_plus_y(-1.0, o);
   return out;
 }
 
+
 ASD_DMRG_RotFile ASD_DMRG_RotFile::operator*(const ASD_DMRG_RotFile& o) const {
   ASD_DMRG_RotFile out(*this);
   return out *= o;
 }
+
 
 ASD_DMRG_RotFile ASD_DMRG_RotFile::operator/(const ASD_DMRG_RotFile& o) const {
   ASD_DMRG_RotFile out(*this);
   return out /= o;
 }
 
+
 ASD_DMRG_RotFile& ASD_DMRG_RotFile::operator*=(const double a) {
   scale(a);
   return *this;
 }
 
+
+double ASD_DMRG_RotFile::normalize() {
+  const double scal = 1.0 / this->norm();
+  scale(scal);
+  return 1.0/scal;
+}
+
+
 shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_RotFile::clone() const {
   return make_shared<ASD_DMRG_RotFile>(nclosed_, nact_, nvirt_);
 }
 
+
 shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_RotFile::copy() const {
   return make_shared<ASD_DMRG_RotFile>(*this);
 }
+
 
 void ASD_DMRG_RotFile::ax_plus_y_ca(const double a, const MatView mat) {
   assert(mat.ndim() == nclosed_ && mat.mdim() == nact_);
   blas::ax_plus_y_n(a, mat.data(), nclosed_*nact_, ptr_ca());
 }
 
+
 void ASD_DMRG_RotFile::ax_plus_y_va(const double a, const MatView mat) {
   assert(mat.ndim() == nvirt_ && mat.mdim() == nact_);
   blas::ax_plus_y_n(a, mat.data(), nvirt_*nact_, ptr_va());
 }
 
+
 void ASD_DMRG_RotFile::ax_plus_y_vc(const double a, const MatView mat) {
   assert(mat.ndim() == nvirt_ && mat.mdim() == nclosed_);
   blas::ax_plus_y_n(a, mat.data(), nvirt_*nclosed_, ptr_vc());
 }
+
 
 /*
 void ASD_DMRG_RotFile::ax_plus_y_aa(const double a, const MatView mat) {
@@ -127,6 +152,28 @@ void ASD_DMRG_RotFile::ax_plus_y_aa(const double a, const MatView mat) {
   blas::ax_plus_y_n(a, mat.data(), nact_*nact_, ptr_aa());
 }
 */
+
+
+shared_ptr<Matrix> ASD_DMRG_RotFile::ca_mat() const {
+  auto out = make_shared<Matrix>(nclosed_, nact_);
+  copy_n(ptr_ca(), nclosed_*nact_, out->data());
+  return out;
+}
+
+
+shared_ptr<Matrix> ASD_DMRG_RotFile::va_mat() const {
+  auto out = make_shared<Matrix>(nvirt_, nact_);
+  copy_n(ptr_va(), nvirt_*nact_, out->data());
+  return out;
+}
+
+
+shared_ptr<Matrix> ASD_DMRG_RotFile::vc_mat() const {
+  auto out = make_shared<Matrix>(nvirt_, nclosed_);
+  copy_n(ptr_vc(), nvirt_*nclosed_, out->data());
+  return out;
+}
+
 
 void ASD_DMRG_RotFile::print(const string input) const {
   cout << " +++++ " + input + " +++++" <<endl;

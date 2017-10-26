@@ -30,6 +30,8 @@
 namespace bagel {
 
 class ASD_DMRG_RotFile {
+  public:
+    using data_type = double;
   protected:
     const int nclosed_;
     const int nact_;
@@ -72,6 +74,8 @@ class ASD_DMRG_RotFile {
     void ax_plus_y(const double& a, const ASD_DMRG_RotFile& o) { blas::ax_plus_y_n(a, o.data(), size_, data()); }
     void ax_plys_y(const double& a, const std::shared_ptr<const ASD_DMRG_RotFile> o) { ax_plus_y(a, *o); }
 
+    double normalize();
+
     // return data
     double* data() { return data_.get(); }
     const double* data() const { return data_.get(); }
@@ -109,6 +113,10 @@ class ASD_DMRG_RotFile {
     void  ax_plus_y_va(const double a, const MatView mat);
     void  ax_plus_y_vc(const double a, const MatView mat);
 //    void  ax_plus_y_aa(const double a, const MatView mat);
+
+    std::shared_ptr<Matrix> ca_mat() const;
+    std::shared_ptr<Matrix> va_mat() const;
+    std::shared_ptr<Matrix> vc_mat() const;
 
     // unpack to Matrix
     // to be implemented..

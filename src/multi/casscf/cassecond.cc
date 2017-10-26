@@ -63,12 +63,6 @@ void CASSecond::compute() {
     shared_ptr<const Qvec> qxr = make_shared<Qvec>(coeff_->mdim(), nact_, coeff_, nclosed_, fci_, fci_->rdm2_av());
 
     shared_ptr<const RotFile> grad = compute_gradient(cfock, afock, qxr);
-    if (iter == 0) {
-      grad0_ = grad;
-      cfock0_ = cfock;
-      afock0_ = afock;
-      qxr0_ = qxr;
-    }
 
     // check gradient and break if converged
     const double gradient = grad->rms();
@@ -86,7 +80,6 @@ void CASSecond::compute() {
 
     // compute denominator...
     shared_ptr<const RotFile> denom = compute_denom(half, half_1j, halfa, cfock, afock);
-    if (iter == 0) denom0_ = denom;
 
     AugHess<RotFile> solver(max_micro_iter_, grad);
     // initial trial vector

@@ -84,7 +84,7 @@ class RotationMatrix {
     void ax_plus_y(const DataType& a, const RotationMatrix& o) { blas::ax_plus_y_n(a, o.data(), size_, data()); }
     void ax_plus_y(const DataType& a, const std::shared_ptr<const RotationMatrix> o) { ax_plus_y(a, *o); }
 
-    // orthogonalize to the liset of RotationMatrix's
+    // orthogonalize to the list of RotationMatrix's
     double orthog(std::list<std::shared_ptr<const RotationMatrix<DataType>>> c);
     double normalize();
     void synchronize();
