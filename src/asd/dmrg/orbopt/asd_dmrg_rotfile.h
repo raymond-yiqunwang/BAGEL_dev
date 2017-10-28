@@ -74,6 +74,7 @@ class ASD_DMRG_RotFile {
     void ax_plus_y(const double& a, const ASD_DMRG_RotFile& o) { blas::ax_plus_y_n(a, o.data(), size_, data()); }
     void ax_plys_y(const double& a, const std::shared_ptr<const ASD_DMRG_RotFile> o) { ax_plus_y(a, *o); }
 
+    double orthog(std::list<std::shared_ptr<const ASD_DMRG_RotFile>> c);
     double normalize();
 
     // return data
@@ -119,7 +120,7 @@ class ASD_DMRG_RotFile {
     std::shared_ptr<Matrix> vc_mat() const;
 
     // unpack to Matrix
-    // to be implemented..
+    std::shared_ptr<Matrix> unpack(const double a = 0.0) const;
 
     void print(const std::string input = "") const;
     

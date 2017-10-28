@@ -113,3 +113,33 @@ shared_ptr<const Coeff> ASD_DMRG_OrbOpt::update_coeff(const shared_ptr<const Mat
 }
 
 
+shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
+  
+  auto rdm1_mat = make_shared<Matrix>(nact_, nact_);
+  copy_n(asd_dmrg_->rdm1_av()->data(), rdm1_mat->size(), rdm1_mat->data());
+  rdm1_mat->sqrt();
+  rdm1_mat->scale(1.0/sqrt(2.0));
+
+  const MatView ccoeff = coeff_->slice(0, nclosed_);
+  const MatView acoeff = coeff_->slice(nclosed_, nocc_);
+  const MatView vcoeff = coeff_->slice(nocc_, norb_);
+
+  VectorB eig(coeff_->mdim());
+  auto core_fock = nclosed_ ? make_shared<Fock<1>>(geom_, hcore_, nullptr, coeff_->slice(0, nclosed_), false/*store*/, true/*rhf*/) : hcore_;
+  Fock<1> fock(geom_, core_fock, nullptr, acoeff * *rdm1_mat, false, true);
+
+  Matrix trans(norb_, norb_);
+  trans.unit();
+  if (nclosed_) {
+    Matrix ofock = ccoeff % fock * ccoeff;
+    ofock.diagonalize(eig);
+    trans.copy_block(0, 0, nclosed_, nclosed_, ofock);
+  }
+  Matrix vfock = vcoeff % fock * vcoeff;
+  vfock.diagonalize(eig);
+  trans.copy_block(nocc_, nocc_, nvirt_, nvirt_, vfock);
+  
+  return make_shared<Coeff>(*coeff_ * trans);
+}
+
+

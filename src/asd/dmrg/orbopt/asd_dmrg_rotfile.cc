@@ -111,6 +111,13 @@ ASD_DMRG_RotFile& ASD_DMRG_RotFile::operator*=(const double a) {
 }
 
 
+double ASD_DMRG_RotFile::orthog(list<shared_ptr<const ASD_DMRG_RotFile>> c) {
+  for (auto iter = c.begin(); iter != c.end(); ++iter)
+    this->ax_plus_y(- detail::conj(this->dot_product(**iter)), **iter);
+  return normalize();
+}
+
+
 double ASD_DMRG_RotFile::normalize() {
   const double scal = 1.0 / this->norm();
   scale(scal);
@@ -171,6 +178,36 @@ shared_ptr<Matrix> ASD_DMRG_RotFile::va_mat() const {
 shared_ptr<Matrix> ASD_DMRG_RotFile::vc_mat() const {
   auto out = make_shared<Matrix>(nvirt_, nclosed_);
   copy_n(ptr_vc(), nvirt_*nclosed_, out->data());
+  return out;
+}
+
+
+shared_ptr<Matrix> ASD_DMRG_RotFile::unpack(const double a) const {
+  
+  const int nocc = nclosed_ + nact_;
+  const int nbasis = nocc + nvirt_;
+  auto out = make_shared<Matrix>(nbasis, nbasis);
+  fill_n(out->data(), out->size(), a);
+
+  for (int i = 0; i != nact_; ++i) {
+    for (int j = 0; j != nvirt_; ++j) {
+      out->element(j+nocc, i+nclosed_) = ele_va(j, i);
+    }
+    for (int k = 0; k != nclosed_; ++k) {
+      out->element(i+nclosed_, k) = ele_ca(k, i);
+    }
+  }
+  for (int i = 0; i != nclosed_; ++i) {
+    for (int j = 0; j != nvirt_;   ++j) {
+      out->element(j+nocc, i) = ele_vc(j, i);
+    }
+  }
+  for (int i = 0; i != nbasis; ++i) {
+    for (int j = 0; j <= i; ++j) {
+      out->element(j, i) = - detail::conj(out->element(i, j));
+    }
+  }
+
   return out;
 }
 

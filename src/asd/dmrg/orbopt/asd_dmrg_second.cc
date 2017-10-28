@@ -91,8 +91,51 @@ void ASD_DMRG_Second::compute() {
     trot->normalize();
 
     for (int miter = 0; miter != max_micro_iter_; ++miter) {
+      
       shared_ptr<const ASD_DMRG_RotFile> sigma = compute_hess_trial(trot, half, halfa_JJ, cfock, afock, qxr);
+      shared_ptr<const ASD_DMRG_RotFile> residual;
+      double lambda, epsilon, stepsize;
+      tie(residual, lambda, epsilon, stepsize) = solver.compute_residual(trot, sigma);
+      const double err = residual->norm() / lambda;
+      if (!miter) cout << endl;
+      cout << "         res : " << setw(8) << setprecision(2) << scientific << err
+           <<       "   lamb: " << setw(8) << setprecision(2) << scientific << lambda
+           <<       "   eps : " << setw(8) << setprecision(2) << scientific << epsilon
+           <<       "   step: " << setw(8) << setprecision(2) << scientific << stepsize << endl;
+      if (err < max(thresh_micro_, stepsize*thresh_microstep_))
+        break;
+
+      trot = apply_denom(residual, denom, -epsilon, 1.0/lambda);
+      for (int i = 0; i != 10; ++i) {
+        const double norm = solver.orthog(trot);
+        if (norm > 0.25) break;
+      }
     } // end of micro iter
+
+    shared_ptr<const ASD_DMRG_RotFile> sol = solver.civec();
+    shared_ptr<const Matrix> a = sol->unpack();
+    Matrix w(*a * *a);
+    VectorB eig(a->ndim());
+    w.diagonalize(eig);
+    Matrix wc(w);
+    Matrix ws(w);
+    for (int i = 0; i != a->mdim(); ++i) {
+      const double tau = sqrt(fabs(eig(i)));
+      blas::scale_n(cos(tau), wc.element_ptr(0,i), wc.ndim());
+      blas::scale_n(tau > 1.0e-15 ? sin(tau)/tau : 1.0, ws.element_ptr(0,i), ws.ndim());
+    }
+    const Matrix R = (wc ^ w) + (ws ^ w) * *a;
+
+    coeff_ = make_shared<Coeff>(*coeff_ * R);
+
+    if (iter == max_iter_-1) {
+      cout << endl << "    * Max iteration reached during the second-order optimization.  Convergence not reached! *   " << endl << endl;
+    }
+
+    // block diagonalize coeff_ in nclosed and nvirt
+    coeff_ = semi_canonical_orb();
+
+    // TODO maybe one more ASD iteration
 
   } // end of macro iter
 }

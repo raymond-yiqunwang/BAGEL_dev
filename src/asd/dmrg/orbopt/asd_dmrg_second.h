@@ -31,7 +31,9 @@ namespace bagel {
 
 class ASD_DMRG_Second : public ASD_DMRG_OrbOpt {
   protected:
-    // second-order optimization functions
+    // convergence threshold for micro iteration relative to stepsize
+    double thresh_microstep_;
+
     // compute orbital gradient
     std::shared_ptr<ASD_DMRG_RotFile> compute_gradient(std::shared_ptr<const Matrix> cfock, std::shared_ptr<const Matrix> afock,
                                                        std::shared_ptr<const Matrix> qxr) const;
@@ -54,6 +56,9 @@ class ASD_DMRG_Second : public ASD_DMRG_OrbOpt {
     ASD_DMRG_Second(std::shared_ptr<const PTree> idata, std::shared_ptr<const Reference> iref)
       : ASD_DMRG_OrbOpt(idata, iref) {
       std::cout << "  * Using the second-order algorithm for orbital optimization" << std::endl << std::endl;  
+      // overwriting thresh_micro
+      thresh_micro_ = idata->get<double>("opt_thresh_micro", thresh_*0.5);
+      thresh_microstep_ = idata->get<double>("opt_thresh_microstep", 1.0e-4);
     }
 
     void compute() override;

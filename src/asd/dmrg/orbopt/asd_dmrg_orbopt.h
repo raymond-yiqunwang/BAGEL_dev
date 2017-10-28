@@ -57,6 +57,7 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     std::shared_ptr<const Geometry> geom_;
 
     std::shared_ptr<const Coeff> update_coeff(const std::shared_ptr<const Matrix> cold, std::shared_ptr<const Matrix> natorb) const;
+    std::shared_ptr<const Coeff> semi_canonical_orb() const;
 
     // util functions
     void print_header() const;
