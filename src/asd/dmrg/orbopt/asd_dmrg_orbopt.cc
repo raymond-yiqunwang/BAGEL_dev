@@ -3,7 +3,7 @@
 // Filename: asd_dmrg_orbopt.cc
 // Copyright (C) 2017 Raymond Wang
 //
-// Author: Raymond Wang
+// Author: Raymond Wang <raymondwang@u.northwestern.edu>
 // Maintainer: Shiozaki Group
 //
 // This file is part of the BAGEL package.
@@ -51,6 +51,14 @@ void ASD_DMRG_OrbOpt::common_init() {
   nocc_ = nclosed_ + nact_;
   nvirt_ = ref_->nvirt();
   norb_ = ref_->coeff()->mdim();
+  nsites_ = multisite_->nsites();
+
+  // initialize active-active rotation parameters
+  int offset = 0;
+  for (int sj = 0; sj != nsites_-1; ++sj)
+    for (int si = sj+1; si != nsites_; ++si)
+      rotblocks_.emplace_back(multisite_, si, sj, offset);
+  naa_ = offset;
 
   nstate_ = input_->get<int>("opt_nstate", 1);
   max_iter_ = input_->get<int>("opt_max_iter", 50);

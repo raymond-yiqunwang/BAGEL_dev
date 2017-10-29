@@ -3,7 +3,7 @@
 // Filename: asd_dmrg_second.cc
 // Copyright (C) 2017 Raymond Wang
 //
-// Author: Raymond Wang
+// Author: Raymond Wang <raymondwang@u.northwestern.edu>
 // Maintainer: Shiozaki Group
 //
 // This file is part of the BAGEL package.
@@ -193,7 +193,7 @@ void ASD_DMRG_Second::compute() {
 
 
 shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const Matrix> cfock, shared_ptr<const Matrix> afock, shared_ptr<const Matrix> qxr) const {
-  auto grad = make_shared<ASD_DMRG_RotFile>(nclosed_, nact_, nvirt_);
+  auto grad = make_shared<ASD_DMRG_RotFile>(nclosed_, nact_, nvirt_, naa_);
   shared_ptr<const RDM<1>> rdm1 = asd_dmrg_->rdm1_av();
   
   // closed-active section, closed runs first
@@ -224,6 +224,11 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
       blas::ax_plus_y_n(4.0, afock->element_ptr(nocc_, i), nvirt_, target);
     }
   }
+  // active-active part
+  for (int sj = 0; sj != nsites_-1; ++sj) {
+    for (int si = sj+1; si != nsites_; ++si) {
+    }
+  }
 
   return grad;
 }
@@ -232,7 +237,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
 shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFHalfDist> half, shared_ptr<const DFHalfDist> half_1j, shared_ptr<const DFHalfDist> halfa,
     shared_ptr<const DFHalfDist> halfa_JJ, shared_ptr<const Matrix> cfock, shared_ptr<const Matrix> afock) const {
 
-  auto denom = make_shared<ASD_DMRG_RotFile>(nclosed_, nact_, nvirt_);
+  auto denom = make_shared<ASD_DMRG_RotFile>(nclosed_, nact_, nvirt_, naa_);
   const MatView ccoeff = coeff_->slice(0, nclosed_);
   const MatView acoeff = coeff_->slice(nclosed_, nocc_);
   const MatView vcoeff = coeff_->slice(nocc_, nocc_+nvirt_);

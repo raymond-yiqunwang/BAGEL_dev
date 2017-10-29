@@ -3,7 +3,7 @@
 // Filename: asd_dmrg_orbopt.h
 // Copyright (C) 2017 Raymond Wang
 //
-// Author: Raymond Wang
+// Author: Raymond Wang <raymondwang@u.northwestern.edu>
 // Maintainer: Shiozaki Group
 //
 // This file is part of the BAGEL package.
@@ -28,6 +28,7 @@
 #include <src/util/muffle.h>
 #include <src/asd/dmrg/rasd.h>
 #include <src/asd/dmrg/orbopt/asd_dmrg_rotfile.h>
+#include <src/asd/dmrg/orbopt/rotblock.h>
 
 namespace bagel {
 
@@ -38,9 +39,10 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     int nact_;
     int nocc_; // sum of nclosed_ + nact_
     int nvirt_;
+    int naa_; // size of active-active part
     int norb_;
     int nstate_;
-  
+
     // parameters for iteration
     int max_iter_;
     int max_micro_iter_;
@@ -56,6 +58,10 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     std::shared_ptr<const Reference> ref_;
     std::shared_ptr<const Matrix> hcore_;
     std::shared_ptr<const Geometry> geom_;
+    
+    // active-active rotation parameters
+    int nsites_;
+    std::vector<ASD_RotBlock> rotblocks_;
 
     std::shared_ptr<const Coeff> update_coeff(const std::shared_ptr<const Matrix> cold, std::shared_ptr<const Matrix> natorb) const;
     std::shared_ptr<const Coeff> semi_canonical_orb() const;

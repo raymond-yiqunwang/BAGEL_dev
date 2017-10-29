@@ -3,7 +3,7 @@
 // Filename: asd_dmrg_second.h
 // Copyright (C) 2017 Raymond Wang
 //
-// Author: Raymond Wang
+// Author: Raymond Wang <raymondwang@u.northwestern.edu>
 // Maintainer: Shiozaki Group
 //
 // This file is part of the BAGEL package.

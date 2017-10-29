@@ -3,7 +3,7 @@
 // Filename: asd_dmrg_rotfile.h
 // Copyright (C) 2017 Raymond Wang
 //
-// Author: Raymond Wang
+// Author: Raymond Wang <raymondwang@u.northwestern.edu>
 // Maintainer: Shiozaki Group
 //
 // This file is part of the BAGEL package.
@@ -36,12 +36,13 @@ class ASD_DMRG_RotFile {
     const int nclosed_;
     const int nact_;
     const int nvirt_;
+    const int naa_;
     const int size_;
     std::unique_ptr<double[]> data_;
 
   public:
     // constructors
-    ASD_DMRG_RotFile(const int iclo, const int iact, const int ivirt);
+    ASD_DMRG_RotFile(const int iclo, const int iact, const int ivirt, const int iaa);
     ASD_DMRG_RotFile(const ASD_DMRG_RotFile& o);
     ASD_DMRG_RotFile(std::shared_ptr<const ASD_DMRG_RotFile> o);
 
@@ -94,16 +95,15 @@ class ASD_DMRG_RotFile {
     //virtual-closed block, virtual runs first
     double* ptr_vc() { return data() + (nclosed_+nvirt_)*nact_; }
     double& ele_vc(const int iv, const int ic) { return data_[(nclosed_+nvirt_)*nact_ + iv + ic*nvirt_]; }
-/*  do not rotate within active space for the moment  
     // active-active block, the first active runs first
     double* ptr_aa() { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_; }
-    double& ele_aa(const int ia1, const int ia2) { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + ia1 + ia2*nact_]; }
-*/
+//    double& ele_aa(...) ...
+
     // const references and pointers
     const double* ptr_ca() const { return data(); }
     const double* ptr_va() const { return data() + nclosed_*nact_; }
     const double* ptr_vc() const { return data() + (nclosed_+nvirt_)*nact_; }
-//    const double* ptr_aa() const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_; }
+    const double* ptr_aa() const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_; }
     
     const double& ele_ca(const int ic, const int ia) const { return data_[ic + ia*nclosed_]; }
     const double& ele_va(const int iv, const int ia) const { return data_[nclosed_*nact_ + iv + ia*nvirt_]; }
@@ -118,6 +118,7 @@ class ASD_DMRG_RotFile {
     std::shared_ptr<Matrix> ca_mat() const;
     std::shared_ptr<Matrix> va_mat() const;
     std::shared_ptr<Matrix> vc_mat() const;
+//    std::shared_ptr<Matrix> aa_mat() const;
 
     // unpack to Matrix
     std::shared_ptr<Matrix> unpack(const double a = 0.0) const;

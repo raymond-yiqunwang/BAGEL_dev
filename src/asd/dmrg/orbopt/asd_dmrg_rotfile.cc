@@ -3,7 +3,7 @@
 // Filename: asd_dmrg_rotfile.cc
 // Copyright (C) 2017 Raymond Wang
 //
-// Author: Raymond Wang
+// Author: Raymond Wang <raymondwang@u.northwestern.edu>
 // Maintainer: Shiozaki Group
 //
 // This file is part of the BAGEL package.
@@ -28,20 +28,20 @@ using namespace std;
 using namespace bagel;
 
 // constructors
-ASD_DMRG_RotFile::ASD_DMRG_RotFile(const int iclo, const int iact, const int ivirt)
-  : nclosed_(iclo), nact_(iact), nvirt_(ivirt), size_(iclo*iact+ivirt*iact+ivirt*iclo/*TODO+iact*iact*/), data_(new double[size_]) {
+ASD_DMRG_RotFile::ASD_DMRG_RotFile(const int iclo, const int iact, const int ivirt, const int iaa)
+  : nclosed_(iclo), nact_(iact), nvirt_(ivirt), naa_(iaa), size_(iclo*iact+ivirt*iact+ivirt*iclo+iaa), data_(new double[size_]) {
   zero();  
 }
 
 
 ASD_DMRG_RotFile::ASD_DMRG_RotFile(const ASD_DMRG_RotFile& o)
-  : nclosed_(o.nclosed_), nact_(o.nact_), nvirt_(o.nvirt_), size_(o.size_), data_(new double[o.size_]) {
+  : nclosed_(o.nclosed_), nact_(o.nact_), nvirt_(o.nvirt_), naa_(o.naa_), size_(o.size_), data_(new double[o.size_]) {
   *this = o;
 }
 
 
 ASD_DMRG_RotFile::ASD_DMRG_RotFile(shared_ptr<const ASD_DMRG_RotFile> o)
-  : nclosed_(o->nclosed_), nact_(o->nact_), nvirt_(o->nvirt_), size_(o->size_), data_(new double[o->size_]) {
+  : nclosed_(o->nclosed_), nact_(o->nact_), nvirt_(o->nvirt_), naa_(o->naa_), size_(o->size_), data_(new double[o->size_]) {
   *this = *o;
 }
 
@@ -126,7 +126,7 @@ double ASD_DMRG_RotFile::normalize() {
 
 
 shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_RotFile::clone() const {
-  return make_shared<ASD_DMRG_RotFile>(nclosed_, nact_, nvirt_);
+  return make_shared<ASD_DMRG_RotFile>(nclosed_, nact_, nvirt_, naa_);
 }
 
 
