@@ -61,6 +61,7 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
 
     // util functions
     void print_header() const;
+    void print_iteration(const int iter, const std::vector<double>& energy, const double error) const;
     void common_init();
   
   public:

@@ -77,6 +77,18 @@ void ASD_DMRG_OrbOpt::print_header() const {
 }
 
 
+void ASD_DMRG_OrbOpt::print_iteration(const int iter, const vector<double>& energy, const double error) const {
+  if (energy.size() != 1 && iter) cout << endl;
+
+  int i = 0;
+  for (auto& e : energy) {
+    cout << "  " << setw(5) << iter << setw(3) << i << setw(19) << fixed << setprecision(12) << e << "   "
+                 << setw(10) << scientific << setprecision(2) << (i==0 ? error : 0.0) << endl;
+    ++i;
+  }
+}
+
+
 shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_active_fock(const MatView acoeff, shared_ptr<const RDM<1>> rdm1) const {
   Matrix dkl(nact_, nact_);
   copy_n(rdm1->data(), dkl.size(), dkl.data());

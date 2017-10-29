@@ -55,6 +55,15 @@ void ASD_DMRG_Second::compute() {
       // convert to natrual orbitals
       auto natorb = asd_dmrg_->natorb_convert();
       coeff_ = update_coeff(coeff_, natorb.first);
+      // debugging
+      if (iter < 6) {  
+        auto rdm1 = make_shared<Matrix>(nact_, nact_);
+        copy_n(asd_dmrg_->rdm1_av()->data(), rdm1->size(), rdm1->data());
+        auto diff_rdm = make_shared<Matrix>(*(casscf->cfock0().at(iter)) - *rdm1);
+        cout << "rdm1 diff rms = " << setw(16) << setprecision(12) << diff_rdm->rms() << endl;
+        auto diff_coeff = make_shared<Matrix>(*(casscf->coeff0().at(iter)) - *coeff_);
+        cout << "coeff diff rms = " << setw(16) << setprecision(12) << diff_coeff->rms() << endl;
+      }
       energy_ = asd_dmrg_->energies();
     }
     
@@ -68,6 +77,9 @@ void ASD_DMRG_Second::compute() {
 
     // check gradient and break if converged
     const double gradient = grad->rms();
+    cout << "1" << endl;
+    print_iteration(iter, energy_, gradient);
+    cout << "2" << endl;
     if (gradient < thresh_) {
       // muffle->unmute();
       cout << endl << "    * Second-Order Optimization Converged. *" << endl << endl;
@@ -89,6 +101,14 @@ void ASD_DMRG_Second::compute() {
     // initial trial vector
     shared_ptr<ASD_DMRG_RotFile> trot = apply_denom(grad, denom, 0.001, 1.0);
     trot->normalize();
+
+    // debugging
+    if (iter < 6) {
+      auto casscf_trot = trot->clone();
+      copy_n(casscf->trot0().at(iter)->data(), casscf_trot->size(), casscf_trot->data());
+      auto diff_trot = make_shared<ASD_DMRG_RotFile>(*casscf_trot - *trot);
+      cout << "  * trot diff rms = " << setw(16) << setprecision(12) << diff_trot->rms() << endl;
+    }
 
     for (int miter = 0; miter != max_micro_iter_; ++miter) {
       
@@ -126,18 +146,46 @@ void ASD_DMRG_Second::compute() {
     }
     const Matrix R = (wc ^ w) + (ws ^ w) * *a;
 
+    // debugging
+    if (iter < 6) {
+      //auto diff_coeff = make_shared<Matrix>(*(casscf->coeff0().at(iter)) - *coeff_);
+      //cout << "coeff diff rms = " << setw(16) << setprecision(12) << diff_coeff->rms() << endl;
+
+      //auto diff_cfock = make_shared<Matrix>(*(casscf->cfock0().at(iter)) - *cfock);
+      //cout << "cfock diff rms = " << setw(16) << setprecision(12) << diff_cfock->rms() << endl;
+
+      auto diff_afock = make_shared<Matrix>(*(casscf->afock0().at(iter)) - *afock);
+      cout << "afock diff rms = " << setw(16) << setprecision(12) << diff_afock->rms() << endl;
+
+      auto diff_qxr = make_shared<Matrix>(*(casscf->qxr0().at(iter)) - *qxr);
+      cout << "qxr diff rms = " << setw(16) << setprecision(12) << diff_qxr->rms() << endl;
+
+      auto casscf_grad = grad->clone();
+      copy_n(casscf->grad0().at(iter)->data(), casscf_grad->size(), casscf_grad->data());
+      auto diff_grad = make_shared<ASD_DMRG_RotFile>(*casscf_grad - *grad);
+      cout << "grad diff rms = " << setw(16) << setprecision(12) << diff_grad->rms() << endl;
+
+      auto casscf_denom = denom->clone();
+      copy_n(casscf->denom0().at(iter)->data(), casscf_denom->size(), casscf_denom->data());
+      auto diff_denom = make_shared<ASD_DMRG_RotFile>(*casscf_denom - *denom);
+      cout << "denom diff rms = " << setw(16) << setprecision(12) << diff_denom->rms() << endl;
+
+      auto diff_R = make_shared<Matrix>(*(casscf->R0().at(iter)) - R);
+      cout << "R diff rms = " << setw(16) << setprecision(12) << diff_R->rms() << endl;
+    }
+
     coeff_ = make_shared<Coeff>(*coeff_ * R);
 
     if (iter == max_iter_-1) {
       cout << endl << "    * Max iteration reached during the second-order optimization.  Convergence not reached! *   " << endl << endl;
     }
-
-    // block diagonalize coeff_ in nclosed and nvirt
-    coeff_ = semi_canonical_orb();
-
-    // TODO maybe one more ASD iteration
-
+  
   } // end of macro iter
+
+  // block diagonalize coeff_ in nclosed and nvirt
+  coeff_ = semi_canonical_orb();
+  
+  // TODO maybe one more ASD iteration
 }
 
 

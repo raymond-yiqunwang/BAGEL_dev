@@ -163,7 +163,7 @@ void ASD_DMRG::read_restricted(shared_ptr<PTree> input, const int site) const {
 pair<shared_ptr<Matrix>, VectorB> ASD_DMRG::natorb_convert() {
   assert(rdm1_av_ != nullptr);
   pair<shared_ptr<Matrix>, VectorB> natorb = rdm1_av_->generate_natural_orbitals();
-  // update rdm
+  // update rdms
   {
     for (auto& i : *rdm1_)
       i.second->transform(natorb.first);
@@ -175,10 +175,6 @@ pair<shared_ptr<Matrix>, VectorB> ASD_DMRG::natorb_convert() {
     if (rdm2_->size() > 1) rdm2_av_->transform(natorb.first);
     assert(rdm1_->size() > 1 || rdm1_->at(0) == rdm1_av_);
     assert(rdm2_->size() > 1 || rdm2_->at(0) == rdm2_av_);
-  }
-  // update 1ext_ints
-  {
-  
   }
   for (auto& i : natorb.second)
     if (i < numerical_zero__) i = 0.0;

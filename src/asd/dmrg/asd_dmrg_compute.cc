@@ -35,6 +35,11 @@ void ASD_DMRG::compute() {
 
   shared_ptr<DMRG_Block1> left_block, right_block;
 
+  // restart ASD-DMRG from scratch for the time being
+  left_blocks_.clear();
+  right_blocks_.clear();
+  perturb_ = input_->get<double>("perturb", 0.001);
+
   // Seed lattice
   cout << " ===== Start growing DMRG chain =====" << endl;
   {
