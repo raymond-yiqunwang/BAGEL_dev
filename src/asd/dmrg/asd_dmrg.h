@@ -97,7 +97,7 @@ class ASD_DMRG {
     ASD_DMRG(const std::shared_ptr<const PTree> input, std::shared_ptr<const MultiSite> multisite);
 
     /// Driver for calculation
-    void compute();
+    void compute(const bool restart = true);
 
     /// runs calculations for smaller values of M after the main calculation has finished
     void down_sweep();

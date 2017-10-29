@@ -30,36 +30,36 @@
 using namespace std;
 using namespace bagel;
 
-void ASD_DMRG::compute() {
+void ASD_DMRG::compute(const bool restart) {
   Timer dmrg_timer;
 
   shared_ptr<DMRG_Block1> left_block, right_block;
 
-  // restart ASD-DMRG from scratch for the time being
-  left_blocks_.clear();
-  right_blocks_.clear();
-  perturb_ = input_->get<double>("perturb", 0.001);
-
-  // Seed lattice
-  cout << " ===== Start growing DMRG chain =====" << endl;
-  {
-    shared_ptr<const Reference> ref = multisite_->build_reference(0, vector<bool>(nsites_, true), metal_);
-    // CI calculation on site 1 with all other sites at meanfield
-    left_block = compute_first_block(prepare_growing_input(0), ref);
-    left_blocks_.push_back(left_block);
-    cout << "  " << print_progress(0, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
+  if (!restart) {
+    // reset parameters
+    perturb_ = input_->get<double>("opt_perturb", 1.e-5); // TODO try 10*perturb_min later
+  } else {
+    // Seed lattice
+    cout << " ===== Start growing DMRG chain =====" << endl;
+    {
+      shared_ptr<const Reference> ref = multisite_->build_reference(0, vector<bool>(nsites_, true), metal_);
+      // CI calculation on site 1 with all other sites at meanfield
+      left_block = compute_first_block(prepare_growing_input(0), ref);
+      left_blocks_.push_back(left_block);
+      cout << "  " << print_progress(0, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
+    }
+  
+    // Grow lattice
+    for (int site = 1; site < nsites_-1; ++site) {
+      vector<bool> meanfield(nsites_, true);
+      fill_n(meanfield.begin(), site, false);
+      shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield, metal_);
+      left_block = grow_block(prepare_growing_input(site), ref, left_block, site);
+      left_blocks_.push_back(left_block);
+      cout << "  " << print_progress(site, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
+    }
+    assert(left_blocks_.size() == nsites_-1);
   }
-
-  // Grow lattice
-  for (int site = 1; site < nsites_-1; ++site) {
-    vector<bool> meanfield(nsites_, true);
-    fill_n(meanfield.begin(), site, false);
-    shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield, metal_);
-    left_block = grow_block(prepare_growing_input(site), ref, left_block, site);
-    left_blocks_.push_back(left_block);
-    cout << "  " << print_progress(site, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
-  }
-  assert(left_blocks_.size() == nsites_-1);
 
   right_blocks_.resize(nsites_-1);
 

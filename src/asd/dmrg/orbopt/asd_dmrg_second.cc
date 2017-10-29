@@ -45,12 +45,13 @@ void ASD_DMRG_Second::compute() {
   casscf->compute();
 #endif
 
+  muffle_->mute();
   for (int iter = 0; iter != max_iter_; ++iter) {
     
     // first obtain RDM from ASD_DMRG
     {
       if (iter) asd_dmrg_->update_multisite(coeff_);
-      asd_dmrg_->compute();
+      asd_dmrg_->compute(!iter);
       asd_dmrg_->compute_rdm12();
       // convert to natrual orbitals
       auto natorb = asd_dmrg_->natorb_convert();
@@ -77,11 +78,9 @@ void ASD_DMRG_Second::compute() {
 
     // check gradient and break if converged
     const double gradient = grad->rms();
-    cout << "1" << endl;
     print_iteration(iter, energy_, gradient);
-    cout << "2" << endl;
     if (gradient < thresh_) {
-      // muffle->unmute();
+      muffle_->unmute();
       cout << endl << "    * Second-Order Optimization Converged. *" << endl << endl;
       break;
     }
@@ -117,11 +116,13 @@ void ASD_DMRG_Second::compute() {
       double lambda, epsilon, stepsize;
       tie(residual, lambda, epsilon, stepsize) = solver.compute_residual(trot, sigma);
       const double err = residual->norm() / lambda;
+      muffle_->unmute();
       if (!miter) cout << endl;
       cout << "         res : " << setw(8) << setprecision(2) << scientific << err
            <<       "   lamb: " << setw(8) << setprecision(2) << scientific << lambda
            <<       "   eps : " << setw(8) << setprecision(2) << scientific << epsilon
            <<       "   step: " << setw(8) << setprecision(2) << scientific << stepsize << endl;
+      muffle_->mute();
       if (err < max(thresh_micro_, stepsize*thresh_microstep_))
         break;
 
@@ -177,10 +178,12 @@ void ASD_DMRG_Second::compute() {
     coeff_ = make_shared<Coeff>(*coeff_ * R);
 
     if (iter == max_iter_-1) {
+      muffle_->unmute();
       cout << endl << "    * Max iteration reached during the second-order optimization.  Convergence not reached! *   " << endl << endl;
     }
   
   } // end of macro iter
+  muffle_->unmute();
 
   // block diagonalize coeff_ in nclosed and nvirt
   coeff_ = semi_canonical_orb();

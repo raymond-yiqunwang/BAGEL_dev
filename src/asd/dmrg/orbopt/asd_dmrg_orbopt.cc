@@ -63,9 +63,12 @@ void ASD_DMRG_OrbOpt::common_init() {
   cout << "    * nact     : " << setw(6) << nact_ << endl;
   cout << "    * nvirt    : " << setw(6) << nvirt_ << endl << endl;
 
+  muffle_ = make_shared<Muffle>("asd_dmrg_orbopt.log");
+
   // DMRG with RHF orbitals
   asd_dmrg_ = make_shared<RASD>(asd_info_, multisite_);
-
+  
+  muffle_->unmute();
   cout << "  ===== Orbital Optimization Iteration =====" << endl << endl;
 
 }
@@ -78,6 +81,7 @@ void ASD_DMRG_OrbOpt::print_header() const {
 
 
 void ASD_DMRG_OrbOpt::print_iteration(const int iter, const vector<double>& energy, const double error) const {
+  muffle_->unmute();
   if (energy.size() != 1 && iter) cout << endl;
 
   int i = 0;
@@ -86,6 +90,7 @@ void ASD_DMRG_OrbOpt::print_iteration(const int iter, const vector<double>& ener
                  << setw(10) << scientific << setprecision(2) << (i==0 ? error : 0.0) << endl;
     ++i;
   }
+  muffle_->mute();
 }
 
 

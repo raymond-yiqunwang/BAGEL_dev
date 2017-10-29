@@ -25,6 +25,7 @@
 #ifndef __ASD_DMRG_ORBOPT_H
 #define __ASD_DMRG_ORBOPT_H
 
+#include <src/util/muffle.h>
 #include <src/asd/dmrg/rasd.h>
 #include <src/asd/dmrg/orbopt/asd_dmrg_rotfile.h>
 
@@ -63,6 +64,9 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     void print_header() const;
     void print_iteration(const int iter, const std::vector<double>& energy, const double error) const;
     void common_init();
+
+    // mask some of the output
+    mutable std::shared_ptr<Muffle> muffle_;
   
   public:
     ASD_DMRG_OrbOpt(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> iref);
