@@ -96,14 +96,14 @@ class ASD_DMRG_RotFile {
     double* ptr_vc() { return data() + (nclosed_+nvirt_)*nact_; }
     double& ele_vc(const int iv, const int ic) { return data_[(nclosed_+nvirt_)*nact_ + iv + ic*nvirt_]; }
     // active-active block, the first active runs first
-    double* ptr_aa() { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_; }
+    double* ptr_aa(const int offset) { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
 //    double& ele_aa(...) ...
 
     // const references and pointers
     const double* ptr_ca() const { return data(); }
     const double* ptr_va() const { return data() + nclosed_*nact_; }
     const double* ptr_vc() const { return data() + (nclosed_+nvirt_)*nact_; }
-    const double* ptr_aa() const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_; }
+    const double* ptr_aa(const int offset) const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
     
     const double& ele_ca(const int ic, const int ia) const { return data_[ic + ia*nclosed_]; }
     const double& ele_va(const int iv, const int ia) const { return data_[nclosed_*nact_ + iv + ia*nvirt_]; }

@@ -56,8 +56,7 @@ void ASD_DMRG_OrbOpt::common_init() {
   // initialize active-active rotation parameters
   int offset = 0;
   for (int sj = 0; sj != nsites_-1; ++sj)
-    for (int si = sj+1; si != nsites_; ++si)
-      rotblocks_.emplace_back(multisite_, si, sj, offset);
+    act_rotblocks_.emplace_back(multisite_, sj, offset);
   naa_ = offset;
 
   nstate_ = input_->get<int>("opt_nstate", 1);

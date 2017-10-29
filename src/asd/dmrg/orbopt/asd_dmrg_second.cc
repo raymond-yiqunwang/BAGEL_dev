@@ -225,8 +225,20 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
     }
   }
   // active-active part
-  for (int sj = 0; sj != nsites_-1; ++sj) {
-    for (int si = sj+1; si != nsites_; ++si) {
+  for (auto& block : act_rotblocks_) {
+    const int istart = block.iorbstart;
+    const int jstart = block.jorbstart;
+    const int inorb = block.norb_i;
+    const int jnorb = block.norb_j;
+    const int offset = block.offset;
+    double* target = grad->ptr_aa(offset);
+    for (int j = 0; j != jnorb; ++j, target += inorb) {
+      for (int v = 0; v != nact_; ++v) {
+        blas::ax_plus_y_n(2.0*rdm1->element(v, jstart+j), cfock->element_ptr(nclosed_+istart, nclosed_+v), inorb, target);
+        blas::ax_plus_y_n(-2.0*cfock->element(v, jstart+j), rdm1->element_ptr(istart, v), inorb, target);
+      }
+      blas::ax_plus_y_n(2.0, qxr->element_ptr(nclosed_+istart, jstart+j), inorb, target);
+      blas::ax_plus_y_n(-2.0, qxr->element_ptr(nclosed_+jstart+j, istart), inorb, target);
     }
   }
 

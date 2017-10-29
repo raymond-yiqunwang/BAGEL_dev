@@ -28,7 +28,7 @@
 #include <src/util/muffle.h>
 #include <src/asd/dmrg/rasd.h>
 #include <src/asd/dmrg/orbopt/asd_dmrg_rotfile.h>
-#include <src/asd/dmrg/orbopt/rotblock.h>
+#include <src/asd/dmrg/orbopt/actrotblock.h>
 
 namespace bagel {
 
@@ -61,7 +61,7 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     
     // active-active rotation parameters
     int nsites_;
-    std::vector<ASD_RotBlock> rotblocks_;
+    std::vector<ASD_ActRotBlock> act_rotblocks_;
 
     std::shared_ptr<const Coeff> update_coeff(const std::shared_ptr<const Matrix> cold, std::shared_ptr<const Matrix> natorb) const;
     std::shared_ptr<const Coeff> semi_canonical_orb() const;
