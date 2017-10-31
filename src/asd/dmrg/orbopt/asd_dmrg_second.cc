@@ -232,13 +232,14 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
     const int jnorb = block.norb_j;
     const int offset = block.offset;
     double* target = grad->ptr_aa(offset);
+
     for (int j = 0; j != jnorb; ++j, target += inorb) {
       for (int v = 0; v != nact_; ++v) {
         blas::ax_plus_y_n(2.0*rdm1->element(v, jstart+j), cfock->element_ptr(nclosed_+istart, nclosed_+v), inorb, target);
         blas::ax_plus_y_n(-2.0*cfock->element(v, jstart+j), rdm1->element_ptr(istart, v), inorb, target);
       }
       blas::ax_plus_y_n(2.0, qxr->element_ptr(nclosed_+istart, jstart+j), inorb, target);
-      blas::ax_plus_y_n(-2.0, qxr->element_ptr(nclosed_+jstart+j, istart), inorb, target);
+      blas::ax_plus_y_n(-2.0, qxr->transpose()->element_ptr(istart, nclosed_+jstart+j), inorb, target);
     }
   }
 
@@ -264,7 +265,6 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
     const Matrix fock = *cfock + *afock;
     for (int i = 0; i != nact_; ++i) 
       for (int j = 0; j != nclosed_; ++j)
-      // TODO += should also work, check later
         denom->ele_ca(j, i) = 4.0 * fock(i+nclosed_, i+nclosed_) - 4.0 * fock(j, j) - 2.0 * fcd(i, i) + 2.0 * (*cfock)(j, j) * rdm1(i, i);
 
     // virtual-active
@@ -276,6 +276,21 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
     for (int i = 0; i != nclosed_; ++i)
       for (int j = 0; j != nvirt_; ++j)
         denom->ele_vc(j, i) = 4.0 * fock(j+nocc_, j+nocc_) - 4.0 * fock(i, i);
+
+    // active-active
+    for (auto& block : act_rotblocks_) {
+      const int istart = block.iorbstart;
+      const int jstart = block.jorbstart;
+      const int offset = block.offset;
+      for (int j = 0; j != block.norb_j; ++j) {
+        for (int i = 0; i != block.norb_i; ++i) {
+          denom->ele_aa_offset(i, block.norb_i, j, offset) = 2.0 * (*cfock)(nclosed_+istart+i, nclosed_+istart+i) * rdm1(jstart+j, jstart+j)
+                                                             + 2.0 * (cfock)(nclosed_+jstart+j, nclosed_+jstart+j) * rdm1(istart+i, istart+i)
+                                                             - 4.0 * (*cfock)(nclosed_+istart+i, nclosed_+jstart+j) * rdm1(istart+i, jstart+j)
+                                                             - 2.0 * fcd(istart+i, istart+i) - 2.0 * fcd(jstart+j, jstart+j);
+        }
+      }
+    }
   } 
 
   const int nao = coeff_->ndim();
@@ -295,6 +310,14 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
         Matrix tmp_clo = ccoeff % tmp_ao * ccoeff;
         blas::ax_plus_y_n(2.0, tmp_clo.diag().get(), nclosed_, denom->ptr_ca()+nclosed_*i);
       }
+    }
+    // active-active part
+    for (auto& block : act_rotblocks_) {
+      const int istart = block.iorbstart;
+      const int jstart = block.jorbstart;
+      const int inorb = block.norb_i;
+      const int jnorb = block.norb_j;
+      const int offset = block.offset;
     }
     
     // [t,t] = \Gamma_{vw,xt}(vw|xt)

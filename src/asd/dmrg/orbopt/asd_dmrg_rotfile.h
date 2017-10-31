@@ -96,19 +96,19 @@ class ASD_DMRG_RotFile {
     double* ptr_vc() { return data() + (nclosed_+nvirt_)*nact_; }
     double& ele_vc(const int iv, const int ic) { return data_[(nclosed_+nvirt_)*nact_ + iv + ic*nvirt_]; }
     // active-active block, the first active runs first
-    double* ptr_aa(const int offset) { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
-//    double& ele_aa(...) ...
+    double* ptr_aa_offset(const int offset) { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
+    double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j+inorb]; }
 
     // const references and pointers
     const double* ptr_ca() const { return data(); }
     const double* ptr_va() const { return data() + nclosed_*nact_; }
     const double* ptr_vc() const { return data() + (nclosed_+nvirt_)*nact_; }
-    const double* ptr_aa(const int offset) const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
+    const double* ptr_aa_offset(const int offset) const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
     
-    const double& ele_ca(const int ic, const int ia) const { return data_[ic + ia*nclosed_]; }
+    const double& ele_ca(const int ic, const int ia) const { return data_[ic + ia*nclosed_]; } 
     const double& ele_va(const int iv, const int ia) const { return data_[nclosed_*nact_ + iv + ia*nvirt_]; }
     const double& ele_vc(const int iv, const int ic) const { return data_[(nclosed_+nvirt_)*nact_ + iv + ic*nvirt_]; }
-//    const double& ele_aa(const int ia1, const int ia2) const { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + ia1 + ia2*nact_]; }
+    const double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) const { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j+inorb]; }
 
     void  ax_plus_y_ca(const double a, const MatView mat);
     void  ax_plus_y_va(const double a, const MatView mat);
