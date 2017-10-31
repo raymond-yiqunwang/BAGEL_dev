@@ -88,7 +88,6 @@ void ASD_DMRG_Second::compute() {
     // half-transformed integrals (with JJ)
     shared_ptr<const DFHalfDist> half_1j = nclosed_ ? dynamic_pointer_cast<const Fock<1>>(cfockao)->half() : nullptr;
     shared_ptr<const DFHalfDist> half = nclosed_ ? half_1j->apply_J() : nullptr;
-    // TODO is this the right way to do it?
     shared_ptr<const DFHalfDist> halfa = geom_->df()->compute_half_transform(coeff_->slice(nclosed_, nocc_));
     shared_ptr<const DFHalfDist> halfa_JJ = halfa->apply_JJ();
     
@@ -231,7 +230,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
     const int inorb = block.norb_i;
     const int jnorb = block.norb_j;
     const int offset = block.offset;
-    double* target = grad->ptr_aa(offset);
+    double* target = grad->ptr_aa_offset(offset);
 
     for (int j = 0; j != jnorb; ++j, target += inorb) {
       for (int v = 0; v != nact_; ++v) {
@@ -259,105 +258,96 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
   copy_n(asd_dmrg_->rdm1_av()->data(), rdm1.size(), rdm1.data());
 
   // Fock related part
-  {
-    // closed-active
-    const Matrix fcd = *cfock->get_submatrix(nclosed_, nclosed_, nact_, nact_) * rdm1;
-    const Matrix fock = *cfock + *afock;
-    for (int i = 0; i != nact_; ++i) 
-      for (int j = 0; j != nclosed_; ++j)
-        denom->ele_ca(j, i) = 4.0 * fock(i+nclosed_, i+nclosed_) - 4.0 * fock(j, j) - 2.0 * fcd(i, i) + 2.0 * (*cfock)(j, j) * rdm1(i, i);
+  const Matrix fcd = *cfock->get_submatrix(nclosed_, nclosed_, nact_, nact_) * rdm1;
+  const Matrix fock = *cfock + *afock;
+  // closed-active
+  for (int i = 0; i != nact_; ++i) 
+    for (int j = 0; j != nclosed_; ++j)
+      denom->ele_ca(j, i) = 4.0 * fock(i+nclosed_, i+nclosed_) - 4.0 * fock(j, j) - 2.0 * fcd(i, i) + 2.0 * (*cfock)(j, j) * rdm1(i, i);
 
-    // virtual-active
-    for (int i = 0; i != nact_; ++i)
-      for (int j = 0; j != nvirt_; ++j)
-        denom->ele_va(j, i) = 2.0 * (*cfock)(j+nocc_, j+nocc_) * rdm1(i, i) - 2.0 * fcd(i, i);
+  // virtual-active
+  for (int i = 0; i != nact_; ++i)
+    for (int j = 0; j != nvirt_; ++j)
+      denom->ele_va(j, i) = 2.0 * (*cfock)(j+nocc_, j+nocc_) * rdm1(i, i) - 2.0 * fcd(i, i);
 
-    // virtual-closed
-    for (int i = 0; i != nclosed_; ++i)
-      for (int j = 0; j != nvirt_; ++j)
-        denom->ele_vc(j, i) = 4.0 * fock(j+nocc_, j+nocc_) - 4.0 * fock(i, i);
+  // virtual-closed
+  for (int i = 0; i != nclosed_; ++i)
+    for (int j = 0; j != nvirt_; ++j)
+      denom->ele_vc(j, i) = 4.0 * fock(j+nocc_, j+nocc_) - 4.0 * fock(i, i);
 
-    // active-active
-    for (auto& block : act_rotblocks_) {
-      const int istart = block.iorbstart;
-      const int jstart = block.jorbstart;
-      const int offset = block.offset;
-      for (int j = 0; j != block.norb_j; ++j) {
-        for (int i = 0; i != block.norb_i; ++i) {
-          denom->ele_aa_offset(i, block.norb_i, j, offset) = 2.0 * (*cfock)(nclosed_+istart+i, nclosed_+istart+i) * rdm1(jstart+j, jstart+j)
-                                                             + 2.0 * (cfock)(nclosed_+jstart+j, nclosed_+jstart+j) * rdm1(istart+i, istart+i)
-                                                             - 4.0 * (*cfock)(nclosed_+istart+i, nclosed_+jstart+j) * rdm1(istart+i, jstart+j)
-                                                             - 2.0 * fcd(istart+i, istart+i) - 2.0 * fcd(jstart+j, jstart+j);
-        }
+  // active-active
+  for (auto& block : act_rotblocks_) {
+    const int istart = block.iorbstart;
+    const int jstart = block.jorbstart;
+    const int inorb = block.norb_i;
+    const int jnorb = block.norb_j;
+    const int offset = block.offset;
+    for (int j = 0; j != jnorb; ++j) {
+      for (int i = 0; i != inorb; ++i) {
+        denom->ele_aa_offset(i, inorb, j, offset) = 2.0 * (*cfock)(nclosed_+istart+i, nclosed_+istart+i) * rdm1(jstart+j, jstart+j)
+                                                           + 2.0 * (*cfock)(nclosed_+jstart+j, nclosed_+jstart+j) * rdm1(istart+i, istart+i)
+                                                           - 4.0 * (*cfock)(nclosed_+istart+i, nclosed_+jstart+j) * rdm1(istart+i, jstart+j)
+                                                           - 2.0 * fcd(istart+i, istart+i) - 2.0 * fcd(jstart+j, jstart+j);
       }
     }
-  } 
+  }
 
   const int nao = coeff_->ndim();
-  // rdm-integral part
-  {
-    // [tt|pq] = \Gamma_{vw,tt}(vw|pq)
-    shared_ptr<const DFFullDist> vaa = halfa_JJ->compute_second_transform(acoeff);
-    const int nri = vaa->block(0)->asize();
-    shared_ptr<const DFFullDist> vgaa = vaa->apply_2rdm(*asd_dmrg_->rdm2_av());
-    Matrix tmp_ao(nao, nao);
-    for (int i = 0; i != nact_; ++i) {
-      dgemv_("T", nri, nao*nao, 1.0, geom_->df()->block(0)->data(), nri, vgaa->block(0)->data()+nri*(i+nact_*i), 1, 0.0, tmp_ao.data(), 1);
-      // tmp_ao.allreduce();
-      Matrix tmp_virt = vcoeff % tmp_ao * vcoeff;
-      blas::ax_plus_y_n(2.0, tmp_virt.diag().get(), nvirt_, denom->ptr_va()+nvirt_*i);
-      if (nclosed_) {
-        Matrix tmp_clo = ccoeff % tmp_ao * ccoeff;
-        blas::ax_plus_y_n(2.0, tmp_clo.diag().get(), nclosed_, denom->ptr_ca()+nclosed_*i);
-      }
-    }
-    // active-active part
-    for (auto& block : act_rotblocks_) {
-      const int istart = block.iorbstart;
-      const int jstart = block.jorbstart;
-      const int inorb = block.norb_i;
-      const int jnorb = block.norb_j;
-      const int offset = block.offset;
-    }
-    
-    // [t,t] = \Gamma_{vw,xt}(vw|xt)
-    shared_ptr<const DFFullDist> vaa_exc = halfa->compute_second_transform(acoeff);
-    shared_ptr<const Matrix> mo2e = vaa->form_4index(vaa_exc, 1.0);
-    for (int i = 0; i != nact_; ++i) {
-      const double e2 = -2.0 * blas::dot_product(mo2e->element_ptr(0, i*nact_), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,i));
-      for (int j = 0; j != nvirt_; ++j)
-        denom->ele_va(j, i) += e2;
-      for (int k = 0; k != nclosed_; ++k)
-        denom->ele_ca(k, i) += e2;
-    }
-
-    // mixed rdm2
-    Matrix rdmk(nact_*nact_, nact_); // stores \Gamma_{k,i,j,i} + \Gamma_{k,i,i,j}
-    for (int i = 0; i != nact_; ++i)
-      for (int j = 0; j != nact_; ++j)
-        for (int k = 0; k != nact_; ++k)
-          rdmk(k+nact_*j, i) = asd_dmrg_->rdm2_av()->element(k, i, j, i) + asd_dmrg_->rdm2_av()->element(k, i, i, j);
-    shared_ptr<const DFFullDist> vav = halfa->compute_second_transform(vcoeff)->apply_J();
-    denom->ax_plus_y_va(2.0, *(rdmk % *vav->form_4index_diagonal_part()).transpose());
+  
+  // rdm-integral part  
+  // [tt|pq] = \Gamma_{vw,tt}(vw|pq)
+  shared_ptr<const DFFullDist> vaa = halfa_JJ->compute_second_transform(acoeff);
+  const int nri = vaa->block(0)->asize();
+  shared_ptr<const DFFullDist> vgaa = vaa->apply_2rdm(*asd_dmrg_->rdm2_av());
+  Matrix tmp_ao(nao, nao);
+  for (int i = 0; i != nact_; ++i) {
+    dgemv_("T", nri, nao*nao, 1.0, geom_->df()->block(0)->data(), nri, vgaa->block(0)->data()+nri*(i+nact_*i), 1, 0.0, tmp_ao.data(), 1);
+    // tmp_ao.allreduce();
+    Matrix tmp_virt = vcoeff % tmp_ao * vcoeff;
+    blas::ax_plus_y_n(2.0, tmp_virt.diag().get(), nvirt_, denom->ptr_va()+nvirt_*i);
     if (nclosed_) {
-      shared_ptr<const DFFullDist> vac = halfa->compute_second_transform(ccoeff)->apply_J();
-      shared_ptr<const Matrix> mcaa = vac->form_4index_diagonal_part()->transpose();
-      denom->ax_plus_y_ca(2.0, *mcaa * rdmk);
-      shared_ptr<Matrix> mcaad = mcaa->copy();
-      dgemm_("N", "N", nclosed_*nact_, nact_, nact_, -1.0, mcaa->data(), nclosed_*nact_, rdm1.data(), nact_, 1.0, mcaad->data(), nclosed_*nact_);
-      for (int i = 0; i != nact_; ++i)
-        blas::ax_plus_y_n(12.0, mcaad->element_ptr(0, i+nact_*i), nclosed_, denom->ptr_ca()+i*nclosed_);
-      
-      Matrix tmp(nao, nao);
-      shared_ptr<DFFullDist> vgaa = vaa->copy();
-      vgaa->rotate_occ1(make_shared<Matrix>(rdm1));
-      vgaa->ax_plus_y(-1.0, vaa);
-      for (int i = 0; i != nact_; ++i) {
-        dgemv_("T", nri, nao*nao, 1.0, geom_->df()->block(0)->data(), nri, vgaa->block(0)->data()+nri*(i+nact_*i), 1, 0.0, tmp.data(), 1);
-        // tmp.allreduce();
-        Matrix tmp0 = ccoeff % tmp * ccoeff;
-        blas::ax_plus_y_n(4.0, tmp0.diag().get(), nclosed_, denom->ptr_ca()+nclosed_*i);
-      }
+      Matrix tmp_clo = ccoeff % tmp_ao * ccoeff;
+      blas::ax_plus_y_n(2.0, tmp_clo.diag().get(), nclosed_, denom->ptr_ca()+nclosed_*i);
+    }
+  }
+  
+  // [t,t] = \Gamma_{vw,xt}(vw|xt)
+  shared_ptr<const DFFullDist> vaa_exc = halfa->compute_second_transform(acoeff);
+  shared_ptr<const Matrix> mo2e = vaa->form_4index(vaa_exc, 1.0);
+  for (int i = 0; i != nact_; ++i) {
+    const double e2 = -2.0 * blas::dot_product(mo2e->element_ptr(0, i*nact_), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,i));
+    for (int j = 0; j != nvirt_; ++j)
+      denom->ele_va(j, i) += e2;
+    for (int k = 0; k != nclosed_; ++k)
+      denom->ele_ca(k, i) += e2;
+  }
+
+  // mixed rdm2
+  Matrix rdmk(nact_*nact_, nact_); // stores \Gamma_{k,i,j,i} + \Gamma_{k,i,i,j}
+  for (int i = 0; i != nact_; ++i)
+    for (int j = 0; j != nact_; ++j)
+      for (int k = 0; k != nact_; ++k)
+        rdmk(k+nact_*j, i) = asd_dmrg_->rdm2_av()->element(k, i, j, i) + asd_dmrg_->rdm2_av()->element(k, i, i, j);
+  shared_ptr<const DFFullDist> vav = halfa->compute_second_transform(vcoeff)->apply_J();
+  denom->ax_plus_y_va(2.0, *(rdmk % *vav->form_4index_diagonal_part()).transpose());
+  if (nclosed_) {
+    shared_ptr<const DFFullDist> vac = halfa->compute_second_transform(ccoeff)->apply_J();
+    shared_ptr<const Matrix> mcaa = vac->form_4index_diagonal_part()->transpose();
+    denom->ax_plus_y_ca(2.0, *mcaa * rdmk);
+    shared_ptr<Matrix> mcaad = mcaa->copy();
+    dgemm_("N", "N", nclosed_*nact_, nact_, nact_, -1.0, mcaa->data(), nclosed_*nact_, rdm1.data(), nact_, 1.0, mcaad->data(), nclosed_*nact_);
+    for (int i = 0; i != nact_; ++i)
+      blas::ax_plus_y_n(12.0, mcaad->element_ptr(0, i+nact_*i), nclosed_, denom->ptr_ca()+i*nclosed_);
+    
+    Matrix tmp(nao, nao);
+    shared_ptr<DFFullDist> vgaa = vaa->copy();
+    vgaa->rotate_occ1(make_shared<Matrix>(rdm1));
+    vgaa->ax_plus_y(-1.0, vaa);
+    for (int i = 0; i != nact_; ++i) {
+      dgemv_("T", nri, nao*nao, 1.0, geom_->df()->block(0)->data(), nri, vgaa->block(0)->data()+nri*(i+nact_*i), 1, 0.0, tmp.data(), 1);
+      // tmp.allreduce();
+      Matrix tmp0 = ccoeff % tmp * ccoeff;
+      blas::ax_plus_y_n(4.0, tmp0.diag().get(), nclosed_, denom->ptr_ca()+nclosed_*i);
     }
   }
 
@@ -376,6 +366,69 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
         // tmp_ao.allreduce();
         Matrix tmp_virt = vcoeff % tmp_ao * vcoeff;
         blas::ax_plus_y_n(-4.0, tmp_virt.diag().get(), nvirt_, denom->ptr_vc()+nvirt_*i);
+      }
+    }
+  }
+  
+  // active-active part
+  Matrix tmp1_act(nact_, nact_);
+  Matrix tmp2_act(nact_, nact_);
+  {
+    for (int i = 0; i != nact_; ++i)
+      for (int j = 0; j != nact_; ++j)
+        tmp2_act.element(j, i) = blas::dot_product(vaa_exc->block(0)->data()+nri*(j+nact_*i), nri, vgaa->block(0)->data()+nri*(j+nact_*i));
+  }
+  shared_ptr<const Matrix> maa = vaa_exc->apply_J()->form_4index_diagonal_part();
+  auto Gamma_u = make_shared<Matrix>(nact_*nact_, nact_);
+  auto tmp1 = Gamma_u->clone();
+  auto tmp2 = tmp1->clone();
+  vector<double> buf(Gamma_u->size());
+  for (auto& block : act_rotblocks_) {
+    const int istart = block.iorbstart;
+    const int jstart = block.jorbstart;
+    const int inorb = block.norb_i;
+    const int jnorb = block.norb_j;
+    const int offset = block.offset;
+    for (int j = 0; j != jnorb; ++j) {
+      
+      // [t,t] = \Gamma_{vw,xt}(vw|xt)
+      const double e2 = -2.0 * blas::dot_product(mo2e->element_ptr(0, jstart+j), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,jstart+j));
+
+      // Fock related part
+      for (int i = 0; i != inorb; ++i) {
+        const double e2p = -2.0 * blas::dot_product(mo2e->element_ptr(0, istart+i), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,istart+i));
+        denom->ele_aa_offset(i, inorb, j, offset) = 2.0 * (*cfock)(nclosed_+istart+i, nclosed_+istart+i) * rdm1(jstart+j, jstart+j)
+                                                           + 2.0 * (*cfock)(nclosed_+jstart+j, nclosed_+jstart+j) * rdm1(istart+i, istart+i)
+                                                           - 4.0 * (*cfock)(nclosed_+istart+i, nclosed_+jstart+j) * rdm1(istart+i, jstart+j)
+                                                           - 2.0 * fcd(istart+i, istart+i) - 2.0 * fcd(jstart+j, jstart+j)
+                                                           + e2 + e2p;
+      }
+      
+      // [tt|pq] = \Gamma_{vw,tt}(vw|pq)
+      dgemv_("T", nri, nact_*nact_, 1.0, vaa_exc->block(0)->data(), nri, vgaa->block(0)->data()+nri*(jstart+j+nact_*(jstart+j)), 1, 0.0, tmp1_act.data(), 1);
+      dgemv_("T", nri, nact_*nact_, 1.0, vgaa->block(0)->data(), nri, vaa_exc->block(0)->data()+nri*(jstart+j+nact_*(jstart+j)), 1, 1.0, tmp1_act.data(), 1);
+      blas::ax_plus_y_n(2.0, tmp1_act.diag().get()+istart, inorb, denom->ptr_aa_offset(offset)+j*inorb);
+      blas::ax_plus_y_n(-4.0, tmp2_act.data()+istart+nact_*(jstart+j), inorb, denom->ptr_aa_offset(offset)+j*inorb);
+
+      // mixed rdm2
+      blas::ax_plus_y_n(2.0, ((rdmk % *maa) + (*maa ^ rdmk)).data()+istart+nact_*(jstart+j), inorb, denom->ptr_aa_offset(offset)+j*inorb);
+      {
+        // -4.0 *  \sum_{vw} ( \Gamma_{vtwu} + \Gamma_{tvwu} ) (wt|vu)
+        copy_n(asd_dmrg_->rdm2_av()->data()+Gamma_u->size()*(jstart+j), buf.size(), buf.data());
+        blas::transpose(buf.data(), nact_*nact_, nact_, tmp1->data()); // vtw->wvt
+        vector<double> buf2(nact_*nact_);
+        for (int k = 0; k != nact_; ++k) {
+          copy_n(tmp1->element_ptr(0, k), buf2.size(), buf2.data());
+          blas::transpose(buf2.data(), nact_, nact_, tmp1->element_ptr(0, k)); // wvt->vwt
+        }
+        blas::transpose(buf.data(), nact_, nact_*nact_, tmp2->data()); // tvw->vwt
+        *Gamma_u = *tmp1 + *tmp2; // vwt
+        // mo2e part
+        copy_n(mo2e->data()+Gamma_u->size()*(jstart+j), buf.size(), buf.data());
+        blas::transpose(buf.data(), nact_*nact_, nact_, tmp1->data()); // wtv->vwt
+        auto cont_mat = make_shared<Matrix>(nact_, nact_);
+        contract(1.0, *Gamma_u, {2,0}, *tmp1, {2,1}, 0.0, *cont_mat, {0,1});
+        blas::ax_plus_y_n(-4.0, cont_mat->diag().get()+istart, inorb, denom->ptr_aa_offset(offset)+j*inorb);
       }
     }
   }
