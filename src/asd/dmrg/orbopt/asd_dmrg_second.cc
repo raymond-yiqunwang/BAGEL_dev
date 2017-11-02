@@ -593,30 +593,67 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     auto rotblock_aa = make_shared<Matrix>(inorb, jnorb);
     copy_n(trot->ptr_aa_offset(offset), bsize, rotblock_aa->data());
 
-    // Fock part
+    shared_ptr<const Matrix> rdmxj = rdm1.get_submatrix(0, jstart, nact_, jnorb);
+    shared_ptr<const Matrix> rdmxi = rdm1.get_submatrix(0, istart, nact_, inorb);
+    // Fock related part
     { // (at, uv)
-      shared_ptr<const Matrix> rdmxj = rdm1.get_submatrix(0, jstart, nact_, jnorb);
-      sigma->ax_plus_y_va_offset(2.0, *fcva * (*rdmxj) ^ (*rotblock_aa), jstart);
-      
       shared_ptr<const Matrix> fcvai = fcva->get_submatrix(0, istart, nvirt_, inorb);
-      shared_ptr<const Matrix> rdmij = rdm1.get_submatrix(istart, jstart, inorb, jnorb);
-      sigma->ax_plus_y_va_offset(4.0, *fcvai * *rotblock_aa ^ (*rdmij), istart);
+      shared_ptr<const Matrix> fcvaj = fcva->get_submatrix(0, jstart, nvirt_, jnorb);
+      shared_ptr<const Matrix> vai = va->get_submatrix(0, istart, nvirt_, inorb);
+      shared_ptr<const Matrix> vaj = va->get_submatrix(0, jstart, nvirt_, jnorb);
+      
+      sigma->ax_plus_y_va_offset(2.0, *fcva * *rdmxj ^ (*rotblock_aa), jstart);
+      
+      sigma->ax_plus_y_va(4.0, *fcvai * *rotblock_aa ^ (*rdmxj));
 
-      shared_ptr<const Matrix> rdmxi = rdm1.get_submatrix(0, istart, nact_, inorb);
       sigma->ax_plus_y_va_offset(-2.0, *fcva * *rdmxi * *rotblock_aa, jstart);
 
-      shared_ptr<const Matrix> fcvaj = fcva->get_submatrix(0, jstart, nvirt_, jnorb);
       sigma->ax_plus_y_va(-4.0, *fcvaj ^ (*rdmxi * *rotblock_aa));
-      
-      shared_ptr<const Matrix> vai = va->get_submatrix(0, istart, nvirt_, inorb);
+
+
       sigma->ax_plus_y_aa_offset(2.0, *vai % *fcva * *rdmxj, offset);
 
       sigma->ax_plus_y_aa_offset(4.0, *fcvai % *va * *rdmxj, offset);
 
-      shared_ptr<const Matrix> vaj = va->get_submatrix(0, jstart, nvirt_, jnorb);
       sigma->ax_plus_y_aa_offset(-2.0, (*fcva * *rdmxi) % *vaj, offset);
 
       sigma->ax_plus_y_aa_offset(-4.0, (*va * *rdmxi) % *fcvaj, offset);
+    }
+
+    { // (ti, uv)
+      shared_ptr<const Matrix> fccai = fcca->get_submatrix(0, istart, nclosed_, inorb);
+      shared_ptr<const Matrix> fccaj = fcca->get_submatrix(0, jstart, nclosed_, jnorb);
+      shared_ptr<const Matrix> cai = ca->get_submatrix(0, istart, nclosed_, inorb);
+      shared_ptr<const Matrix> caj = ca->get_submatrix(0, jstart, nclosed_, jnorb); // TODO compare performance with slice() etc.
+      
+      sigma->ax_plus_y_ca_offset(4.0, *fccai * *rotblock_aa, jstart);
+
+      sigma->ax_plus_y_ca_offset(-4.0, *fccaj ^ *rotblock_aa, istart);
+
+      sigma->ax_plus_y_ca_offset(2.0, *fcca * *rdmxi * *rotblock_aa, istart);
+
+      sigma->ax_plus_y_ca_offset(-2.0, *fcca * *rdmxj ^ *rotblock_aa, istart);
+
+      sigma->ax_plus_y_ca(4.0, *fccaj ^ (*rdmxi * *rotblock_aa));
+
+      sigma->ax_plus_y_ca(-4.0, *fccai * *rotblock_aa ^ *rdmxj);
+
+      
+      sigma->ax_plus_y_aa_offset(4.0, *fccai % *caj, offset);
+
+      sigma->ax_plus_y_aa_offset(-4.0, *cai % *fccaj, offset);
+
+      sigma->ax_plus_y_aa_offset(2.0, (*fcca * *rdmxi) % *caj, offset);
+
+      sigma->ax_plus_y_aa_offset(-2.0, *cai % *fcca * *rdmxj, offset);
+
+      sigma->ax_plus_y_aa_offset(4.0, (*ca * *rdmxi) % *fccaj, offset);
+
+      sigma->ax_plus_y_aa_offset(-4.0, *fccai % *ca * *rdmxj, offset);
+    }
+
+    { // (tu, vw)
+      
     }
     
   } // end of looping over blocks
