@@ -439,7 +439,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
           copy_n(tmptensor4->data(), mo2ep->size(), mo2ep->data());
         } // (ux|ty) stored in mo2ep(tu,xy)
         auto outmat = mo2ep->clone();
-        contract(1.0, *rdm_mat, {0,2}, *mo2ep, {1,2}, 0.0, outmat, {0,1});
+        contract(1.0, *rdm_mat, {0,2}, *mo2ep, {1,2}, 0.0, *outmat, {0,1});
         blas::ax_plus_y_n(-4.0, outmat->diag().get()+istart+nact_*(jstart+j), inorb, denom->ptr_aa_offset(offset)+j*inorb);
       }
     } // end of looping over second active index
@@ -579,6 +579,48 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       sigma->ax_plus_y_va(-4.0, *fcvc * *ca * rdm1);
     }
   }
+
+  // active-active part (P.S. use x to represent general active orbitals)
+  for (auto& block : act_rotblocks_) {
+    const int istart = block.iorbstart;
+    const int jstart = block.jorbstart;
+    const int inorb = block.norb_i;
+    const int jnorb = block.norb_j;
+    const int offset = block.offset;
+    const int bsize = block.size;
+
+    // cut the trial rotation vector
+    auto rotblock_aa = make_shared<Matrix>(inorb, jnorb);
+    copy_n(trot->ptr_aa_offset(offset), bsize, rotblock_aa->data());
+
+    // Fock part
+    { // (at, uv)
+      shared_ptr<const Matrix> rdmxj = rdm1.get_submatrix(0, jstart, nact_, jnorb);
+      sigma->ax_plus_y_va_offset(2.0, *fcva * (*rdmxj) ^ (*rotblock_aa), jstart);
+      
+      shared_ptr<const Matrix> fcvai = fcva->get_submatrix(0, istart, nvirt_, inorb);
+      shared_ptr<const Matrix> rdmij = rdm1.get_submatrix(istart, jstart, inorb, jnorb);
+      sigma->ax_plus_y_va_offset(4.0, *fcvai * *rotblock_aa ^ (*rdmij), istart);
+
+      shared_ptr<const Matrix> rdmxi = rdm1.get_submatrix(0, istart, nact_, inorb);
+      sigma->ax_plus_y_va_offset(-2.0, *fcva * *rdmxi * *rotblock_aa, jstart);
+
+      shared_ptr<const Matrix> fcvaj = fcva->get_submatrix(0, jstart, nvirt_, jnorb);
+      sigma->ax_plus_y_va(-4.0, *fcvaj ^ (*rdmxi * *rotblock_aa));
+      
+      shared_ptr<const Matrix> vai = va->get_submatrix(0, istart, nvirt_, inorb);
+      sigma->ax_plus_y_aa_offset(2.0, *vai % *fcva * *rdmxj, offset);
+
+      sigma->ax_plus_y_aa_offset(4.0, *fcvai % *va * *rdmxj, offset);
+
+      shared_ptr<const Matrix> vaj = va->get_submatrix(0, jstart, nvirt_, jnorb);
+      sigma->ax_plus_y_aa_offset(-2.0, (*fcva * *rdmxi) % *vaj, offset);
+
+      sigma->ax_plus_y_aa_offset(-4.0, (*va * *rdmxi) % *fcvaj, offset);
+    }
+    
+  } // end of looping over blocks
+  
   sigma->scale(0.5);
 
   return sigma;

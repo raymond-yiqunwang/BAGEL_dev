@@ -37,13 +37,15 @@ struct ASD_ActRotBlock {
     int jorbstart;
     int norb_j;
     int offset;
+    int size;
   
     ASD_ActRotBlock(std::shared_ptr<const MultiSite> multisite, const int sj, int& off) : multisite_(multisite), offset(off) {
       norb_j = multisite_->active_sizes().at(sj);
       jorbstart = accumulate(multisite_->active_sizes().begin(), multisite_->active_sizes().begin()+sj, 0);
       iorbstart = jorbstart + norb_j;
       norb_i = accumulate(multisite_->active_sizes().begin()+sj+1, multisite_->active_sizes().end(), 0);
-      off += norb_i * norb_j;
+      size = norb_i * norb_j;
+      off += size;
     }
 };
 
