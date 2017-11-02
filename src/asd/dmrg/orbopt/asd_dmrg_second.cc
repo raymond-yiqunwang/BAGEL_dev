@@ -666,12 +666,15 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         
         // used capitalized char for block2 orbitals
         shared_ptr<const Matrix> fcaaiI = fcaa->get_submatrix(istart, istart2, inorb, inorb2);
+        shared_ptr<const Matrix> fcaaiJ = fcaa->get_submatrix(istart, jstart2, inorb, jnorb2);
+        shared_ptr<const Matrix> fcaaJ = fcaa->get_submatrix(0, jstart2, nact_, jnorb2);
         auto rotblock_aa2 = rotblock_aa->clone();
         copy_n(trot->ptr_aa_offset(offset2), bsize2, rotblock_aa2->data());
         shared_ptr<const Matrix> rdmjJ = rdm1.get_submatrix(jstart, jstart2, jnorb, jnorb2);
         shared_ptr<const Matrix> rdmxJ = rdm1.get_submatrix(0, jstart2, nact_, jnorb2);
 
-        sigma->ax_plus_y_aa_offset(4.0, *fcaaiI * *rotblock_aa2 ^ rdmjJ, offset);
+        sigma->ax_plus_y_aa_offset(4.0, *fcaaiI * *rotblock_aa2 ^ *rdmjJ, offset);
+        sigma->ax_plus_y_aa_offset(-4.0, *fcaaiJ ^ (*rdmjI * *rotblock_aa2), offset);
 
         // \delta_{uv} part
         if (jstart >= istart2) {
@@ -680,12 +683,29 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
             blas::ax_plus_y_n(2.0, tmpmat->element_ptr(0, j+jstart-istart2), inorb, sigma->ptr_aa_offset(offset)+j*inorb);
           }
         }
+        
+        // \delta_{uw} part, two blocks are identical
+        if (jstart == jstart2) {
+          blas::ax_plus_y_aa_offset(-2.0, *fcaai % *rdmxi * *rotblock_aa, offset);
+        }
 
         // \delta_{tw} part
         if (jstart2 >= istart) {
           auto tmpmat = make_shared<const Matrix>((*fcaai * *rotblock_aa2) % *rdmxj);
-          for (int j = 0; i != jnorb; ++j) {
-            blas::ax_plus_y_n(2.0, tmpmat->element_ptr(0,j), jnorb2, sigma->ptr_aa_offset(offset)+jstart2-istart+j*inorb)
+          for (int j = 0; j != jnorb; ++j) {
+            blas::ax_plus_y_n(2.0, tmpmat->element_ptr(0, j), jnorb2, sigma->ptr_aa_offset(offset)+jstart2-istart+j*inorb);
+          }
+        }
+
+        // \delta_{tv} part
+        {
+          auto tmpmat = make_shared<const Matrix>(*rotblock_aa2 ^ fcaaJ * *rdmxj);
+          if (istart <= istart2) {
+            for (int j = 0; j != jnorb; ++j)
+              blas::ax_plus_y_n(-2.0, tmpmat->element_ptr(0, j), inorb2, sigma->ptr_aa_offset(offset)+j*inorb+istart2-istart);
+          } else {
+            auto tmp = tmpmat->get_submatrix(istart-istart2, 0, inorb, jnorb);
+            sigma->ax_plus_y_aa_offset(-2.0, *tmp, offset);
           }
         }
       }
