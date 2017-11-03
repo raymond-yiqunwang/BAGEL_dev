@@ -48,9 +48,10 @@ class ASD_DMRG_Second : public ASD_DMRG_OrbOpt {
                                                   const double shift, const double scale) const;
     
     // compute Hessian times trial vector
-    std::shared_ptr<ASD_DMRG_RotFile> compute_hess_trial(std::shared_ptr<const ASD_DMRG_RotFile> trot, std::shared_ptr<const DFHalfDist> hafl,
-                                                         std::shared_ptr<const DFHalfDist> halfa_JJ, std::shared_ptr<const Matrix> cfock,
-                                                         std::shared_ptr<const Matrix> afock, std::shared_ptr<const Matrix> qxr) const;
+    std::shared_ptr<ASD_DMRG_RotFile> compute_hess_trial(std::shared_ptr<const ASD_DMRG_RotFile> trot, std::shared_ptr<const DFHalfDist> half, 
+                                                         std::shared_ptr<const DFHalfDist> halfa, std::shared_ptr<const DFHalfDist> halfa_JJ, 
+                                                         std::shared_ptr<const Matrix> cfock, std::shared_ptr<const Matrix> afock,
+                                                         std::shared_ptr<const Matrix> qxr) const;
 
   public:
     ASD_DMRG_Second(std::shared_ptr<const PTree> idata, std::shared_ptr<const Reference> iref)

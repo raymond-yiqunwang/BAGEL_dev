@@ -110,7 +110,7 @@ void ASD_DMRG_Second::compute() {
 
     for (int miter = 0; miter != max_micro_iter_; ++miter) {
       
-      shared_ptr<const ASD_DMRG_RotFile> sigma = compute_hess_trial(trot, half, halfa_JJ, cfock, afock, qxr);
+      shared_ptr<const ASD_DMRG_RotFile> sigma = compute_hess_trial(trot, half, halfa, halfa_JJ, cfock, afock, qxr);
       shared_ptr<const ASD_DMRG_RotFile> residual;
       double lambda, epsilon, stepsize;
       tie(residual, lambda, epsilon, stepsize) = solver.compute_residual(trot, sigma);
@@ -459,7 +459,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::apply_denom(shared_ptr<const ASD_D
 }
 
 
-shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<const ASD_DMRG_RotFile> trot, shared_ptr<const DFHalfDist> half,
+shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<const ASD_DMRG_RotFile> trot, shared_ptr<const DFHalfDist> half, shared_ptr<const DFHalfDist> halfa,
     shared_ptr<const DFHalfDist> halfa_JJ, shared_ptr<const Matrix> cfock, shared_ptr<const Matrix> afock, shared_ptr<const Matrix> qxr) const {
 
   shared_ptr<ASD_DMRG_RotFile> sigma = trot->clone();
@@ -521,36 +521,56 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       auto rotblock_aa = make_shared<Matrix>(inorb, jnorb);
       copy_n(trot->ptr_aa_offset(offset), bsize, rotblock_aa->data());
 
-      shared_ptr<const Matrix> acoeffi = acoeff.slice_copy(istart, istart+inorb);
-      shared_ptr<const Matrix> acoeffj = acoeff.slice_copy(jstart, jstart+jnorb);
+      const MatView acoeffi = coeff_->slice(nclosed_+istart, nclosed_+istart+inorb);
+      const MatView acoeffj = coeff_->slice(nclosed_+jstart, nclosed_+jstart+jnorb);
 
-      shared_ptr<const Matrix> rdmxi = rdm1.slice_copy(istart, istart+inorb);
-      shared_ptr<const Matrix> rdmxj = rdm1.slice_copy(jstart, jstart+jnorb);
+      const MatView rdmxi = rdm1.slice(istart, istart+inorb);
+      const MatView rdmxj = rdm1.slice(jstart, jstart+jnorb);
 
-      shared_ptr<const Matrix> cai = ca->slice_copy(istart, istart+inorb);
-      shared_ptr<const Matrix> caj = ca->slice_copy(jstart, jstart+jnorb);
+      const MatView cai = ca->slice(istart, istart+inorb);
+      const MatView caj = ca->slice(jstart, jstart+jnorb);
 
       { // ai->tu
         const Matrix tcoeffv2c = vcoeff * *vc;
         auto halftv2c = geom_->df()->compute_half_transform(tcoeffv2c);
         const Matrix gtv2c = *compute_gd(halftv2c, half, ccoeff);
-        sigma->ax_plus_y_aa_offset(16.0, *acoeffi % gtv2c * *acoeff * *rdmxj , offset);
-        sigma->ax_plus-y_aa_offset(-16.0, *rdmxi % (acoeff % gtv2c * *acoeffj), offset);
+        sigma->ax_plus_y_aa_offset(16.0, acoeffi % gtv2c * acoeff * rdmxj , offset);
+        sigma->ax_plus_y_aa_offset(-16.0, rdmxi % (acoeff % gtv2c * acoeffj), offset);
       }
+
+      shared_ptr<DFHalfDist> halfxy = halfa->copy();
+      halfxy->rotate_occ(make_shared<Matrix>(rdm1));
+      const Matrix gtaa = *compute_gd(halfxy, halfa_JJ, acoeff);
 
       { // ti->uv
         const Matrix tcoeffc2a = ccoeff * *ca;
         auto halftc2a = geom_->df()->compute_half_transform(tcoeffc2a);
         const Matrix gtc2a = *compute_gd(halftc2a, halfa_JJ, acoeff);
-        sigma->ax_plus_y_aa_offset(16.0, *acoeffi % gtc2a * acoeff * rdmxj, offset);
-        sigma->ax_plus_y_aa_offset(-16.0, *rdmxi * (acoeff % gtc2a * *acoeffj), offset);
+        sigma->ax_plus_y_aa_offset(16.0, acoeffi % gtc2a * acoeff * rdmxj, offset);
+        sigma->ax_plus_y_aa_offset(-16.0, rdmxi * (acoeff % gtc2a * acoeffj), offset);
 
-        auto halftxy = halfa->rotate_occ(make_shared<Matrix>(rdm1));
-        const Matrix gtaa = *compute_gd(halftxy, halfa_JJ, acoeff);
         // \delta_{tv} part
-        sigma->ax_plus_y_aa_offset(4.0, (ccoeff % gtaa * *acoeffi) % *caj, offset);
+        sigma->ax_plus_y_aa_offset(4.0, (ccoeff % gtaa * acoeffi) % caj, offset);
         // \delta_{tu} part
-        sigma->ax_plus_y_aa_offset(-4.0, (ccoeff * *cai) % gtaa * *acoeffj, offset);
+        sigma->ax_plus_y_aa_offset(-4.0, (ccoeff * cai) % gtaa * acoeffj, offset);
+      }
+
+      { // tu->ai and uv->it
+        // \gamma_{uv} and \gamma_{vw} part
+        const Matrix tcoeffi2x = acoeffi * *rotblock_aa ^ rdmxj;
+        auto halftix = geom_->df()->compute_half_transform(tcoeffi2x);
+        const Matrix gt1 = *compute_gd(halftix, halfa_JJ, acoeff);
+        sigma->ax_plus_y_vc(16.0, vcoeff % gt1 * ccoeff);
+        sigma->ax_plus_y_ca(16.0, ccoeff % gt1 * acoeff);
+        // \gamma_{tu} and \gamma_{uw} part
+        const Matrix tcoeffj2x = acoeffj ^ (rdmxi * *rotblock_aa);
+        auto halftjx = geom_->df()->compute_half_transform(tcoeffj2x);
+        const Matrix gt2 = *compute_gd(halftjx, halfa_JJ, acoeff);
+        sigma->ax_plus_y_vc(-16.0, vcoeff % gt2 * ccoeff);
+        sigma->ax_plus_y_ca(-16.0, ccoeff % gt2 * acoeff);
+        // \delta_{tv} part
+        sigma->ax_plus_y_ca_offset(4.0, ccoeff % gtaa * acoeffi * *rotblock_aa, jstart);
+        sigma->ax_plus_y_ca_offset(-4.0, ccoeff % gtaa * acoeffj ^ *rotblock_aa, istart);
       }
     }
   }
@@ -641,60 +661,61 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       copy_n(trot->ptr_aa_offset(offset), bsize, rotblock_aa->data());
   
       // Fock related part
-      shared_ptr<const Matrix> rdmxj = rdm1.slice_copy(jstart, jstart+jnorb);
-      shared_ptr<const Matrix> rdmxi = rdm1.slice_copy(istart, istart+inorb);
+      const MatView rdmxi = rdm1.slice(istart, istart+inorb);
+      const MatView rdmxj = rdm1.slice(jstart, jstart+jnorb);
+
       { // (at, uv)
-        shared_ptr<const Matrix> fcvai = fcva->slice_copy(istart, istart+inorb);
-        shared_ptr<const Matrix> fcvaj = fcva->slice_copy(jstart, jstart+jnorb);
-        shared_ptr<const Matrix> vai = va->slice_copy(istart, istart+inorb);
-        shared_ptr<const Matrix> vaj = va->slice_copy(jstart, jstart+jnorb);
+        const MatView fcvai = fcva->slice(istart, istart+inorb);
+        const MatView fcvaj = fcva->slice(jstart, jstart+jnorb);
+        const MatView vai = va->slice(istart, istart+inorb);
+        const MatView vaj = va->slice(jstart, jstart+jnorb);
     
-        sigma->ax_plus_y_va_offset(2.0, *fcva * *rdmxj ^ *rotblock_aa, istart);
+        sigma->ax_plus_y_va_offset(2.0, *fcva * rdmxj ^ *rotblock_aa, istart);
   
-        sigma->ax_plus_y_va(4.0, *fcvai * *rotblock_aa ^ (*rdmxj));
+        sigma->ax_plus_y_va(4.0, fcvai * *rotblock_aa ^ rdmxj);
   
-        sigma->ax_plus_y_va_offset(-2.0, *fcva * *rdmxi * *rotblock_aa, jstart);
+        sigma->ax_plus_y_va_offset(-2.0, *fcva * rdmxi * *rotblock_aa, jstart);
   
-        sigma->ax_plus_y_va(-4.0, *fcvaj ^ (*rdmxi * *rotblock_aa));
+        sigma->ax_plus_y_va(-4.0, fcvaj ^ (rdmxi * *rotblock_aa));
   
-        sigma->ax_plus_y_aa_offset(2.0, *vai % *fcva * *rdmxj, offset);
+        sigma->ax_plus_y_aa_offset(2.0, vai % *fcva * rdmxj, offset);
   
-        sigma->ax_plus_y_aa_offset(4.0, *fcvai % *va * *rdmxj, offset);
+        sigma->ax_plus_y_aa_offset(4.0, fcvai % *va * rdmxj, offset);
   
-        sigma->ax_plus_y_aa_offset(-2.0, (*fcva * *rdmxi) % *vaj, offset);
+        sigma->ax_plus_y_aa_offset(-2.0, (*fcva * rdmxi) % vaj, offset);
   
-        sigma->ax_plus_y_aa_offset(-4.0, (*va * *rdmxi) % *fcvaj, offset);
+        sigma->ax_plus_y_aa_offset(-4.0, (*va * rdmxi) % fcvaj, offset);
       }
   
       if (nclosed_) { // (ti, uv)
-        shared_ptr<const Matrix> fccai = fcca->slice_copy(istart, istart+inorb);
-        shared_ptr<const Matrix> fccaj = fcca->slice_copy(jstart, jstart+jnorb);
-        shared_ptr<const Matrix> cai = ca->slice_copy(istart, istart+inorb);
-        shared_ptr<const Matrix> caj = ca->slice_copy(jstart, jstart+jnorb);
+        const MatView fccai = fcca->slice(istart, istart+inorb);
+        const MatView fccaj = fcca->slice(jstart, jstart+jnorb);
+        const MatView cai = ca->slice(istart, istart+inorb);
+        const MatView caj = ca->slice(jstart, jstart+jnorb);
         
-        sigma->ax_plus_y_ca_offset(4.0, *fccai * *rotblock_aa, jstart);
+        sigma->ax_plus_y_ca_offset(4.0, fccai * *rotblock_aa, jstart);
   
-        sigma->ax_plus_y_ca_offset(-4.0, *fccaj ^ *rotblock_aa, istart);
+        sigma->ax_plus_y_ca_offset(-4.0, fccaj ^ *rotblock_aa, istart);
   
-        sigma->ax_plus_y_ca_offset(2.0, *fcca * *rdmxi * *rotblock_aa, jstart);
+        sigma->ax_plus_y_ca_offset(2.0, *fcca * rdmxi * *rotblock_aa, jstart);
   
-        sigma->ax_plus_y_ca_offset(-2.0, *fcca * *rdmxj ^ *rotblock_aa, istart);
+        sigma->ax_plus_y_ca_offset(-2.0, *fcca * rdmxj ^ *rotblock_aa, istart);
   
-        sigma->ax_plus_y_ca(4.0, *fccaj ^ (*rdmxi * *rotblock_aa));
+        sigma->ax_plus_y_ca(4.0, fccaj ^ (rdmxi * *rotblock_aa));
   
-        sigma->ax_plus_y_ca(-4.0, *fccai * *rotblock_aa ^ *rdmxj);
+        sigma->ax_plus_y_ca(-4.0, fccai * *rotblock_aa ^ rdmxj);
   
-        sigma->ax_plus_y_aa_offset(4.0, *fccai % *caj, offset);
+        sigma->ax_plus_y_aa_offset(4.0, fccai % caj, offset);
   
-        sigma->ax_plus_y_aa_offset(-4.0, *cai % *fccaj, offset);
+        sigma->ax_plus_y_aa_offset(-4.0, cai % fccaj, offset);
   
-        sigma->ax_plus_y_aa_offset(2.0, (*fcca * *rdmxi) % *caj, offset);
+        sigma->ax_plus_y_aa_offset(2.0, (*fcca * rdmxi) % caj, offset);
   
-        sigma->ax_plus_y_aa_offset(-2.0, (*cai % *fcca) * *rdmxj, offset);
+        sigma->ax_plus_y_aa_offset(-2.0, (cai % *fcca) * rdmxj, offset);
   
-        sigma->ax_plus_y_aa_offset(4.0, (*ca * *rdmxi) % *fccaj, offset);
+        sigma->ax_plus_y_aa_offset(4.0, (*ca * rdmxi) % fccaj, offset);
   
-        sigma->ax_plus_y_aa_offset(-4.0, *fccai % *ca * *rdmxj, offset);
+        sigma->ax_plus_y_aa_offset(-4.0, fccai % *ca * rdmxj, offset);
       }
   
       { // (tu, vw)
@@ -714,10 +735,10 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
           copy_n(trot->ptr_aa_offset(offset2), bsize2, rotblock_aa2->data());
   
           // used capitalized char for block2 orbitals
+          const MatView fcaaI = fcaa->slice(istart2, istart2+inorb2);
+          const MatView fcaaJ = fcaa->slice(jstart2, jstart2+jnorb2);
           shared_ptr<const Matrix> fcaaiI = fcaa->get_submatrix(istart, istart2, inorb, inorb2);
           shared_ptr<const Matrix> fcaaiJ = fcaa->get_submatrix(istart, jstart2, inorb, jnorb2);
-          shared_ptr<const Matrix> fcaaI = fcaa->slice_copy(istart2, istart2+inorb2);
-          shared_ptr<const Matrix> fcaaJ = fcaa->slice_copy(jstart2, jstart2+jnorb2);
           shared_ptr<const Matrix> fcaajI = fcaa->get_submatrix(jstart, istart2, jnorb, inorb2);
           shared_ptr<const Matrix> fcaajJ = fcaa->get_submatrix(jstart, jstart2, jnorb, jnorb2);
           
@@ -725,8 +746,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
           shared_ptr<const Matrix> rdmiJ = rdm1.get_submatrix(istart, jstart2, inorb, jnorb2);
           shared_ptr<const Matrix> rdmjI = rdm1.get_submatrix(jstart, istart2, jnorb, inorb2);
           shared_ptr<const Matrix> rdmjJ = rdm1.get_submatrix(jstart, jstart2, jnorb, jnorb2);
-          shared_ptr<const Matrix> rdmxI = rdm1.slice_copy(istart2, istart2+inorb2);
-          shared_ptr<const Matrix> rdmxJ = rdm1.slice_copy(jstart2, jstart2+jnorb2);
+          const MatView rdmxI = rdm1.slice(istart2, istart2+inorb2);
+          const MatView rdmxJ = rdm1.slice(jstart2, jstart2+jnorb2);
   
           sigma->ax_plus_y_aa_offset(4.0, *fcaaiI * *rotblock_aa2 ^ *rdmjJ, offset);
           sigma->ax_plus_y_aa_offset(-4.0, *fcaaiJ ^ (*rdmjI * *rotblock_aa2), offset);
@@ -735,27 +756,27 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
   
           // \delta_{uv} part
           if (jstart >= istart2) {
-            auto tmpmat = make_shared<const Matrix>((*fcaai % *rdmxJ ^ *rotblock_aa2) + (*rdmxi % *fcaaJ ^ *rotblock_aa2));
+            auto tmpmat = make_shared<const Matrix>((*fcaai % rdmxJ ^ *rotblock_aa2) + (rdmxi % fcaaJ ^ *rotblock_aa2));
             for (int j = 0; j != jnorb; ++j)
               blas::ax_plus_y_n(2.0, tmpmat->element_ptr(0, j+jstart-istart2), inorb, sigma->ptr_aa_offset(offset)+j*inorb);
           }
           
           // \delta_{uw} part, two blocks are identical
           if (jstart == jstart2) {
-            auto tmpmat = make_shared<const Matrix>(*fcaai % *rdmxI * *rotblock_aa + *rdmxi % *fcaaI * *rotblock_aa);
+            auto tmpmat = make_shared<const Matrix>(*fcaai % rdmxI * *rotblock_aa + rdmxi % fcaaI * *rotblock_aa);
             sigma->ax_plus_y_aa_offset(-2.0, *tmpmat, offset);
           }
   
           // \delta_{tw} part
           if (jstart2 >= istart) {
-            auto tmpmat = make_shared<const Matrix>((*fcaaI * *rotblock_aa2) % *rdmxj + (*rdmxI * *rotblock_aa2) % *fcaaj);
+            auto tmpmat = make_shared<const Matrix>((fcaaI * *rotblock_aa2) % rdmxj + (rdmxI * *rotblock_aa2) % *fcaaj);
             for (int j = 0; j != jnorb; ++j)
               blas::ax_plus_y_n(2.0, tmpmat->element_ptr(0, j), jnorb2, sigma->ptr_aa_offset(offset)+j*inorb+jstart2-istart);
           }
   
           // \delta_{tv} part
           {
-            auto tmpmat = make_shared<const Matrix>((*rotblock_aa2 ^ *fcaaJ * *rdmxj) + (*rotblock_aa2 ^ *rdmxJ * *fcaaj));
+            auto tmpmat = make_shared<const Matrix>((*rotblock_aa2 ^ fcaaJ * rdmxj) + (*rotblock_aa2 ^ rdmxJ * *fcaaj));
             if (istart < istart2) {
               for (int j = 0; j != jnorb; ++j)
                 blas::ax_plus_y_n(-2.0, tmpmat->element_ptr(0, j), inorb2, sigma->ptr_aa_offset(offset)+j*inorb+istart2-istart);
