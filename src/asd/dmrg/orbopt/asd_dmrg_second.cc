@@ -580,7 +580,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     }
   }
 
-  // active-active part (P.S. use x to represent general active orbitals)
+  // active-active part (P.S. use x to represent arbitrary active orbitals)
   for (auto& block : act_rotblocks_) {
     const int istart = block.iorbstart;
     const int jstart = block.jorbstart;
@@ -593,23 +593,22 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     auto rotblock_aa = make_shared<Matrix>(inorb, jnorb);
     copy_n(trot->ptr_aa_offset(offset), bsize, rotblock_aa->data());
 
-    shared_ptr<const Matrix> rdmxj = rdm1.get_submatrix(0, jstart, nact_, jnorb);
-    shared_ptr<const Matrix> rdmxi = rdm1.get_submatrix(0, istart, nact_, inorb);
     // Fock related part
+    shared_ptr<const Matrix> rdmxj = rdm1.slice_copy(jstart, jstart+jnorb);
+    shared_ptr<const Matrix> rdmxi = rdm1.slice_copy(istart, istart+inorb);
     { // (at, uv)
-      shared_ptr<const Matrix> fcvai = fcva->get_submatrix(0, istart, nvirt_, inorb);
-      shared_ptr<const Matrix> fcvaj = fcva->get_submatrix(0, jstart, nvirt_, jnorb);
-      shared_ptr<const Matrix> vai = va->get_submatrix(0, istart, nvirt_, inorb);
-      shared_ptr<const Matrix> vaj = va->get_submatrix(0, jstart, nvirt_, jnorb);
-      
-      sigma->ax_plus_y_va_offset(2.0, *fcva * *rdmxj ^ (*rotblock_aa), jstart);
-      
+      shared_ptr<const Matrix> fcvai = fcva->slice_copy(istart, istart+inorb);
+      shared_ptr<const Matrix> fcvaj = fcva->slice_copy(jstart, jstart+jnorb);
+      shared_ptr<const Matrix> vai = va->slice_copy(istart, istart+inorb);
+      shared_ptr<const Matrix> vaj = va->slice_copy(jstart, jstart+jnorb);
+  
+      sigma->ax_plus_y_va_offset(2.0, *fcva * *rdmxj ^ *rotblock_aa, istart);
+
       sigma->ax_plus_y_va(4.0, *fcvai * *rotblock_aa ^ (*rdmxj));
 
       sigma->ax_plus_y_va_offset(-2.0, *fcva * *rdmxi * *rotblock_aa, jstart);
 
       sigma->ax_plus_y_va(-4.0, *fcvaj ^ (*rdmxi * *rotblock_aa));
-
 
       sigma->ax_plus_y_aa_offset(2.0, *vai % *fcva * *rdmxj, offset);
 
