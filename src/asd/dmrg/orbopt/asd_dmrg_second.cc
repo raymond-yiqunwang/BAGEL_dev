@@ -620,16 +620,16 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     }
 
     { // (ti, uv)
-      shared_ptr<const Matrix> fccai = fcca->get_submatrix(0, istart, nclosed_, inorb);
-      shared_ptr<const Matrix> fccaj = fcca->get_submatrix(0, jstart, nclosed_, jnorb);
-      shared_ptr<const Matrix> cai = ca->get_submatrix(0, istart, nclosed_, inorb);
-      shared_ptr<const Matrix> caj = ca->get_submatrix(0, jstart, nclosed_, jnorb); // TODO compare performance with slice() etc.
+      shared_ptr<const Matrix> fccai = fcca->slice_copy(istart, istart+inorb);
+      shared_ptr<const Matrix> fccaj = fcca->slice_copy(jstart, jstart+jnorb);
+      shared_ptr<const Matrix> cai = ca->slice_copy(istart, istart+inorb);
+      shared_ptr<const Matrix> caj = ca->slice_copy(jstart, jstart+jnorb);
       
       sigma->ax_plus_y_ca_offset(4.0, *fccai * *rotblock_aa, jstart);
 
       sigma->ax_plus_y_ca_offset(-4.0, *fccaj ^ *rotblock_aa, istart);
 
-      sigma->ax_plus_y_ca_offset(2.0, *fcca * *rdmxi * *rotblock_aa, istart);
+      sigma->ax_plus_y_ca_offset(2.0, *fcca * *rdmxi * *rotblock_aa, jstart);
 
       sigma->ax_plus_y_ca_offset(-2.0, *fcca * *rdmxj ^ *rotblock_aa, istart);
 
@@ -637,7 +637,6 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
 
       sigma->ax_plus_y_ca(-4.0, *fccai * *rotblock_aa ^ *rdmxj);
 
-      
       sigma->ax_plus_y_aa_offset(4.0, *fccai % *caj, offset);
 
       sigma->ax_plus_y_aa_offset(-4.0, *cai % *fccaj, offset);
