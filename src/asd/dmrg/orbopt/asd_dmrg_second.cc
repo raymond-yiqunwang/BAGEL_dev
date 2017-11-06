@@ -608,14 +608,16 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       sigma->ax_plus_y_va_offset(2.0, qvaj ^ *rotblock_aa, istart);
       sigma->ax_plus_y_aa_offset(2.0, vai % qvaj, offset);
 
-      const MatView qcai = qca->slice(istart, istart+inorb);
-      const MatView qcaj = qca->slice(jstart, jstart+jnorb);
-      const MatView caj = ca->slice(jstart, jstart+jnorb);
-      const MatView cai = ca->slice(istart, istart+inorb);
-      sigma->ax_plus_y_ca_offset(2.0, qcai * *rotblock_aa, jstart);
-      sigma->ax_plus_y_ca_offset(-2.0, qcaj ^ *rotblock_aa, istart);
-      sigma->ax_plus_y_aa_offset(2.0, qcai % caj, offset);
-      sigma->ax_plus_y_aa_offset(-2.0, cai % qcaj, offset);
+      if (nclosed_) {
+        const MatView qcai = qca->slice(istart, istart+inorb);
+        const MatView qcaj = qca->slice(jstart, jstart+jnorb);
+        const MatView caj = ca->slice(jstart, jstart+jnorb);
+        const MatView cai = ca->slice(istart, istart+inorb);
+        sigma->ax_plus_y_ca_offset(2.0, qcai * *rotblock_aa, jstart);
+        sigma->ax_plus_y_ca_offset(-2.0, qcaj ^ *rotblock_aa, istart);
+        sigma->ax_plus_y_aa_offset(2.0, qcai % caj, offset);
+        sigma->ax_plus_y_aa_offset(-2.0, cai % qcaj, offset);
+      }
 
       for (auto& block2 : act_rotblocks_) {
         const int istart2 = block2.iorbstart;
@@ -670,7 +672,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         }
       } // end of looping over block2
     } // end of looping over block
-  }
+  } // end of Qvec part
 
   // Q' and Q'' part
   {
@@ -686,7 +688,61 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     sigma->ax_plus_y_va(4.0, vcoeff % (*qp + *qpp));
     if (nclosed_)
       sigma->ax_plus_y_ca(-4.0, ccoeff % (*qp + *qpp));
-  }
+
+    // active-active part
+    for (auto& block : act_rotblocks_) {
+      const int istart = block.iorbstart;
+      const int jstart = block.jorbstart;
+      const int inorb = block.norb_i;
+      const int jnorb = block.norb_j;
+      const int offset = block.offset;
+      const int bsize = block.size;
+      cout << istart << endl;
+
+      auto rotblock_aa = make_shared<Matrix>(inorb, jnorb);
+      copy_n(trot->ptr_aa_offset(offset), bsize, rotblock_aa->data());
+
+      const MatView acoeffi = coeff_->slice(nclosed_+istart, nclosed_+istart+inorb);
+      const MatView acoeffj = coeff_->slice(nclosed_+jstart, nclosed_+jstart+jnorb);
+
+      // (at, uv) term, uv->at
+      {
+        auto rotmat2i = make_shared<Matrix>(nact_, inorb);
+        for (int i = 0; i != inorb; ++i)
+          *rotmat2i->element_ptr(istart+i, i) = 1.0;
+        auto rotmat2j = make_shared<Matrix>(nact_, jnorb);
+        for (int j = 0; j != jnorb; ++j)
+          *rotmat2j->element_ptr(jstart+j, j) = 1.0;
+        shared_ptr<DFFullDist> fullaaD_2i = fullaaD->copy();
+        shared_ptr<DFFullDist> fullaaD_2j = fullaaD->copy();
+        fullaaD_2i->rotate_occ1(rotmat2i);
+        fullaaD_2j->rotate_occ1(rotmat2j);
+        const Matrix tcoeff2i = acoeffj ^ *rotblock_aa;
+        const Matrix tcoeff2j = acoeffi * *rotblock_aa;
+        shared_ptr<const DFHalfDist> halfta_2i = geom_->df()->compute_half_transform(tcoeff2i);
+        shared_ptr<const DFHalfDist> halfta_2j = geom_->df()->compute_half_transform(tcoeff2j);
+        shared_ptr<DFFullDist> fullta_2i = halfta_2i->compute_second_transform(acoeff);
+        shared_ptr<DFFullDist> fullta_2j = halfta_2j->compute_second_transform(acoeff);
+        fullta_2i->rotate_occ1(rotmat2i->transpose());
+        fullta_2j->rotate_occ1(rotmat2j->transpose());
+        shared_ptr<const DFFullDist> fulltas_2i = fullta_2i->swap();
+        shared_ptr<const DFFullDist> fulltas_2j = fullta_2j->swap();
+        fullta_2i->ax_plus_y(1.0, fulltas_2i);
+        fullta_2j->ax_plus_y(1.0, fulltas_2j);
+        shared_ptr<const DFFullDist> fulltaD_2i = fullta_2i->apply_2rdm(asd_dmrg_->rdm2_av());
+        shared_ptr<const DFFullDist> fulltaD_2j = fullta_2j->apply_2rdm(asd_dmrg_->rdm2_av());
+        
+        shared_ptr<const Matrix> qp1 = halfa_JJ->form_2index(fulltaD_2i, 1.0);
+        shared_ptr<const Matrix> qp2 = halfa_JJ->form_2index(fulltaD_2j, 1.0); // TODO see if you should combine qp1 and qp2
+        shared_ptr<const Matrix> qpp1 = halfta_2i->form_2index(fullaaD_2i, 1.0);
+        shared_ptr<const Matrix> qpp2 = halfta_2j->form_2index(fullaaD_2j, 1.0);
+
+        sigma->ax_plus_y_va(4.0, vcoeff % (*qp1 + *qpp1 - *qp2 - *qpp2));
+      }
+
+      
+    } // end of looping over block
+  } // end of Q' and Q'' part
 
   // Fock related terms
   {
