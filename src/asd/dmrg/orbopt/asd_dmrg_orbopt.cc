@@ -56,8 +56,9 @@ void ASD_DMRG_OrbOpt::common_init() {
   // initialize active-active rotation parameters
   int offset = 0;
   for (int sj = 0; sj != nsites_-1; ++sj)
-    act_rotblocks_.emplace_back(multisite_, sj, offset);
+    act_rotblocks_.emplace_back(multisite_->active_sizes(), sj, offset);
   naa_ = offset;
+  cout << endl << "size of active-active : " << naa_ << endl;
 
   nstate_ = input_->get<int>("opt_nstate", 1);
   max_iter_ = input_->get<int>("opt_max_iter", 50);

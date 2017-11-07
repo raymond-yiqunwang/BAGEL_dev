@@ -25,8 +25,6 @@
 #ifndef BAGEL_ASD_DMRG_ORBOPT_ACTROTBLOCK_H
 #define BAGEL_ASD_DMRG_ORBOPT_ACTROTBLOCK_H
 
-#include <src/asd/multisite/multisite.h>
-
 namespace bagel {
 
 struct ASD_ActRotBlock {
@@ -37,11 +35,11 @@ struct ASD_ActRotBlock {
     int offset;
     int size;
   
-    ASD_ActRotBlock(std::shared_ptr<const MultiSite> multisite, const int sj, int& off) : offset(off) {
-      norb_j = multisite->active_sizes().at(sj);
-      jorbstart = accumulate(multisite->active_sizes().begin(), multisite->active_sizes().begin()+sj, 0);
+    ASD_ActRotBlock(std::vector<int> active_sizes, const int sj, int& off) : offset(off) {
+      norb_j = active_sizes.at(sj);
+      jorbstart = accumulate(active_sizes.begin(), active_sizes.begin()+sj, 0);
       iorbstart = jorbstart + norb_j;
-      norb_i = accumulate(multisite->active_sizes().begin()+sj+1, multisite->active_sizes().end(), 0);
+      norb_i = accumulate(active_sizes.begin()+sj+1, active_sizes.end(), 0);
       size = norb_i * norb_j;
       off += size;
     }
