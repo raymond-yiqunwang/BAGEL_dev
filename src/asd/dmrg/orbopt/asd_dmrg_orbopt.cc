@@ -58,7 +58,6 @@ void ASD_DMRG_OrbOpt::common_init() {
   for (int sj = 0; sj != nsites_-1; ++sj)
     act_rotblocks_.emplace_back(multisite_->active_sizes(), sj, offset);
   naa_ = offset;
-  cout << endl << "size of active-active : " << naa_ << endl;
 
   nstate_ = input_->get<int>("opt_nstate", 1);
   max_iter_ = input_->get<int>("opt_max_iter", 50);
@@ -72,6 +71,7 @@ void ASD_DMRG_OrbOpt::common_init() {
   cout << "    * nvirt    : " << setw(6) << nvirt_ << endl << endl;
 
   muffle_ = make_shared<Muffle>("asd_dmrg_orbopt.log");
+  muffle_->unmute();
 
   // DMRG with RHF orbitals
   asd_dmrg_ = make_shared<RASD>(asd_info_, multisite_);
@@ -98,7 +98,7 @@ void ASD_DMRG_OrbOpt::print_iteration(const int iter, const vector<double>& ener
                  << setw(10) << scientific << setprecision(2) << (i==0 ? error : 0.0) << endl;
     ++i;
   }
-  muffle_->mute();
+  //muffle_->mute();
 }
 
 

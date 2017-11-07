@@ -45,7 +45,7 @@ void ASD_DMRG_Second::compute() {
   casscf->compute();
 #endif
 
-  muffle_->mute();
+  //muffle_->mute();
   for (int iter = 0; iter != max_iter_; ++iter) {
     
     // first obtain RDM from ASD_DMRG
@@ -56,15 +56,6 @@ void ASD_DMRG_Second::compute() {
       // convert to natrual orbitals
       auto natorb = asd_dmrg_->natorb_convert();
       coeff_ = update_coeff(coeff_, natorb.first);
-      // debugging
-      if (iter < 6) {  
-        auto rdm1 = make_shared<Matrix>(nact_, nact_);
-        copy_n(asd_dmrg_->rdm1_av()->data(), rdm1->size(), rdm1->data());
-        auto diff_rdm = make_shared<Matrix>(*(casscf->cfock0().at(iter)) - *rdm1);
-        cout << "rdm1 diff rms = " << setw(16) << setprecision(12) << diff_rdm->rms() << endl;
-        auto diff_coeff = make_shared<Matrix>(*(casscf->coeff0().at(iter)) - *coeff_);
-        cout << "coeff diff rms = " << setw(16) << setprecision(12) << diff_coeff->rms() << endl;
-      }
       energy_ = asd_dmrg_->energies();
     }
     
@@ -100,14 +91,6 @@ void ASD_DMRG_Second::compute() {
     shared_ptr<ASD_DMRG_RotFile> trot = apply_denom(grad, denom, 0.001, 1.0);
     trot->normalize();
 
-    // debugging
-    if (iter < 6) {
-      auto casscf_trot = trot->clone();
-      copy_n(casscf->trot0().at(iter)->data(), casscf_trot->size(), casscf_trot->data());
-      auto diff_trot = make_shared<ASD_DMRG_RotFile>(*casscf_trot - *trot);
-      cout << "  * trot diff rms = " << setw(16) << setprecision(12) << diff_trot->rms() << endl;
-    }
-
     for (int miter = 0; miter != max_micro_iter_; ++miter) {
       
       shared_ptr<const ASD_DMRG_RotFile> sigma = compute_hess_trial(trot, half, halfa, halfa_JJ, cfock, afock, qxr);
@@ -121,7 +104,7 @@ void ASD_DMRG_Second::compute() {
            <<       "   lamb: " << setw(8) << setprecision(2) << scientific << lambda
            <<       "   eps : " << setw(8) << setprecision(2) << scientific << epsilon
            <<       "   step: " << setw(8) << setprecision(2) << scientific << stepsize << endl;
-      muffle_->mute();
+      //muffle_->mute();
       if (err < max(thresh_micro_, stepsize*thresh_microstep_))
         break;
 
@@ -145,34 +128,6 @@ void ASD_DMRG_Second::compute() {
       blas::scale_n(tau > 1.0e-15 ? sin(tau)/tau : 1.0, ws.element_ptr(0,i), ws.ndim());
     }
     const Matrix R = (wc ^ w) + (ws ^ w) * *a;
-
-    // debugging
-    if (iter < 6) {
-      //auto diff_coeff = make_shared<Matrix>(*(casscf->coeff0().at(iter)) - *coeff_);
-      //cout << "coeff diff rms = " << setw(16) << setprecision(12) << diff_coeff->rms() << endl;
-
-      //auto diff_cfock = make_shared<Matrix>(*(casscf->cfock0().at(iter)) - *cfock);
-      //cout << "cfock diff rms = " << setw(16) << setprecision(12) << diff_cfock->rms() << endl;
-
-      auto diff_afock = make_shared<Matrix>(*(casscf->afock0().at(iter)) - *afock);
-      cout << "afock diff rms = " << setw(16) << setprecision(12) << diff_afock->rms() << endl;
-
-      auto diff_qxr = make_shared<Matrix>(*(casscf->qxr0().at(iter)) - *qxr);
-      cout << "qxr diff rms = " << setw(16) << setprecision(12) << diff_qxr->rms() << endl;
-
-      auto casscf_grad = grad->clone();
-      copy_n(casscf->grad0().at(iter)->data(), casscf_grad->size(), casscf_grad->data());
-      auto diff_grad = make_shared<ASD_DMRG_RotFile>(*casscf_grad - *grad);
-      cout << "grad diff rms = " << setw(16) << setprecision(12) << diff_grad->rms() << endl;
-
-      auto casscf_denom = denom->clone();
-      copy_n(casscf->denom0().at(iter)->data(), casscf_denom->size(), casscf_denom->data());
-      auto diff_denom = make_shared<ASD_DMRG_RotFile>(*casscf_denom - *denom);
-      cout << "denom diff rms = " << setw(16) << setprecision(12) << diff_denom->rms() << endl;
-
-      auto diff_R = make_shared<Matrix>(*(casscf->R0().at(iter)) - R);
-      cout << "R diff rms = " << setw(16) << setprecision(12) << diff_R->rms() << endl;
-    }
 
     coeff_ = make_shared<Coeff>(*coeff_ * R);
 
@@ -547,7 +502,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         auto halftc2a = geom_->df()->compute_half_transform(tcoeffc2a);
         const Matrix gtc2a = *compute_gd(halftc2a, halfa_JJ, acoeff);
         sigma->ax_plus_y_aa_offset(16.0, acoeffi % gtc2a * acoeff * rdmxj, offset);
-        sigma->ax_plus_y_aa_offset(-16.0, rdmxi * (acoeff % gtc2a * acoeffj), offset);
+        sigma->ax_plus_y_aa_offset(-16.0, rdmxi % (acoeff % gtc2a * acoeffj), offset);
 
         // \delta_{tv} part
         sigma->ax_plus_y_aa_offset(4.0, (ccoeff % gtaa * acoeffi) % caj, offset);
@@ -630,12 +585,11 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         auto rotblock2_aa = make_shared<Matrix>(inorb2, jnorb2);
         copy_n(trot->ptr_aa_offset(offset2), bsize2, rotblock2_aa->data());
 
-        shared_ptr<const Matrix> qaajI = qaa->get_submatrix(jstart, istart2, jnorb, inorb2);
-         
         // \delta_{vu} part
         if (jstart >= istart2) {
           shared_ptr<const Matrix> qaaiJ = qaa->get_submatrix(istart, jstart2, inorb, jnorb2);
-          auto tmpmat = make_shared<const Matrix>((*qaaiJ ^ *rotblock2_aa) + *((*rotblock2_aa * *qaajI).transpose()));
+          shared_ptr<const Matrix> qaaJi = qaa->get_submatrix(jstart2, istart, jnorb2, inorb);
+          auto tmpmat = make_shared<const Matrix>((*qaaiJ ^ *rotblock2_aa) + *((*rotblock2_aa * *qaaJi).transpose()));
           for (int j = 0; j != jnorb; ++j)
             blas::ax_plus_y_n(2.0, tmpmat->element_ptr(0, j+jstart-istart2), inorb, sigma->ptr_aa_offset(offset)+j*inorb);
         }
@@ -643,6 +597,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         // \delta_{tw} part
         if (jstart2 >= istart) {
           shared_ptr<const Matrix> qaaIj = qaa->get_submatrix(istart2, jstart, inorb2, jnorb);
+          shared_ptr<const Matrix> qaajI = qaa->get_submatrix(jstart, istart2, jnorb, inorb2);
           auto tmpmat = make_shared<const Matrix>((*rotblock2_aa % *qaaIj) + *((*qaajI * *rotblock2_aa).transpose()));
           for (int j = 0; j != jnorb; ++j)
             blas::ax_plus_y_n(2.0, tmpmat->element_ptr(0, j), jnorb2, sigma->ptr_aa_offset(offset)+j*inorb+jstart2-istart);
@@ -697,7 +652,6 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       const int jnorb = block.norb_j;
       const int offset = block.offset;
       const int bsize = block.size;
-      cout << istart << endl;
 
       auto rotblock_aa = make_shared<Matrix>(inorb, jnorb);
       copy_n(trot->ptr_aa_offset(offset), bsize, rotblock_aa->data());
@@ -785,10 +739,10 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
           const MatView acoeffi2 = coeff_->slice(nclosed_+istart2, nclosed_+istart2+inorb2);
           const MatView acoeffj2 = coeff_->slice(nclosed_+jstart2, nclosed_+jstart2+jnorb2);
 
-          auto rotmat2i2 = make_shared<Matrix>(nact_, inorb);
+          auto rotmat2i2 = make_shared<Matrix>(nact_, inorb2);
           for (int i = 0; i != inorb2; ++i)
             *rotmat2i2->element_ptr(istart2+i, i) = 1.0;
-          auto rotmat2j2 = make_shared<Matrix>(nact_, inorb2);
+          auto rotmat2j2 = make_shared<Matrix>(nact_, jnorb2);
           for (int j = 0; j != jnorb2; ++j)
             *rotmat2j2->element_ptr(jstart2+j, j) = 1.0; 
           
@@ -818,7 +772,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
 
             auto fullaaD2 = fullaaD->copy();
             fullaaD2->rotate_occ1(rotmat2i);
-            fullaaD2->swap();
+            fullaaD2 = fullaaD2->swap();
             full_wt = fullaaD2->copy();
             full_wt->rotate_occ1(rotmat2j2);
             full_wu = halfav2w->compute_second_transform(acoeffj);
@@ -848,7 +802,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
             full_yu = full_uy->swap();
             auto full_ty = fullaa->copy();
             full_ty->rotate_occ1(rotmat2i);
-            full_yt = full_yt->swap();
+            full_yt = full_ty->swap();
             tmpout = full_yt->form_2index(full_yu, 1.0);
             assert(tmpout->size() == qp_aa->size());
             copy_n(tmpout->data(), tmpout->size(), qp_aa->data());
