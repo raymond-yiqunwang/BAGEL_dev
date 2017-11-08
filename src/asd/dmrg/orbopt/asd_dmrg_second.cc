@@ -284,7 +284,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
       
       Matrix tmp(nao, nao);
       shared_ptr<DFFullDist> vgaa = vaa->copy();
-      vgaa->rotate_occ1(make_shared<Matrix>(rdm1));
+      vgaa = vgaa->transform_occ1(make_shared<Matrix>(rdm1));
       vgaa->ax_plus_y(-1.0, vaa);
       for (int i = 0; i != nact_; ++i) {
         dgemv_("T", nri, nao*nao, 1.0, geom_->df()->block(0)->data(), nri, vgaa->block(0)->data()+nri*(i+nact_*i), 1, 0.0, tmp.data(), 1);
@@ -455,7 +455,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
   // g(t_va - t_ca)
   if (nclosed_) {
     shared_ptr<DFHalfDist> halftad = halfta->copy();
-    halftad->rotate_occ(make_shared<Matrix>(rdm1));
+    halftad = halftad->transform_occ(make_shared<Matrix>(rdm1));
     const Matrix gt = *compute_gd(halftad, halfa_JJ, acoeff);
     sigma->ax_plus_y_ca(16.0, ccoeff % gt * acoeff);
     sigma->ax_plus_y_vc(16.0, vcoeff % gt * ccoeff);
@@ -492,7 +492,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       }
 
       shared_ptr<DFHalfDist> halfxy = halfa->copy();
-      halfxy->rotate_occ(make_shared<Matrix>(rdm1));
+      halfxy = halfxy->transform_occ(make_shared<Matrix>(rdm1));
       const Matrix gtaa = *compute_gd(halfxy, halfa_JJ, acoeff);
 
       { // ti->uv
@@ -673,8 +673,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         shared_ptr<const DFHalfDist> halfta_2j = geom_->df()->compute_half_transform(tcoeff2j);
         shared_ptr<DFFullDist> fullta_2i = halfta_2i->compute_second_transform(acoeff);
         shared_ptr<DFFullDist> fullta_2j = halfta_2j->compute_second_transform(acoeff);
-        fullta_2i->rotate_occ1(rotmat2i->transpose());
-        fullta_2j->rotate_occ1(rotmat2j->transpose());
+        fullta_2i = fullta_2i->transform_occ1(rotmat2i->transpose());
+        fullta_2j = fullta_2j->transform_occ1(rotmat2j->transpose());
         shared_ptr<const DFFullDist> fulltas_2i = fullta_2i->swap();
         shared_ptr<const DFFullDist> fulltas_2j = fullta_2j->swap();
         fullta_2i->ax_plus_y(1.0, fulltas_2i);
@@ -687,8 +687,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         
         shared_ptr<DFFullDist> fullaaD_2i = fullaaD->copy();
         shared_ptr<DFFullDist> fullaaD_2j = fullaaD->copy();
-        fullaaD_2i->rotate_occ1(rotmat2i);
-        fullaaD_2j->rotate_occ1(rotmat2j);
+        fullaaD_2i = fullaaD_2i->transform_occ1(rotmat2i);
+        fullaaD_2j = fullaaD_2j->transform_occ1(rotmat2j);
         shared_ptr<const Matrix> qpp2i = halfta_2i->form_2index(fullaaD_2i, 1.0);
         shared_ptr<const Matrix> qpp2j = halfta_2j->form_2index(fullaaD_2j, 1.0);
 
@@ -705,10 +705,10 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         shared_ptr<const Matrix> Qpp = make_shared<Matrix>(*Qpp1 - *Qpp2);
 
         auto tmp_2i = fulltaD->copy();
-        tmp_2i->rotate_occ1(make_shared<Matrix>(acoeffi));
+        tmp_2i = tmp_2i->transform_occ1(make_shared<Matrix>(acoeffi));
         shared_ptr<const DFFullDist> fullttaD_2i = tmp_2i->swap();
         auto tmp_2j = fulltaD->copy();
-        tmp_2j->rotate_occ1(make_shared<Matrix>(acoeffj));
+        tmp_2j = tmp_2j->transform_occ1(make_shared<Matrix>(acoeffj));
         shared_ptr<const DFFullDist> fullttaD_2j = tmp_2j->swap();
         shared_ptr<const DFFullDist> fullaa_2i = halfa_JJ->compute_second_transform(acoeffi);
         shared_ptr<const DFFullDist> fullaa_2j = halfa_JJ->compute_second_transform(acoeffj);
@@ -751,17 +751,17 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
             shared_ptr<DFFullDist> full_wu;
             shared_ptr<DFFullDist> full_wt;
             auto fullaaD1 = fullaaD->copy();
-            fullaaD1->rotate_occ1(rotmat2j);
+            fullaaD1 = fullaaD1->transform_occ1(rotmat2j);
             fullaaD1 = fullaaD1->swap();
             full_wu = fullaaD1->copy();
-            full_wu->rotate_occ1(rotmat2j2);
+            full_wu = full_wu->transform_occ1(rotmat2j2);
             full_wt = halfav2w->compute_second_transform(acoeffi);
             tmpout = full_wt->form_2index(full_wu, 1.0);
             assert(tmpout->size() == tmpout->size());
             copy_n(tmpout->data(), tmpout->size(), qpp_aa->data());
 
             full_wu = fullaaD1->copy();
-            full_wu->rotate_occ1(make_shared<Matrix>(*rotmat2i2 * *rotblock2_aa));
+            full_wu = full_wu->transform_occ1(make_shared<Matrix>(*rotmat2i2 * *rotblock2_aa));
             shared_ptr<const DFHalfDist> halfa2 = geom_->df()->compute_half_transform(acoeffj2);
             full_wt = halfa2->compute_second_transform(acoeffi);
             tmpout = full_wt->form_2index(full_wu, 1.0);
@@ -769,17 +769,17 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
             blas::ax_plus_y_n(-1.0, tmpout->data(), tmpout->size(), qpp_aa->data());
 
             auto fullaaD2 = fullaaD->copy();
-            fullaaD2->rotate_occ1(rotmat2i);
+            fullaaD2 = fullaaD2->transform_occ1(rotmat2i);
             fullaaD2 = fullaaD2->swap();
             full_wt = fullaaD2->copy();
-            full_wt->rotate_occ1(rotmat2j2);
+            full_wt = full_wt->transform_occ1(rotmat2j2);
             full_wu = halfav2w->compute_second_transform(acoeffj);
             tmpout = full_wt->form_2index(full_wu, 1.0);
             assert(tmpout->size() == qpp_aa->size());
             blas::ax_plus_y_n(-1.0, tmpout->data(), tmpout->size(), qpp_aa->data());
 
             full_wt = fullaaD2->copy();
-            full_wt->rotate_occ1(make_shared<Matrix>(*rotmat2i2 * *rotblock2_aa));
+            full_wt = full_wt->transform_occ1(make_shared<Matrix>(*rotmat2i2 * *rotblock2_aa));
             full_wu = halfa2->compute_second_transform(acoeffj);
             tmpout = full_wt->form_2index(full_wu, 1.0);
             assert(tmpout->size() == qpp_aa->size());
@@ -790,26 +790,26 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
             shared_ptr<DFFullDist> full_yu;
             shared_ptr<DFFullDist> full_yt;
             shared_ptr<DFFullDist> full_wx = halfav2w->compute_second_transform(acoeff);
-            full_wx->rotate_occ1(rotmat2j2->transpose());
+            full_wx = full_wx->transform_occ1(rotmat2j2->transpose());
             shared_ptr<const DFFullDist> full_wxs = full_wx->swap();
             full_wx->ax_plus_y(1.0, full_wxs);
             shared_ptr<const DFFullDist> full_dwx = full_wx->apply_2rdm(*asd_dmrg_->rdm2_av());
             
             auto full_uy = full_dwx->copy();
-            full_uy->rotate_occ1(rotmat2j);
+            full_uy = full_uy->transform_occ1(rotmat2j);
             full_yu = full_uy->swap();
             auto full_ty = fullaa->copy();
-            full_ty->rotate_occ1(rotmat2i);
+            full_ty = full_ty->transform_occ1(rotmat2i);
             full_yt = full_ty->swap();
             tmpout = full_yt->form_2index(full_yu, 1.0);
             assert(tmpout->size() == qp_aa->size());
             copy_n(tmpout->data(), tmpout->size(), qp_aa->data());
 
             full_ty = full_dwx->copy();
-            full_ty->rotate_occ1(rotmat2i);
+            full_ty = full_ty->transform_occ1(rotmat2i);
             full_yt = full_ty->swap();
             full_uy = fullaa->copy();
-            full_uy->rotate_occ1(rotmat2j);
+            full_uy = full_uy->transform_occ1(rotmat2j);
             full_yu = full_uy->swap();
             tmpout = full_yt->form_2index(full_yu, 1.0);
             assert(tmpout->size() == qp_aa->size());
@@ -818,25 +818,25 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
             const Matrix w2v = acoeffj2 ^ *rotblock2_aa;
             auto full_xv = halfa->compute_second_transform(w2v);
             auto full_vx = full_xv->swap();
-            full_vx->rotate_occ1(rotmat2i2->transpose());
+            full_vx = full_vx->transform_occ1(rotmat2i2->transpose());
             full_vx->ax_plus_y(1.0, full_xv);
             shared_ptr<const DFFullDist> full_dvx = full_vx->apply_2rdm(*asd_dmrg_->rdm2_av());
 
             full_uy = full_dvx->copy();
-            full_uy->rotate_occ1(rotmat2j);
+            full_uy = full_uy->transform_occ1(rotmat2j);
             full_yu = full_uy->swap();
             full_ty = fullaa->copy();
-            full_ty->rotate_occ1(rotmat2i);
+            full_ty = full_ty->transform_occ1(rotmat2i);
             full_yt = full_ty->swap();
             tmpout = full_yt->form_2index(full_yu, 1.0);
             assert(tmpout->size() == qp_aa->size());
             blas::ax_plus_y_n(-1.0, tmpout->data(), tmpout->size(), qp_aa->data());
 
             full_ty = full_dvx->copy();
-            full_ty->rotate_occ1(rotmat2i);
+            full_ty = full_ty->transform_occ1(rotmat2i);
             full_yt = full_ty->swap();
             full_uy = fullaa->copy();
-            full_uy->rotate_occ1(rotmat2j);
+            full_uy = full_uy->transform_occ1(rotmat2j);
             full_yu = full_uy->swap();
             tmpout = full_yt->form_2index(full_yu, 1.0);
             assert(tmpout->size() == qp_aa->size());
