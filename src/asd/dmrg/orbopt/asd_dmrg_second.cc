@@ -53,9 +53,7 @@ void ASD_DMRG_Second::compute() {
       if (iter) asd_dmrg_->update_multisite(coeff_);
       asd_dmrg_->compute(!iter);
       asd_dmrg_->compute_rdm12();
-      // convert to natrual orbitals
-      auto natorb = asd_dmrg_->natorb_convert();
-      coeff_ = update_coeff(coeff_, natorb.first);
+      trans_natorb();
       energy_ = asd_dmrg_->energies();
     }
     
@@ -1021,3 +1019,21 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
 
   return sigma;
 }
+
+
+void ASD_DMRG_Second::trans_natorb() {
+  auto trans = make_shared<Matrix>(nact_, nact_);
+  trans->add_diag(2.0);
+  blas::ax_plus_y_n(-1.0, asd_dmrg_->rdm1_av()->data(), nact_*nact_, trans->data());
+
+  VectorB occup(nact_);
+  trans->diagonalize(occup);
+
+  asd_dmrg_->rotate_rdms(trans);
+
+  auto cnew = make_shared<Coeff>(*coeff_);
+  cnew->copy_block(0, nclosed_, cnew->ndim(), nact_, coeff_->slice(nclosed_, nocc_) * *trans);
+  coeff_ = cnew;
+}
+
+

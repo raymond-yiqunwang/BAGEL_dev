@@ -160,26 +160,17 @@ void ASD_DMRG::read_restricted(shared_ptr<PTree> input, const int site) const {
 }
 
 
-pair<shared_ptr<Matrix>, VectorB> ASD_DMRG::natorb_convert() {
-  assert(rdm1_av_ != nullptr);
-  pair<shared_ptr<Matrix>, VectorB> natorb = rdm1_av_->generate_natural_orbitals();
-  // update rdms
-  {
-    for (auto& i : *rdm1_)
-      i.second->transform(natorb.first);
-    for (auto& i : *rdm2_)
-      i.second->transform(natorb.first);
+void ASD_DMRG::rotate_rdms(shared_ptr<const Matrix> trans) {
+  for (auto& i : *rdm1_)
+    i.second->transform(trans);
+  for (auto& i : *rdm2_)
+    i.second->transform(trans);
 
-    // Only when #state > 1
-    if (rdm1_->size() > 1) rdm1_av_->transform(natorb.first);
-    if (rdm2_->size() > 1) rdm2_av_->transform(natorb.first);
-    assert(rdm1_->size() > 1 || rdm1_->at(0) == rdm1_av_);
-    assert(rdm2_->size() > 1 || rdm2_->at(0) == rdm2_av_);
-  }
-  for (auto& i : natorb.second)
-    if (i < numerical_zero__) i = 0.0;
-  
-  return natorb;
+  // Only when #state > 1
+  if (rdm1_->size() > 1) rdm1_av_->transform(trans);
+  if (rdm2_->size() > 1) rdm2_av_->transform(trans);
+  assert(rdm1_->size() > 1 || rdm1_->at(0) == rdm1_av_);
+  assert(rdm2_->size() > 1 || rdm2_->at(0) == rdm2_av_);
 }
 
 

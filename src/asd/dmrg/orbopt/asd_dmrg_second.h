@@ -63,6 +63,8 @@ class ASD_DMRG_Second : public ASD_DMRG_OrbOpt {
     }
 
     void compute() override;
+
+    void trans_natorb();
 };
 
 }
