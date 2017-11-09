@@ -79,7 +79,7 @@ void ASD_DMRG_Second::compute() {
     shared_ptr<const DFHalfDist> half = nclosed_ ? half_1j->apply_J() : nullptr;
     shared_ptr<const DFHalfDist> halfa = geom_->df()->compute_half_transform(coeff_->slice(nclosed_, nocc_));
     shared_ptr<const DFHalfDist> halfa_JJ = halfa->apply_JJ();
-    
+
     // compute_denominator
     shared_ptr<const ASD_DMRG_RotFile> denom = compute_denom(half, half_1j, halfa, halfa_JJ, cfock, afock);
 
@@ -114,7 +114,7 @@ void ASD_DMRG_Second::compute() {
     } // end of micro iter
 
     shared_ptr<const ASD_DMRG_RotFile> sol = solver.civec();
-    shared_ptr<const Matrix> a = sol->unpack();
+    shared_ptr<const Matrix> a = sol->unpack(act_rotblocks_);
     Matrix w(*a * *a);
     VectorB eig(a->ndim());
     w.diagonalize(eig);
@@ -714,10 +714,10 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         shared_ptr<const Matrix> Qpp = make_shared<Matrix>(*Qpp1 - *Qpp2);
 
         auto tmp_2i = fulltaD->copy();
-        tmp_2i = tmp_2i->transform_occ1(make_shared<Matrix>(rotmat2i));
+        tmp_2i = tmp_2i->transform_occ1(rotmat2i);
         shared_ptr<const DFFullDist> fullttaD_2i = tmp_2i->swap();
         auto tmp_2j = fulltaD->copy();
-        tmp_2j = tmp_2j->transform_occ1(make_shared<Matrix>(rotmat2j));
+        tmp_2j = tmp_2j->transform_occ1(rotmat2j);
         shared_ptr<const DFFullDist> fullttaD_2j = tmp_2j->swap();
         shared_ptr<const DFFullDist> fullaa_2i = halfa_JJ->compute_second_transform(acoeffi);
         shared_ptr<const DFFullDist> fullaa_2j = halfa_JJ->compute_second_transform(acoeffj);
@@ -828,6 +828,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
             auto full_xv = halfa->compute_second_transform(w2v);
             auto full_vx = full_xv->swap();
             full_vx = full_vx->transform_occ1(rotmat2i2->transpose());
+            full_xv = full_vx->swap();
             full_vx->ax_plus_y(1.0, full_xv);
             shared_ptr<const DFFullDist> full_dvx = full_vx->apply_2rdm(*asd_dmrg_->rdm2_av());
 
@@ -1012,7 +1013,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
   
           // \delta_{tv} part
           {
-            auto tmpmat = make_shared<const Matrix>((*rotblock_aa2 ^ fcaaJ * rdmxj) + (*rotblock_aa2 ^ rdmxJ * *fcaaj));
+            auto tmpmat = make_shared<const Matrix>(((*rotblock_aa2 ^ fcaaJ) * rdmxj) + ((*rotblock_aa2 ^ rdmxJ) * *fcaaj));
             if (istart < istart2) {
               for (int j = 0; j != jnorb; ++j)
                 blas::ax_plus_y_n(-2.0, tmpmat->element_ptr(0, j), inorb2, sigma->ptr_aa_offset(offset)+j*inorb+istart2-istart);

@@ -197,26 +197,35 @@ shared_ptr<Matrix> ASD_DMRG_RotFile::vc_mat() const {
 }
 
 
-shared_ptr<Matrix> ASD_DMRG_RotFile::unpack(const double a) const {
+shared_ptr<Matrix> ASD_DMRG_RotFile::unpack(vector<ASD_ActRotBlock> act_rotblocks, const double a) const {
   
   const int nocc = nclosed_ + nact_;
   const int nbasis = nocc + nvirt_;
   auto out = make_shared<Matrix>(nbasis, nbasis);
   fill_n(out->data(), out->size(), a);
 
+  // vritual-active and closed_active
   for (int i = 0; i != nact_; ++i) {
-    for (int j = 0; j != nvirt_; ++j) {
-      out->element(j+nocc, i+nclosed_) = ele_va(j, i);
-    }
-    for (int k = 0; k != nclosed_; ++k) {
-      out->element(i+nclosed_, k) = ele_ca(k, i);
-    }
+    copy_n(ptr_va()+i*nvirt_, nvirt_, out->element_ptr(nocc, i+nclosed_));
+    for (int j = 0; j != nclosed_; ++j)
+      out->element(i+nclosed_, j) = ele_ca(j, i);
   }
-  for (int i = 0; i != nclosed_; ++i) {
-    for (int j = 0; j != nvirt_;   ++j) {
-      out->element(j+nocc, i) = ele_vc(j, i);
-    }
+  // virtual-closed
+  for (int i = 0; i != nclosed_; ++i)
+    copy_n(ptr_vc()+i*nvirt_, nvirt_, out->element_ptr(nocc, i));
+#ifdef AAROT
+  // active-active
+  for (auto& block : act_rotblocks) {
+    const int istart = block.iorbstart;
+    const int jstart = block.jorbstart;
+    const int inorb = block.norb_i;
+    const int jnorb = block.norb_j;
+    const int offset = block.offset;
+    
+    for (int j = 0; j != jnorb; ++j)
+      copy_n(ptr_aa_offset(offset)+j*inorb, inorb, out->element_ptr(nclosed_+istart, nclosed_+jstart+j));
   }
+#endif
   for (int i = 0; i != nbasis; ++i) {
     for (int j = 0; j <= i; ++j) {
       out->element(j, i) = - detail::conj(out->element(i, j));

@@ -28,7 +28,6 @@
 #include <src/util/muffle.h>
 #include <src/asd/dmrg/rasd.h>
 #include <src/asd/dmrg/orbopt/asd_dmrg_rotfile.h>
-#include <src/asd/dmrg/orbopt/actrotblock.h>
 
 namespace bagel {
 
