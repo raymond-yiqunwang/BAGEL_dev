@@ -44,6 +44,7 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
 
 }
 
+
 void ASD_DMRG_OrbOpt::common_init() {
 
   nclosed_ = ref_->nclosed();
@@ -51,13 +52,17 @@ void ASD_DMRG_OrbOpt::common_init() {
   nocc_ = nclosed_ + nact_;
   nvirt_ = ref_->nvirt();
   norb_ = ref_->coeff()->mdim();
-  nsites_ = multisite_->nsites();
 
+#ifdef AAROT
+  nsites_ = multisite_->nsites();
   // initialize active-active rotation parameters
   int offset = 0;
   for (int sj = 0; sj != nsites_-1; ++sj)
     act_rotblocks_.emplace_back(multisite_->active_sizes(), sj, offset);
   naa_ = offset;
+#else
+  naa_ = 0;
+#endif
 
   nstate_ = input_->get<int>("opt_nstate", 1);
   max_iter_ = input_->get<int>("opt_max_iter", 50);
@@ -80,6 +85,7 @@ void ASD_DMRG_OrbOpt::common_init() {
   cout << "  ===== Orbital Optimization Iteration =====" << endl << endl;
 
 }
+
 
 void ASD_DMRG_OrbOpt::print_header() const {
   cout << "  --------------------------------------------------" << endl;
@@ -125,16 +131,6 @@ shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_qvec(const MatView acoeff, shared_pt
   shared_ptr<const Matrix> tmp = half->form_2index(prdm, 1.0);
 
   return make_shared<Matrix>(*coeff_ % *tmp);
-}
-
-
-shared_ptr<const Coeff> ASD_DMRG_OrbOpt::update_coeff(const shared_ptr<const Matrix> cold, shared_ptr<const Matrix> natorb) const {
-  auto cnew = make_shared<Coeff>(*cold);
-  int nbasis = cold->ndim();
-  assert(nbasis == geom_->nbasis());
-  dgemm_("N", "N", nbasis, nact_, nact_, 1.0, cold->data() + nbasis*nclosed_, nbasis,
-                   natorb->data(), nact_, 0.0, cnew->data() + nbasis*nclosed_, nbasis);
-  return cnew;
 }
 
 

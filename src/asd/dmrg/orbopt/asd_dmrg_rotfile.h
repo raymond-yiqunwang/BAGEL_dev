@@ -25,6 +25,11 @@
 #ifndef __ASD_DMRG_ROTFILE_H
 #define __ASD_DMRG_ROTFILE_H
 
+#define DEBUG
+#ifdef DEBUG
+//#define AAROT
+#endif
+
 #include <src/util/math/matrix.h>
 
 namespace bagel {
@@ -42,7 +47,7 @@ class ASD_DMRG_RotFile {
 
   public:
     // constructors
-    ASD_DMRG_RotFile(const int iclo, const int iact, const int ivirt, const int iaa);
+    ASD_DMRG_RotFile(const int iclo, const int iact, const int ivirt, const int iaa = 0);
     ASD_DMRG_RotFile(const ASD_DMRG_RotFile& o);
     ASD_DMRG_RotFile(std::shared_ptr<const ASD_DMRG_RotFile> o);
 
@@ -95,27 +100,30 @@ class ASD_DMRG_RotFile {
     //virtual-closed block, virtual runs first
     double* ptr_vc() { return data() + (nclosed_+nvirt_)*nact_; }
     double& ele_vc(const int iv, const int ic) { return data_[(nclosed_+nvirt_)*nact_ + iv + ic*nvirt_]; }
-    // active-active block, the first active runs first
-    double* ptr_aa_offset(const int offset) { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
-    double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j+inorb]; }
 
     // const references and pointers
     const double* ptr_ca() const { return data(); }
     const double* ptr_va() const { return data() + nclosed_*nact_; }
     const double* ptr_vc() const { return data() + (nclosed_+nvirt_)*nact_; }
-    const double* ptr_aa_offset(const int offset) const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
     
     const double& ele_ca(const int ic, const int ia) const { return data_[ic + ia*nclosed_]; } 
     const double& ele_va(const int iv, const int ia) const { return data_[nclosed_*nact_ + iv + ia*nvirt_]; }
     const double& ele_vc(const int iv, const int ic) const { return data_[(nclosed_+nvirt_)*nact_ + iv + ic*nvirt_]; }
-    const double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) const { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j+inorb]; }
 
     void  ax_plus_y_ca(const double a, const MatView mat);
-    void  ax_plus_y_ca_offset(const double a, const MatView mat, const int offset);
     void  ax_plus_y_va(const double a, const MatView mat);
-    void  ax_plus_y_va_offset(const double a, const MatView mat, const int offset);
     void  ax_plus_y_vc(const double a, const MatView mat);
+
+#ifdef AAROT
+    // active-active block, the first active runs first
+    double* ptr_aa_offset(const int offset) { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
+    double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j+inorb]; }
+    const double* ptr_aa_offset(const int offset) const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
+    const double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) const { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j+inorb]; }
+    void  ax_plus_y_ca_offset(const double a, const MatView mat, const int offset);
+    void  ax_plus_y_va_offset(const double a, const MatView mat, const int offset);
     void  ax_plus_y_aa_offset(const double a, const MatView mat, const int offset);
+#endif
 
     std::shared_ptr<Matrix> ca_mat() const;
     std::shared_ptr<Matrix> va_mat() const;

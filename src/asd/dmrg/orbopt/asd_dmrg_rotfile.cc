@@ -141,10 +141,12 @@ void ASD_DMRG_RotFile::ax_plus_y_ca(const double a, const MatView mat) {
 }
 
 
+#ifdef AAROT
 void ASD_DMRG_RotFile::ax_plus_y_ca_offset(const double a, const MatView mat, const int offset) {
   assert(mat.ndim() == nclosed_);
   blas::ax_plus_y_n(a, mat.data(), mat.size(), ptr_ca()+offset*nclosed_);
 }
+#endif
 
 
 void ASD_DMRG_RotFile::ax_plus_y_va(const double a, const MatView mat) {
@@ -153,10 +155,12 @@ void ASD_DMRG_RotFile::ax_plus_y_va(const double a, const MatView mat) {
 }
 
 
+#ifdef AAROT
 void ASD_DMRG_RotFile::ax_plus_y_va_offset(const double a, const MatView mat, const int offset) {
   assert(mat.ndim() == nvirt_);
   blas::ax_plus_y_n(a, mat.data(), mat.size(), ptr_va()+offset*nvirt_);
 }
+#endif
 
 
 void ASD_DMRG_RotFile::ax_plus_y_vc(const double a, const MatView mat) {
@@ -165,9 +169,11 @@ void ASD_DMRG_RotFile::ax_plus_y_vc(const double a, const MatView mat) {
 }
 
 
+#ifdef AAROT
 void ASD_DMRG_RotFile::ax_plus_y_aa_offset(const double a, const MatView mat, const int offset) {
   blas::ax_plus_y_n(a, mat.data(), mat.size(), ptr_aa_offset(offset));
 }
+#endif
 
 
 shared_ptr<Matrix> ASD_DMRG_RotFile::ca_mat() const {

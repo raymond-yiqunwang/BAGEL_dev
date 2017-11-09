@@ -39,9 +39,9 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     int nact_;
     int nocc_; // sum of nclosed_ + nact_
     int nvirt_;
-    int naa_; // size of active-active part
     int norb_;
     int nstate_;
+    int naa_; // size of active-active part
 
     // parameters for iteration
     int max_iter_;
@@ -59,11 +59,12 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     std::shared_ptr<const Matrix> hcore_;
     std::shared_ptr<const Geometry> geom_;
     
+#ifdef AAROT
     // active-active rotation parameters
     int nsites_;
     std::vector<ASD_ActRotBlock> act_rotblocks_;
+#endif
 
-    std::shared_ptr<const Coeff> update_coeff(const std::shared_ptr<const Matrix> cold, std::shared_ptr<const Matrix> natorb) const;
     std::shared_ptr<const Coeff> semi_canonical_orb() const;
 
     // util functions

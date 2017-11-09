@@ -26,8 +26,6 @@
 #include <src/scf/hf/fock.h>
 #include <src/util/math/aughess.h>
 
-#define DEBUG
-
 #ifdef DEBUG
 #include <src/multi/casscf/cassecond.h>
 #endif
@@ -50,11 +48,13 @@ void ASD_DMRG_Second::compute() {
     
     // first obtain RDM from ASD_DMRG
     {
+      muffle_->mute();
       if (iter) asd_dmrg_->update_multisite(coeff_);
       asd_dmrg_->compute(!iter);
       asd_dmrg_->compute_rdm12();
       trans_natorb();
       energy_ = asd_dmrg_->energies();
+      muffle_->unmute();
     }
     
     shared_ptr<const Matrix> cfockao = nclosed_ ? make_shared<Fock<1>>(geom_, hcore_, nullptr, coeff_->slice(0, nclosed_), true/*store*/, true/*rhf*/) : hcore_;
@@ -176,6 +176,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
       blas::ax_plus_y_n(4.0, afock->element_ptr(nocc_, i), nvirt_, target);
     }
   }
+#ifdef AAROT
   // active-active part
   for (auto& block : act_rotblocks_) {
     const int istart = block.iorbstart;
@@ -194,6 +195,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
       blas::ax_plus_y_n(-2.0, qxr->transpose()->element_ptr(istart, nclosed_+jstart+j), inorb, target);
     }
   }
+#endif
 
   return grad;
 }
@@ -313,7 +315,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
       }
     }
   }
-  
+
+#ifdef AAROT
   // active-active part
   shared_ptr<const Matrix> maa = vaa_exc->apply_J()->form_4index_diagonal_part();
   Matrix mgaa(nact_, nact_);
@@ -397,6 +400,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
       }
     } // end of looping over second active index
   } // end of looping over blocks
+#endif
 
   return denom;
 }
@@ -461,6 +465,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     sigma->ax_plus_y_vc(16.0, vcoeff % gt * ccoeff);
   }
 
+#ifdef AAROT
   // active-active 2-electron integral part
   if (nclosed_){
     for (auto& block : act_rotblocks_) {
@@ -527,6 +532,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       }
     }
   }
+#endif
 
   // terms with Qvec
   {
@@ -544,6 +550,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       sigma->ax_plus_y_vc(-2.0, *qva ^ *ca);
     }
 
+#ifdef AAROT
     // active-active part
     for (auto& block : act_rotblocks_) {
       const int istart = block.iorbstart;
@@ -625,6 +632,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         }
       } // end of looping over block2
     } // end of looping over block
+#endif
   } // end of Qvec part
 
   // Q' and Q'' part
@@ -642,6 +650,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     if (nclosed_)
       sigma->ax_plus_y_ca(-4.0, ccoeff % (*qp + *qpp));
 
+#ifdef AAROT
     // active-active part
     for (auto& block : act_rotblocks_) {
       const int istart = block.iorbstart;
@@ -705,10 +714,10 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         shared_ptr<const Matrix> Qpp = make_shared<Matrix>(*Qpp1 - *Qpp2);
 
         auto tmp_2i = fulltaD->copy();
-        tmp_2i = tmp_2i->transform_occ1(make_shared<Matrix>(acoeffi));
+        tmp_2i = tmp_2i->transform_occ1(make_shared<Matrix>(rotmat2i));
         shared_ptr<const DFFullDist> fullttaD_2i = tmp_2i->swap();
         auto tmp_2j = fulltaD->copy();
-        tmp_2j = tmp_2j->transform_occ1(make_shared<Matrix>(acoeffj));
+        tmp_2j = tmp_2j->transform_occ1(make_shared<Matrix>(rotmat2j));
         shared_ptr<const DFFullDist> fullttaD_2j = tmp_2j->swap();
         shared_ptr<const DFFullDist> fullaa_2i = halfa_JJ->compute_second_transform(acoeffi);
         shared_ptr<const DFFullDist> fullaa_2j = halfa_JJ->compute_second_transform(acoeffj);
@@ -849,6 +858,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         }
       }
     } // end of looping over block
+#endif
   } // end of Q' and Q'' part
 
   // Fock related terms
@@ -890,6 +900,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       sigma->ax_plus_y_va(-4.0, *fcvc * *ca * rdm1);
     }
 
+#ifdef AAROT
     // active-active part (P.S. use x to represent arbitrary active orbitals)
     for (auto& block : act_rotblocks_) {
       const int istart = block.iorbstart;
@@ -1013,6 +1024,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         } // end of looping over block2
       }
     } // end of looping over blocks
+#endif
   } // end of Fock part
   
   sigma->scale(0.5);
