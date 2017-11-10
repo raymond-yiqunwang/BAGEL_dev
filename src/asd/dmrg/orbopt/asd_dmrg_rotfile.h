@@ -27,7 +27,7 @@
 
 #define DEBUG
 #ifdef DEBUG
-#define AAROT
+//#define AAROT
 #endif
 
 #include <src/util/math/matrix.h>
@@ -132,7 +132,7 @@ class ASD_DMRG_RotFile {
 //    std::shared_ptr<Matrix> aa_mat() const;
 
     // unpack to Matrix
-    std::shared_ptr<Matrix> unpack(std::vector<ASD_ActRotBlock> act_rotblocks, const double a = 0.0) const;
+    std::shared_ptr<Matrix> unpack(std::vector<ASD_ActRotBlock> act_rotblocks = {}, const double a = 0.0) const;
 
     void print(const std::string input = "") const;
     

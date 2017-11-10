@@ -89,6 +89,393 @@ void ASD_DMRG_Second::compute() {
     shared_ptr<ASD_DMRG_RotFile> trot = apply_denom(grad, denom, 0.001, 1.0);
     trot->normalize();
 
+#ifdef DEBUG
+  // build Hessian matrix
+  const int rotsize = denom->size();
+  Matrix rdm1(nact_, nact_);
+  copy_n(asd_dmrg_->rdm1_av()->data(), rdm1.size(), rdm1.data());
+  auto rdm2 = *asd_dmrg_->rdm2_av();
+  Matrix mo2e(norb_, norb_);
+  {
+    const MatView coeff(*coeff_);
+    shared_ptr<const DFHalfDist> halfx = geom_->df()->compute_half_transform(coeff);
+    shared_ptr<const DFFullDist> fullx_1j = halfx->compute_second_transform(coeff)->apply_J();
+    mo2e = *fullx_1j->form_4index(fullx_1j, 1.0);
+  }
+  const int va_offset = nclosed_ * nact_;
+  const int vc_offset = va_offset + nvirt_ * nact_;
+  const Matrix fock = *cfock + *afock;
+  shared_ptr<const Matrix> cfk_xt = cfock->get_submatrix(0, nclosed_, norb_, nact_);
+  const Matrix cfkd = *cfk_xt * rdm1;
+  
+  VectorB grad_check(rotsize);
+  {
+    // closed-active
+    for (int t = 0; t != nact_; ++t) {
+      for (int i = 0; i != nclosed_; ++i) {
+        double value = 4.0 * fock(i, nclosed_+t) - 2.0 * cfkd(i, t);
+        for (int u = 0; u != nact_; ++u) {
+          for (int v = 0; v != nact_; ++v) {
+            for (int w = 0; w != nact_; ++w) {
+              value -= 2.0 * rdm2(t, u, v, w) * mo2e(nclosed_+u+i*norb_, nclosed_+v+(nclosed_+w)*norb_);
+            }
+          }
+        }
+        grad_check(i+t*nclosed_) = value;
+      }
+    }
+    // virtual-active
+    for (int t = 0; t != nact_; ++t) {
+      for (int a = 0; a != nvirt_; ++a) {
+        double value = 2.0 * cfkd(nocc_+a, t);
+        for (int u = 0; u != nact_; ++u) {
+          for (int v = 0; v != nact_; ++v) {
+            for (int w = 0; w != nact_; ++w) {
+              value += 2.0 * rdm2(t, u, v, w) * mo2e(nocc_+a+(nclosed_+u)*norb_, nclosed_+v+(nclosed_+w)*norb_);
+            }
+          }
+        }
+        grad_check(va_offset+a+t*nvirt_) = value;
+      }
+    }
+    // virtual-closed
+    for (int i = 0; i != nclosed_; ++i) {
+      for (int a = 0; a != nvirt_; ++a) {
+        grad_check(vc_offset+a+i*nvirt_) = 4.0 * fock(nocc_+a, i);
+      }
+    }
+  }
+  auto hessian = make_shared<Matrix>(rotsize, rotsize);
+  {
+    // Fock part
+    {
+      // (at, bu)
+      for (int u = 0; u != nact_; ++u) {
+        for (int b = 0; b != nvirt_; ++b) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int a = 0; a != nvirt_; ++a) {
+              double value = 2.0 * rdm1(t, u) * cfock->element(nocc_+a, nocc_+b);
+              if (a == b) value -= cfkd(nclosed_+u, t) + cfkd(nclosed_+t, u);
+              hessian->element(va_offset+a+t*nvirt_, va_offset+b+u*nvirt_) = value;
+            }
+          }
+        }
+      }
+      // (at, ui)
+      for (int u = 0; u != nact_; ++u) {
+        for (int i = 0; i != nclosed_; ++i) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int a = 0; a != nvirt_; ++a) {
+              double value = -2.0 * rdm1(t, u) * cfock->element(nocc_+a, i);
+              if (t == u) value += 2.0 * fock(nocc_+a, i);
+              hessian->element(va_offset+a+t*nvirt_, i+u*nclosed_) = value;
+              hessian->element(i+u*nclosed_, va_offset+a+t*nvirt_) = value;
+            }
+          }
+        }
+      }
+      // (bi, at)
+      for (int t = 0; t != nact_; ++t) {
+        for (int a = 0; a != nvirt_; ++a) {
+          for (int i = 0; i != nclosed_; ++i) {
+            for (int b = 0; b != nvirt_; ++b) {
+              if (a == b) {
+                double value = -2.0 * fock(i, nclosed_+t) - cfkd(i, t);
+                hessian->element(vc_offset+b+i*nvirt_, va_offset+a+t*nvirt_) = value;
+                hessian->element(va_offset+a+t*nvirt_, vc_offset+b+i*nvirt_) = value;
+              }
+            }
+          }
+        }
+      }
+      // (ti, uj)
+      for (int u = 0; u != nact_; ++u) {
+        for (int j = 0; j != nclosed_; ++j) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int i = 0; i != nclosed_; ++i) {
+              double value = 2.0 * rdm1(t, u) * cfock->element(i, j);
+              if (i == j) {
+                value += 4.0 * fock(nclosed_+t, nclosed_+u) - cfkd(nclosed_+t, u) - cfkd(nclosed_+u, t);
+              }
+              if (t == u) {
+                value -= 4.0 * fock(i, j);
+              }
+              hessian->element(i+t*nclosed_, j+u*nclosed_) = value;
+            }
+          }
+        }
+      }
+      // (ti, aj)
+      for (int j = 0; j != nclosed_; ++j) {
+        for (int a = 0; a != nvirt_; ++a) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int i = 0; i != nclosed_; ++i) {
+              if (i == j) {
+                double value = 4.0 * fock(nocc_+a, nclosed_+t) - cfkd(nocc_+a, t);
+                hessian->element(i+t*nclosed_, vc_offset+a+j*nvirt_) = value;
+                hessian->element(vc_offset+a+j*nvirt_, i+t*nclosed_) = value;
+              }
+            }
+          }
+        }
+      }
+      // (ai, bj)
+      for (int j = 0; j != nclosed_; ++j) {
+        for (int b = 0; b != nvirt_; ++b) {
+          for (int i = 0; i != nclosed_; ++i) {
+            for (int a = 0; a != nvirt_; ++a) {
+              double value = 0;
+              if (a == b) {
+                value -= 4.0 * fock(i, j);
+              }
+              if (i == j) {
+                value += 4.0 * fock(nocc_+a, nocc_+b);
+              }
+              hessian->element(vc_offset+a+i*nvirt_, vc_offset+b+j*nvirt_) = value;
+            }
+          }
+        }
+      }
+    } // end of Fock part of Hessian matrix
+
+    // 2-electron integral part
+    {
+      // (at, ui)
+      for (int u = 0; u != nact_; ++u) {
+        for (int i = 0; i != nclosed_; ++i) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int a = 0; a != nvirt_; ++a) {
+              double value = 0;
+              for (int v = 0; v != nact_; ++v) {
+                assert(mo2e(nocc_+a+(nclosed_+v)*norb_, nclosed_+u+i*norb_) - mo2e(nclosed_+v+(nocc_+a)*norb_, nclosed_+u+i*norb_) < 1.0e-15);
+                value += 2.0 * rdm1(t, v) * (4.0 * mo2e(nocc_+a+(nclosed_+v)*norb_, nclosed_+u+i*norb_) - mo2e(nocc_+a+(nclosed_+u)*norb_, nclosed_+v+i*norb_)
+                                                                                                        - mo2e(nocc_+a+i*norb_, nclosed_+u+(nclosed_+v)*norb_));
+              }
+              hessian->element(va_offset+a+t*nvirt_, i+u*nclosed_) += value;
+              hessian->element(i+u*nclosed_, va_offset+a+t*nvirt_) += value;
+            }
+          }
+        }
+      }
+      // (at, bi)
+      for (int i = 0; i != nclosed_; ++i) {
+        for (int b = 0; b != nvirt_; ++b) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int a = 0; a != nvirt_; ++a) {
+              double value = 0;
+              for (int u = 0; u != nact_; ++u) {
+                value += 2.0 * rdm1(t, u) * (4.0 * mo2e(nocc_+a+(nclosed_+u)*norb_, nocc_+b+i*norb_) - mo2e(nocc_+a+(nocc_+b)*norb_, nclosed_+u+i*norb_)
+                                                                                                     - mo2e(nocc_+a+i*norb_, nclosed_+u+(nocc_+b)*norb_));
+              }
+              hessian->element(va_offset+a+t*nvirt_, vc_offset+b+i*nvirt_) += value;
+              hessian->element(vc_offset+b+i*nvirt_, va_offset+a+t*nvirt_) += value;
+            }
+          }
+        }
+      }
+      // (ti, uj)
+      for (int u = 0; u != nact_; ++u) {
+        for (int j = 0; j != nclosed_; ++j) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int i = 0; i != nclosed_; ++i) {
+              double value = 16.0 * mo2e(nclosed_+t+i*norb_, nclosed_+u+j*norb_) - 4.0 * mo2e(nclosed_+t+j*norb_, i+(nclosed_+u)*norb_)
+                                                                                 - 4.0 * mo2e(nclosed_+t+(nclosed_+u)*norb_, i+j*norb_);
+              for (int v = 0; v != nact_; ++v) {
+                value -= 2.0 * rdm1(u, v) * (4.0 * mo2e(nclosed_+t+i*norb_, nclosed_+v+j*norb_) - mo2e(nclosed_+t+j*norb_, i+(nclosed_+v)*norb_)
+                                                                                                - mo2e(nclosed_+t+(nclosed_+v)*norb_, i+j*norb_));
+                value -= 2.0 * rdm1(t, v) * (4.0 * mo2e(nclosed_+v+i*norb_, nclosed_+u+j*norb_) - mo2e(nclosed_+v+j*norb_, nclosed_+u+i*norb_)
+                                                                                                - mo2e(nclosed_+v+(nclosed_+u)*norb_, i+j*norb_));
+              }
+              hessian->element(i+t*nclosed_, j+u*nclosed_) += value;
+            }
+          }
+        }
+      }
+      // (ti, aj)
+      for (int j = 0; j != nclosed_; ++j) {
+        for (int a = 0; a != nvirt_; ++a) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int i = 0; i != nclosed_; ++i) {
+              double value = 16.0 * mo2e(nclosed_+t+i*norb_, nocc_+a+j*norb_) - 4.0 * mo2e(nclosed_+t+j*norb_, nocc_+a+i*norb_)
+                                                                              - 4.0 * mo2e(nclosed_+t+(nocc_+a)*norb_, i+j*norb_);
+              for (int u = 0; u != nact_; ++u) {
+                value -= 2.0 * rdm1(t, u) * (4.0 * mo2e(nclosed_+u+i*norb_, nocc_+a+j*norb_) - mo2e(nclosed_+u+j*norb_, nocc_+a+i*norb_)
+                                                                                             - mo2e(nclosed_+u+(nocc_+a)*norb_, i+j*norb_));
+              }
+              hessian->element(i+t*nclosed_, vc_offset+a+j*nvirt_) += value;
+              hessian->element(vc_offset+a+j*nvirt_, i+t*nclosed_) += value;
+            }
+          }
+        }
+      }
+      // (ai, bj)
+      for (int j = 0; j != nclosed_; ++j) {
+        for (int b = 0; b != nvirt_; ++b) {
+          for (int i = 0; i != nclosed_; ++i) {
+            for (int a = 0; a != nvirt_; ++a) {
+              double value = 16.0 * mo2e(nocc_+a+i*norb_, nocc_+b+j*norb_) - 4.0 * mo2e(nocc_+a+(nocc_+b)*norb_, i+j*norb_)
+                                                                           - 4.0 * mo2e(nocc_+a+j*norb_, nocc_+b+i*norb_);
+              hessian->element(vc_offset+a+i*nvirt_, vc_offset+b+j*nvirt_) += value;
+            }
+          }
+        }
+      }
+    } // end of 2-electron integral part
+
+    // rdm2 and integral part
+    {
+      // (at, bu)
+      for (int u = 0; u != nact_; ++u) {
+        for (int b = 0; b != nvirt_; ++b) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int a = 0; a != nvirt_; ++a) {
+              double value = 0.0;
+              for (int v = 0; v != nact_; ++v) {
+                for (int w = 0; w != nact_; ++w) {
+                  value += 2.0 * rdm2(t, u, v, w) * mo2e(nocc_+a+(nocc_+b)*norb_, nclosed_+v+(nclosed_+w)*norb_)
+                         + 2.0 * (rdm2(u, v, t, w) + rdm2(v, u, t, w)) * mo2e(nocc_+b+(nclosed_+v)*norb_, nocc_+a+(nclosed_+w)*norb_);
+                  if (a == b) {
+                    for (int x = 0; x != nact_; ++x) {
+                      value -= rdm2(t, v, w, x) * mo2e(nclosed_+u+(nclosed_+v)*norb_, nclosed_+w+(nclosed_+x)*norb_)
+                             + rdm2(u, v, w, x) * mo2e(nclosed_+t+(nclosed_+v)*norb_, nclosed_+w+(nclosed_+x)*norb_);
+                    }
+                  }
+                }
+              }
+              hessian->element(va_offset+a+t*nvirt_, va_offset+b+u*nvirt_) += value;
+            }
+          }
+        }
+      }
+      // (at, ui)
+      for (int u = 0; u != nact_; ++u) {
+        for (int i = 0; i != nclosed_; ++i) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int a = 0; a != nvirt_; ++a) {
+              double value = 0.0;
+              for (int v = 0; v != nact_; ++v) {
+                for (int w = 0; w != nact_; ++w) {
+                  value -= 2.0 * rdm2(t, u, v, w) * mo2e(nocc_+a+i*norb_, nclosed_+v+(nclosed_+w)*norb_)
+                         + 2.0 * (rdm2(u, v, t, w) + rdm2(v, u, t, w)) * mo2e(nclosed_+v+i*norb_, nclosed_+w+(nocc_+a)*norb_);
+                }
+              }
+              hessian->element(va_offset+a+t*nvirt_, i+u*nclosed_) += value;
+              hessian->element(i+u*nclosed_, va_offset+a+t*nvirt_) += value;
+            }
+          }
+        }
+      }
+      // (at, bi)
+      for (int i = 0; i != nclosed_; ++i) {
+        for (int b = 0; b != nclosed_; ++b) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int a = 0; a != nvirt_; ++a) {
+              if (a == b) {
+                double value = 0.0;
+                for (int u = 0; u != nact_; ++u) {
+                  for (int v = 0; v != nact_; ++v) {
+                    for (int w = 0; w != nact_; ++w) {
+                      value -= rdm2(t, u, v, w) * mo2e(nclosed_+u+i*norb_, nclosed_+v+(nclosed_+w)*norb_);
+                    }
+                  }
+                }
+                hessian->element(va_offset+a+t*nvirt_, vc_offset+b+i*nvirt_) += value;
+                hessian->element(vc_offset+b+i*nvirt_, va_offset+a+t*nvirt_) += value;
+              }
+            }
+          }
+        }
+      }
+      // (ti, uj)
+      for (int u = 0; u != nact_; ++u) {
+        for (int j = 0; j != nclosed_; ++j) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int i = 0; i != nclosed_; ++i) {
+              double value = 0.0;
+              for (int v = 0; v != nact_; ++v) {
+                for (int w = 0; w != nact_; ++w) {
+                  value += 2.0 * rdm2(t, u, v, w) * mo2e(i+j*norb_, nclosed_+v+(nclosed_+w)*norb_)
+                         + 2.0 * (rdm2(u, v, t, w) + rdm2(v, u, t, w)) * mo2e(nclosed_+v+j*norb_, nclosed_+w+i*norb_);
+                  if (i == j) {
+                    for (int x = 0; x != nact_; ++x) {
+                      value -= rdm2(u, v, w, x) * mo2e(nclosed_+t+(nclosed_+v)*norb_, nclosed_+w+(nclosed_+x)*norb_)
+                             + rdm2(t, v, w, x) * mo2e(nclosed_+u+(nclosed_+v)*norb_, nclosed_+w+(nclosed_+x)*norb_);
+                    }
+                  }
+                }
+              }
+              hessian->element(i+t*nclosed_, j+u*nclosed_) += value;
+            }
+          }
+        }
+      }
+      // (ti, aj)
+      for (int j = 0; j != nclosed_; ++j) {
+        for (int a = 0; a != nvirt_; ++a) {
+          for (int t = 0; t != nact_; ++t) {
+            for (int i = 0; i != nclosed_; ++i) {
+              double value = 0.0;
+              if (i == j) {
+                for (int u = 0; u != nact_; ++u) {
+                  for (int v = 0; v != nact_; ++v) {
+                    for (int w = 0; w != nact_; ++w) {
+                      value -= rdm2(t, u, v, w) * mo2e(nocc_+a+(nclosed_+u)*norb_, nclosed_+v+(nclosed_+w)*norb_);
+                    }
+                  }
+                }
+              }
+              hessian->element(i+t*nclosed_, vc_offset+a+j*nvirt_) += value;
+              hessian->element(vc_offset+a+j*nvirt_, i+t*nclosed_) += value;
+            }
+          }
+        }
+      }
+    } // end of rdm2 and integral part
+
+    // check for compute_gradient
+    {
+      cout << " * checking compute_grad" << endl;
+      VectorB grad_vec(rotsize);
+      copy_n(grad->data(), rotsize, grad_vec.data());
+      VectorB grad_diff(grad_vec - grad_check);
+      for (int i = 0; i != rotsize; ++i)
+        if (grad_diff(i) > 1.0e-10) cout << i << " : " << grad_diff(i) << endl;
+      cout << "diff grad rms = " << grad_diff.rms() << endl;
+    }
+    // check for compute_denom
+    {
+      cout << " * checking compute_denom" << endl;
+      VectorB denom_vec(rotsize);
+      copy_n(denom->data(), rotsize, denom_vec.data());
+      VectorB hessian_diag(rotsize);
+      copy_n(hessian->diag().get(), rotsize, hessian_diag.data());
+      VectorB denom_diff(denom_vec - hessian_diag);
+      for (int i = 0; i != rotsize; ++i)
+        if (denom_diff(i) > 1.0e-10) cout << i << " : " << denom_diff(i) << endl;
+      cout << "diff denom rms = " << denom_diff.rms() << endl;
+    }
+    // check for hessian_trial
+    {
+      cout << " * checking compute_hess_trial" << endl;
+      auto rot = trot->clone();
+      for (int i = 0; i != rotsize; ++i) { *(rot->data()+i) = 1.0; }
+      auto hess_try = compute_hess_trial(rot, half, halfa, halfa_JJ, cfock, afock, qxr);
+      VectorB hess_try_vec(rotsize);
+      copy_n(hess_try->data(), rotsize, hess_try_vec.data());
+      VectorB rot_vec(rot->size());
+      copy_n(rot->data(), rotsize, rot_vec.data());
+      VectorB hess_debug_vec(rotsize);
+      dgemv_("N", hessian->ndim(), hessian->mdim(), 1.0, hessian->data(), rotsize, rot_vec.data(), 1, 0.0, hess_debug_vec.data(), 1);
+      VectorB hess_t_diff(hess_try_vec - hess_debug_vec);
+      for (int i = 0; i != rotsize; ++i) {
+        if (hess_t_diff(i) > 1.0e-10) cout << i << " : " << hess_t_diff(i) << endl;
+      }
+      cout << "diff hess_trial rms : " << hess_t_diff.rms() << endl;
+    }
+  }
+  
+#endif
+
     for (int miter = 0; miter != max_micro_iter_; ++miter) {
       
       shared_ptr<const ASD_DMRG_RotFile> sigma = compute_hess_trial(trot, half, halfa, halfa_JJ, cfock, afock, qxr);
@@ -114,7 +501,11 @@ void ASD_DMRG_Second::compute() {
     } // end of micro iter
 
     shared_ptr<const ASD_DMRG_RotFile> sol = solver.civec();
+#ifdef AAROT
     shared_ptr<const Matrix> a = sol->unpack(act_rotblocks_);
+#else
+    shared_ptr<const Matrix> a = sol->unpack();
+#endif
     Matrix w(*a * *a);
     VectorB eig(a->ndim());
     w.diagonalize(eig);
@@ -233,7 +624,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
   }
 
   const int nao = coeff_->ndim();
-  
+
   // rdm-integral part  
   // [tt|pq] = \Gamma_{vw,tt}(vw|pq)
   shared_ptr<const DFFullDist> vaa = halfa_JJ->compute_second_transform(acoeff);
