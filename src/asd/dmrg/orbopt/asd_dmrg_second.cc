@@ -558,7 +558,7 @@ void ASD_DMRG_Second::compute() {
       cout << "diff grad rms = " << grad_diff.rms() << endl;
     }
     // check for compute_denom
-    if (0) {
+    {
       cout << " * checking compute_denom" << endl;
       VectorB denom_vec(rotsize);
       copy_n(denom->data(), rotsize, denom_vec.data());
@@ -840,18 +840,25 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
     for (int j = 0; j != jnorb; ++j) {
       
       // [t,t] = \Gamma_{vw,xt}(vw|xt)
-      const double e2j = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact_*(jstart+j)), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,jstart+j));
+//      const double e2j = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact_*(jstart+j)), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,jstart+j));
 
       // Fock related part
       for (int i = 0; i != inorb; ++i) {
-        const double e2i = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact_*(istart+i)), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,istart+i));
+//        const double e2i = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact_*(istart+i)), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,istart+i));
+/*
         denom->ele_aa_offset(i, inorb, j, offset) = 2.0 * (*cfock)(nclosed_+istart+i, nclosed_+istart+i) * rdm1(jstart+j, jstart+j)
                                                     + 2.0 * (*cfock)(nclosed_+jstart+j, nclosed_+jstart+j) * rdm1(istart+i, istart+i)
                                                     - 4.0 * (*cfock)(nclosed_+istart+i, nclosed_+jstart+j) * rdm1(istart+i, jstart+j)
                                                     - 2.0 * fcd(istart+i, istart+i) - 2.0 * fcd(jstart+j, jstart+j)
                                                     + e2j + e2i;
+*/
+        denom->ele_aa_offset(i, inorb, j, offset) = 2.0 * (*cfock)(nclosed_+istart+i, nclosed_+istart+i) * rdm1(jstart+j, jstart+j)
+                                                    + 2.0 * (*cfock)(nclosed_+jstart+j, nclosed_+jstart+j) * rdm1(istart+i, istart+i)
+                                                    - 4.0 * (*cfock)(nclosed_+istart+i, nclosed_+jstart+j) * rdm1(istart+i, jstart+j)
+                                                    - 2.0 * fcd(istart+i, istart+i) - 2.0 * fcd(jstart+j, jstart+j);
       }
 
+/*
       // [tt|pq] = \Gamma_{vw,tt}(vw|pq)
       Matrix tmp1_act(nact_, nact_);
       dgemv_("T", nri, nact_*nact_, 1.0, vaa_exc->block(0)->data(), nri, vgaa->block(0)->data()+nri*(jstart+j+nact_*(jstart+j)), 1, 0.0, tmp1_act.data(), 1);
@@ -904,6 +911,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
         contract(1.0, *rdm_mat, {0,2}, *mo2ep, {1,2}, 0.0, *outmat, {0,1});
         blas::ax_plus_y_n(-4.0, outmat->diag().get()+istart+nact_*(jstart+j), inorb, denom->ptr_aa_offset(offset)+j*inorb);
       }
+*/
     } // end of looping over second active index
   } // end of looping over blocks
 #endif

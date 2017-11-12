@@ -118,9 +118,9 @@ class ASD_DMRG_RotFile {
 #ifdef AAROT
     // active-active block, the first active runs first
     double* ptr_aa_offset(const int offset) { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
-    double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j+inorb]; }
+    double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j*inorb]; }
     const double* ptr_aa_offset(const int offset) const { return data() + (nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset; }
-    const double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) const { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j+inorb]; }
+    const double& ele_aa_offset(const int i, const int inorb, const int j, const int offset) const { return data_[(nclosed_+nvirt_)*nact_ + nvirt_*nclosed_ + offset + i + j*inorb]; }
     void  ax_plus_y_ca_offset(const double a, const MatView mat, const int offset);
     void  ax_plus_y_va_offset(const double a, const MatView mat, const int offset);
     void  ax_plus_y_aa_offset(const double a, const MatView mat, const int offset);
