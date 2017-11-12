@@ -27,7 +27,7 @@
 
 #define DEBUG
 #ifdef DEBUG
-//#define AAROT
+#define AAROT
 #endif
 
 #include <src/util/math/matrix.h>
