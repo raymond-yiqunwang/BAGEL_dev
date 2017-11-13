@@ -503,7 +503,7 @@ void ASD_DMRG_Second::compute() {
 #endif
     } // end of 2-electron integral part
 
-    // rdm2 and integral part
+    // Qvec part
     {
       // (at, bu)
       for (int u = 0; u != nact_; ++u) {
@@ -611,7 +611,136 @@ void ASD_DMRG_Second::compute() {
           }
         }
       }
-    } // end of rdm2 and integral part
+#ifdef AAROT
+      for (auto& block : act_rotblocks_) {
+        const int istart = block.iorbstart;
+        const int jstart = block.jorbstart;
+        const int inorb = block.norb_i;
+        const int jnorb = block.norb_j;
+        const int offset = block.offset;
+
+        // (ti, uv)
+        for (int v = 0; v != jnorb; ++v) {
+          for (int u = 0; u != inorb; ++u) {
+            for (int t = 0; t != nact_; ++t) {
+              for (int i = 0; i != nclosed_; ++i) {
+                double value = 0.0;
+                if (t == jstart+v) {
+                  for (int w = 0; w != nact_; ++w) {
+                    for (int x = 0; x != nact_; ++x) {
+                      for (int y = 0; y != nact_; ++y) {
+                        value += rdm2(istart+u, w, x, y) * mo2e(nclosed_+w+i*norb_, nclosed_+x+(nclosed_+y)*norb_);
+                      }
+                    }
+                  }
+                }
+                if (t == istart+u) {
+                  for (int w = 0; w != nact_; ++w) {
+                    for (int x = 0; x != nact_; ++x) {
+                      for (int y = 0; y != nact_; ++y) {
+                        value -= rdm2(jstart+v, w, x, y) * mo2e(nclosed_+w+i*norb_, nclosed_+x+(nclosed_+y)*norb_);
+                      }
+                    }
+                  }
+                }
+                hessian->element(i+t*nclosed_, aa_offset+offset+u+v*inorb) += value;
+                hessian->element(aa_offset+offset+u+v*inorb, i+t*nclosed_) += value;
+              }
+            }
+          }
+        }
+        // (at, uv)
+        for (int v = 0; v != jnorb; ++v) {
+          for (int u = 0; u != inorb; ++u) {
+            for (int t = 0; t != nact_; ++t) {
+              for (int a = 0; a != nvirt_; ++a) {
+                double value = 0.0;
+                if (t == istart+u) {
+                  for (int w = 0; w != nact_; ++w) {
+                    for (int x = 0; x != nact_; ++x) {
+                      for (int y = 0; y != nact_; ++y) {
+                        value += rdm2(jstart+v, w, x, y) * mo2e(nclosed_+w+(nocc_+a)*norb_, nclosed_+x+(nclosed_+y)*norb_);
+                      }
+                    }
+                  }
+                }
+                if (t == jstart+v) {
+                  for (int w = 0; w != nact_; ++w) {
+                    for (int x = 0; x != nact_; ++x) {
+                      for (int y = 0; y != nact_; ++y) {
+                        value -= rdm2(istart+u, w, x, y) * mo2e(nclosed_+w+(nocc_+a)*norb_, nclosed_+x+(nclosed_+y)*norb_);
+                      }
+                    }
+                  }
+                }
+                hessian->element(va_offset+a+t*nvirt_, aa_offset+offset+u+v*inorb) += value;
+                hessian->element(aa_offset+offset+u+v*inorb, va_offset+a+t*nvirt_) += value;
+              }
+            }
+          }
+        }
+        // (tu, vw)
+        for (auto& block2 : act_rotblocks_) {
+          const int istart2 = block2.iorbstart;
+          const int jstart2 = block2.jorbstart;
+          const int inorb2 = block2.norb_i;
+          const int jnorb2 = block2.norb_j;
+          const int offset2 = block2.offset;
+          
+          for (int w = 0; w != jnorb2; ++w) {
+            for (int v = 0; v != inorb2; ++v) {
+              for (int u = 0; u != jnorb; ++u) {
+                for (int t = 0; t != inorb; ++t) {
+                  double value = 0.0;
+                  if (jstart+u == istart2+v) {
+                    for (int x = 0; x != nact_; ++x) {
+                      for (int y = 0; y != nact_; ++y) {
+                        for (int z = 0; z != nact_; ++z) {
+                          value += rdm2(jstart2+w, x, y, z) * mo2e(nclosed_+istart+t+(nclosed_+x)*norb_, nclosed_+y+(nclosed_+z)*norb_)
+                                 + rdm2(istart+t, x, y, z) * mo2e(nclosed_+jstart2+w+(nclosed_+x)*norb_, nclosed_+y+(nclosed_+z)*norb_);
+                        }
+                      }
+                    }
+                  }
+                  if (istart+t == jstart2+w) {
+                    for (int x = 0; x != nact_; ++x) {
+                      for (int y = 0; y != nact_; ++y) {
+                        for (int z = 0; z != nact_; ++z) {
+                          value += rdm2(jstart+u, x, y, z) * mo2e(nclosed_+istart2+v+(nclosed_+x)*norb_, nclosed_+y+(nclosed_+z)*norb_)
+                                 + rdm2(istart2+v, x, y, z) * mo2e(nclosed_+jstart+u+(nclosed_+x)*norb_, nclosed_+y+(nclosed_+z)*norb_);
+                        }
+                      }
+                    }
+                  }
+                  if (jstart+u == jstart2+w) {
+                    for (int x = 0; x != nact_; ++x) {
+                      for (int y = 0; y != nact_; ++y) {
+                        for (int z = 0; z != nact_; ++z) {
+                          value -= rdm2(istart2+v, x, y, z) * mo2e(nclosed_+istart+t+(nclosed_+x)*norb_, nclosed_+y+(nclosed_+z)*norb_)
+                                 + rdm2(istart+t, x, y, z) * mo2e(nclosed_+istart2+v+(nclosed_+x)*norb_, nclosed_+y+(nclosed_+z)*norb_);
+                        }
+                      }
+                    }
+                  }
+                  if (istart+t == istart2+v) {
+                    for (int x = 0; x != nact_; ++x) {
+                      for (int y = 0; y != nact_; ++y) {
+                        for (int z = 0; z != nact_; ++z) {
+                          value -= rdm2(jstart+u, x, y, z) * mo2e(nclosed_+jstart2+w+(nclosed_+x)*norb_, nclosed_+y+(nclosed_+z)*norb_)
+                                 + rdm2(jstart2+w, x, y, z) * mo2e(nclosed_+jstart+u+(nclosed_+x)*norb_, nclosed_+y+(nclosed_+z)*norb_);
+                        }
+                      }
+                    }
+                  }
+                  hessian->element(aa_offset+offset+t+u*inorb, aa_offset+offset2+v+w*inorb2) += value;
+                }
+              }
+            }
+          }
+        }
+      }
+#endif
+    } // end of Qvec part
 
     // check for compute_gradient
     {
@@ -622,7 +751,7 @@ void ASD_DMRG_Second::compute() {
       VectorB tmp(grad_vec - grad_check);
       for (int i = 0; i != rotsize; ++i) {
         if (fabs(grad_vec(i)) >= 1.0e-15) {
-          grad_diff(i) = tmp(i) / grad_vec(i);
+          grad_diff(i) = fabs(tmp(i) / grad_vec(i));
           if (grad_diff(i) > 1.0e-8) cout << i << " : " << grad_diff(i) << ", grad_vec = " << grad_vec(i) << endl;
         }
       }
@@ -638,8 +767,8 @@ void ASD_DMRG_Second::compute() {
       VectorB denom_diff(rotsize);
       VectorB tmp(denom_vec - hessian_diag);
       for (int i = 0; i != rotsize; ++i) {
-        if (fabs(denom_vec(i) >= 1.0e-15)) {
-          denom_diff(i) = tmp(i) / denom_vec(i);
+        if (fabs(denom_vec(i)) >= 1.0e-15) {
+          denom_diff(i) = fabs(tmp(i) / denom_vec(i));
           if (denom_diff(i) > 1.0e-8) cout << i << " : " << denom_diff(i) << ", denom_vec = " << denom_vec(i) << endl;
         }
       }
@@ -657,19 +786,20 @@ void ASD_DMRG_Second::compute() {
 #else
       std::iota(rot->begin()+vc_offset, rot->end(), 1.0);
 #endif
-      auto hess_try = compute_hess_trial(rot, half, halfa, halfa_JJ, cfock, afock, qxr);
-      VectorB hess_try_vec(rotsize);
-      copy_n(hess_try->data(), rotsize, hess_try_vec.data());
-      VectorB rot_vec(rot->size());
+      auto hess_trial_rotfile = compute_hess_trial(rot, half, halfa, halfa_JJ, cfock, afock, qxr);
+      VectorB hess_trial_vec(rotsize);
+      copy_n(hess_trial_rotfile->data(), rotsize, hess_trial_vec.data());
+      VectorB rot_vec(rotsize);
+      assert(rot->size() == rotsize);
       copy_n(rot->data(), rotsize, rot_vec.data());
       VectorB hess_debug_vec(rotsize);
       dgemv_("N", hessian->ndim(), hessian->mdim(), 1.0, hessian->data(), rotsize, rot_vec.data(), 1, 0.0, hess_debug_vec.data(), 1);
       VectorB hess_t_diff(rotsize);
-      VectorB tmp(hess_try_vec - hess_debug_vec);
+      VectorB tmp(hess_trial_vec - hess_debug_vec);
       for (int i = 0; i != rotsize; ++i) {
-        if (fabs(hess_try_vec(i) >= 1.0e-15)) {
-          hess_t_diff(i) = tmp(i) / hess_try_vec(i);
-          if (hess_t_diff(i) > 1.0e-8) cout << i << " : " << hess_t_diff(i) << ", hess_t_vec = " << hess_try_vec(i) << endl;
+        if (fabs(hess_trial_vec(i)) >= 1.0e-15) {
+          hess_t_diff(i) = fabs(tmp(i) / hess_trial_vec(i));
+          if (hess_t_diff(i) > 1.0e-8) cout << i << " : " << hess_t_diff(i) << ", hess_t_vec = " << hess_trial_vec(i) << endl;
         }
       }
       cout << "diff hess_trial rms : " << hess_t_diff.rms() << endl;
@@ -1151,8 +1281,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       sigma->ax_plus_y_vc(-2.0, *qva ^ *ca);
     }
 
-//#ifdef AAROT
-#if 0
+#ifdef AAROT
     // active-active part
     for (auto& block : act_rotblocks_) {
       const int istart = block.iorbstart;
@@ -1166,9 +1295,13 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       copy_n(trot->ptr_aa_offset(offset), bsize, rotblock_aa->data());
 
       const MatView qvaj = qva->slice(jstart, jstart+jnorb);
+      const MatView qvai = qva->slice(istart, istart+inorb);
       const MatView vai = va->slice(istart, istart+inorb);
+      const MatView vaj = va->slice(jstart, jstart+jnorb);
       sigma->ax_plus_y_va_offset(2.0, qvaj ^ *rotblock_aa, istart);
+      sigma->ax_plus_y_va_offset(-2.0, qvai * *rotblock_aa, jstart);
       sigma->ax_plus_y_aa_offset(2.0, vai % qvaj, offset);
+      sigma->ax_plus_y_aa_offset(-2.0, qvai % vaj, offset);
 
       if (nclosed_) {
         const MatView qcai = qca->slice(istart, istart+inorb);
@@ -1214,8 +1347,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         if (jstart2 == jstart) {
           assert(istart == istart2 && inorb == inorb2);
           shared_ptr<const Matrix> qaaiI = qaa->get_submatrix(istart, istart2, inorb, inorb2);
-          shared_ptr<const Matrix> qaaIi = qaa->get_submatrix(istart2, istart, inorb2, inorb);
-          auto tmpmat = make_shared<const Matrix>((*qaaiI * *rotblock2_aa) + (*qaaIi % *rotblock2_aa));
+          auto tmpmat = make_shared<const Matrix>((*qaaiI * *rotblock2_aa) + (*qaaiI % *rotblock2_aa));
           sigma->ax_plus_y_aa_offset(-2.0, *tmpmat, offset);
         }
 
