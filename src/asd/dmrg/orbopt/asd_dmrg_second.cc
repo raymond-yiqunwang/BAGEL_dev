@@ -435,6 +435,72 @@ void ASD_DMRG_Second::compute() {
           }
         }
       }
+#ifdef AAROT
+      for (auto& block : act_rotblocks_) {
+        const int istart = block.iorbstart;
+        const int jstart = block.jorbstart;
+        const int inorb = block.norb_i;
+        const int jnorb = block.norb_j;
+        const int offset = block.offset;
+
+        // (ti, uv)
+        for (int v = 0; v != jnorb; ++v) {
+          for (int u = 0; u != inorb; ++u) {
+            for (int t = 0; t != nact_; ++t) {
+              for (int i = 0; i != nclosed_; ++i) {
+                double value = 0.0;
+                for (int w = 0; w != nact_; ++w) {
+                  value += rdm1(w, jstart+v) * (8.0 * mo2e(nclosed_+istart+u+(nclosed_+w)*norb_, nclosed_+t+i*norb_)
+                                              - 2.0 * mo2e(nclosed_+istart+u+(nclosed_+t)*norb_, nclosed_+w+i*norb_)
+                                              - 2.0 * mo2e(nclosed_+istart+u+i*norb_, nclosed_+w+(nclosed_+t)*norb_));
+                  value -= rdm1(w, istart+u) * (8.0 * mo2e(nclosed_+jstart+v+(nclosed_+w)*norb_, nclosed_+t+i*norb_)
+                                              - 2.0 * mo2e(nclosed_+jstart+v+(nclosed_+t)*norb_, nclosed_+w+i*norb_)
+                                              - 2.0 * mo2e(nclosed_+jstart+v+i*norb_, nclosed_+w+(nclosed_+t)*norb_));
+                }
+                if (t == jstart+v) {
+                  for (int x = 0; x != nact_; ++x) {
+                    for (int y = 0; y != nact_; ++y) {
+                      value += rdm1(x, y) * (2.0 * mo2e(nclosed_+x+(nclosed_+y)*norb_, nclosed_+istart+u+i*norb_)
+                                                 - mo2e(nclosed_+istart+u+(nclosed_+y)*norb_, nclosed_+x+i*norb_));
+                    }
+                  }
+                }
+                if (t == istart+u) {
+                  for (int x = 0; x != nact_; ++x) {
+                    for (int y = 0; y != nact_; ++y) {
+                      value -= rdm1(x, y) * (2.0 * mo2e(nclosed_+x+(nclosed_+y)*norb_, nclosed_+jstart+v+i*norb_)
+                                                 - mo2e(nclosed_+jstart+v+(nclosed_+y)*norb_, nclosed_+x+i*norb_));
+                    }
+                  }
+                }
+                hessian->element(i+t*nclosed_, aa_offset+offset+u+v*inorb) += value;
+                hessian->element(aa_offset+offset+u+v*inorb, i+t*nclosed_) += value;
+              }
+            }
+          }
+        }
+        // (ai, tu)
+        for (int u = 0; u != jnorb; ++u) {
+          for (int t = 0; t != inorb; ++t) {
+            for (int i = 0; i != nclosed_; ++i) {
+              for (int a = 0; a != nvirt_; ++a) {
+                double value = 0.0;
+                for (int v = 0; v != nact_; ++v) {
+                  value += rdm1(jstart+u, v) * (8.0 * mo2e(nclosed_+istart+t+(nclosed_+v)*norb_, nocc_+a+i*norb_)
+                                              - 2.0 * mo2e(nclosed_+istart+t+(nocc_+a)*norb_, nclosed_+v+i*norb_)
+                                              - 2.0 * mo2e(nclosed_+istart+t+i*norb_, nclosed_+v+(nocc_+a)*norb_));
+                  value -= rdm1(istart+t, v) * (8.0 * mo2e(nclosed_+jstart+u+(nclosed_+v)*norb_, nocc_+a+i*norb_)
+                                              - 2.0 * mo2e(nclosed_+jstart+u+(nocc_+a)*norb_, nclosed_+v+i*norb_)
+                                              - 2.0 * mo2e(nclosed_+jstart+u+i*norb_, nclosed_+v+(nocc_+a)*norb_));
+                }
+                hessian->element(vc_offset+a+i*nvirt_, aa_offset+offset+t+u*inorb) += value;
+                hessian->element(aa_offset+offset+t+u*inorb, vc_offset+a+i*nvirt_) += value;
+              }
+            }
+          }
+        }
+      }
+#endif
     } // end of 2-electron integral part
 
     // rdm2 and integral part
@@ -552,9 +618,14 @@ void ASD_DMRG_Second::compute() {
       cout << " * checking compute_grad" << endl;
       VectorB grad_vec(rotsize);
       copy_n(grad->data(), rotsize, grad_vec.data());
-      VectorB grad_diff(grad_vec - grad_check);
-      for (int i = 0; i != rotsize; ++i)
-        if (grad_diff(i) > 1.0e-10) cout << i << " : " << grad_diff(i) << endl;
+      VectorB grad_diff(rotsize);
+      VectorB tmp(grad_vec - grad_check);
+      for (int i = 0; i != rotsize; ++i) {
+        if (fabs(grad_vec(i)) >= 1.0e-15) {
+          grad_diff(i) = tmp(i) / grad_vec(i);
+          if (grad_diff(i) > 1.0e-8) cout << i << " : " << grad_diff(i) << ", grad_vec = " << grad_vec(i) << endl;
+        }
+      }
       cout << "diff grad rms = " << grad_diff.rms() << endl;
     }
     // check for compute_denom
@@ -564,16 +635,28 @@ void ASD_DMRG_Second::compute() {
       copy_n(denom->data(), rotsize, denom_vec.data());
       VectorB hessian_diag(rotsize);
       copy_n(hessian->diag().get(), rotsize, hessian_diag.data());
-      VectorB denom_diff(denom_vec - hessian_diag);
-      for (int i = 0; i != rotsize; ++i)
-        if (denom_diff(i) > 1.0e-10) cout << i << " : " << denom_diff(i) << endl;
+      VectorB denom_diff(rotsize);
+      VectorB tmp(denom_vec - hessian_diag);
+      for (int i = 0; i != rotsize; ++i) {
+        if (fabs(denom_vec(i) >= 1.0e-15)) {
+          denom_diff(i) = tmp(i) / denom_vec(i);
+          if (denom_diff(i) > 1.0e-8) cout << i << " : " << denom_diff(i) << ", denom_vec = " << denom_vec(i) << endl;
+        }
+      }
       cout << "diff denom rms = " << denom_diff.rms() << endl;
     }
     // check for hessian_trial
     {
       cout << " * checking compute_hess_trial" << endl;
       auto rot = trot->clone();
-      fill_n(rot->data(), rotsize, 1.0);
+      std::iota(rot->begin(), rot->begin()+va_offset, 1.0);
+      std::iota(rot->begin()+va_offset, rot->begin()+vc_offset, 1.0);
+#ifdef AAROT
+      std::iota(rot->begin()+vc_offset, rot->begin()+aa_offset, 1.0);
+      std::iota(rot->begin()+aa_offset, rot->end(), 1.0);
+#else
+      std::iota(rot->begin()+vc_offset, rot->end(), 1.0);
+#endif
       auto hess_try = compute_hess_trial(rot, half, halfa, halfa_JJ, cfock, afock, qxr);
       VectorB hess_try_vec(rotsize);
       copy_n(hess_try->data(), rotsize, hess_try_vec.data());
@@ -581,9 +664,13 @@ void ASD_DMRG_Second::compute() {
       copy_n(rot->data(), rotsize, rot_vec.data());
       VectorB hess_debug_vec(rotsize);
       dgemv_("N", hessian->ndim(), hessian->mdim(), 1.0, hessian->data(), rotsize, rot_vec.data(), 1, 0.0, hess_debug_vec.data(), 1);
-      VectorB hess_t_diff(hess_try_vec - hess_debug_vec);
+      VectorB hess_t_diff(rotsize);
+      VectorB tmp(hess_try_vec - hess_debug_vec);
       for (int i = 0; i != rotsize; ++i) {
-        if (hess_t_diff(i) > 1.0e-10) cout << i << " : " << hess_t_diff(i) << endl;
+        if (fabs(hess_try_vec(i) >= 1.0e-15)) {
+          hess_t_diff(i) = tmp(i) / hess_try_vec(i);
+          if (hess_t_diff(i) > 1.0e-8) cout << i << " : " << hess_t_diff(i) << ", hess_t_vec = " << hess_try_vec(i) << endl;
+        }
       }
       cout << "diff hess_trial rms : " << hess_t_diff.rms() << endl;
     }
@@ -981,8 +1068,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
 
 #ifdef AAROT
   // active-active 2-electron integral part
-  //if (nclosed_){
-  if (0){
+  if (nclosed_){
     for (auto& block : act_rotblocks_) {
       const int istart = block.iorbstart;
       const int jstart = block.jorbstart;
@@ -1065,7 +1151,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       sigma->ax_plus_y_vc(-2.0, *qva ^ *ca);
     }
 
-#ifndef AAROT
+//#ifdef AAROT
+#if 0
     // active-active part
     for (auto& block : act_rotblocks_) {
       const int istart = block.iorbstart;
@@ -1165,7 +1252,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     if (nclosed_)
       sigma->ax_plus_y_ca(-4.0, ccoeff % (*qp + *qpp));
 
-#ifndef AAROT
+//#ifdef AAROT
+#if 0
     // active-active part
     for (auto& block : act_rotblocks_) {
       const int istart = block.iorbstart;
