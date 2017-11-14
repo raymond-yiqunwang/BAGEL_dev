@@ -645,7 +645,7 @@ void ASD_DMRG_Second::compute() {
                 }
                 hessian->element(i+t*nclosed_, aa_offset+offset+u+v*inorb) += value;
                 hessian->element(aa_offset+offset+u+v*inorb, i+t*nclosed_) += value;
-                
+
                 // Q' and Q''
                 double value2 = 0.0;
                 for (int x = 0; x != nact_; ++x) {
@@ -760,6 +760,7 @@ void ASD_DMRG_Second::compute() {
                   }
                   hessian->element(aa_offset+offset+t+u*inorb, aa_offset+offset2+v+w*inorb2) += value;
 
+/*
                   // Q' and Q''
                   double value2 = 0.0;
                   for (int x = 0; x != nact_; ++x) {
@@ -779,6 +780,7 @@ void ASD_DMRG_Second::compute() {
                     }
                   }
                   hessian->element(aa_offset+offset+t+u*inorb, aa_offset+offset2+v+w*inorb2) += 2.0 * value2;
+*/
                 }
               }
             }
@@ -789,7 +791,7 @@ void ASD_DMRG_Second::compute() {
     } // end of Qvec part
 
     // check for compute_gradient
-    if (0) {
+    {
       cout << " * checking compute_grad" << endl;
       VectorB grad_vec(rotsize);
       copy_n(grad->data(), rotsize, grad_vec.data());
@@ -804,7 +806,7 @@ void ASD_DMRG_Second::compute() {
       cout << "diff grad rms = " << grad_diff.rms() << endl;
     }
     // check for compute_denom
-    if (0) {
+    {
       cout << " * checking compute_denom" << endl;
       VectorB denom_vec(rotsize);
       copy_n(denom->data(), rotsize, denom_vec.data());
@@ -824,10 +826,10 @@ void ASD_DMRG_Second::compute() {
     {
       cout << " * checking compute_hess_trial" << endl;
       auto rot = trot->clone();
-//      std::iota(rot->begin(), rot->begin()+va_offset, 1.0);
-//      std::iota(rot->begin()+va_offset, rot->begin()+vc_offset, 1.0);
+      std::iota(rot->begin(), rot->begin()+va_offset, 1.0);
+      std::iota(rot->begin()+va_offset, rot->begin()+vc_offset, 1.0);
 #ifdef AAROT
-//      std::iota(rot->begin()+vc_offset, rot->begin()+aa_offset, 1.0);
+      std::iota(rot->begin()+vc_offset, rot->begin()+aa_offset, 1.0);
       std::iota(rot->begin()+aa_offset, rot->end(), 1.0);
 #else
       std::iota(rot->begin()+vc_offset, rot->end(), 1.0);
@@ -1103,22 +1105,17 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
     for (int j = 0; j != jnorb; ++j) {
       
       // [t,t] = \Gamma_{vw,xt}(vw|xt)
-//      const double e2j = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact_*(jstart+j)), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,jstart+j));
+      const double e2j = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact_*(jstart+j)), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,jstart+j));
 
       // Fock related part
       for (int i = 0; i != inorb; ++i) {
-//        const double e2i = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact_*(istart+i)), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,istart+i));
-/*
+        const double e2i = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact_*(istart+i)), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,istart+i));
+
         denom->ele_aa_offset(i, inorb, j, offset) = 2.0 * (*cfock)(nclosed_+istart+i, nclosed_+istart+i) * rdm1(jstart+j, jstart+j)
                                                     + 2.0 * (*cfock)(nclosed_+jstart+j, nclosed_+jstart+j) * rdm1(istart+i, istart+i)
                                                     - 4.0 * (*cfock)(nclosed_+istart+i, nclosed_+jstart+j) * rdm1(istart+i, jstart+j)
                                                     - 2.0 * fcd(istart+i, istart+i) - 2.0 * fcd(jstart+j, jstart+j)
                                                     + e2j + e2i;
-*/
-        denom->ele_aa_offset(i, inorb, j, offset) = 2.0 * (*cfock)(nclosed_+istart+i, nclosed_+istart+i) * rdm1(jstart+j, jstart+j)
-                                                    + 2.0 * (*cfock)(nclosed_+jstart+j, nclosed_+jstart+j) * rdm1(istart+i, istart+i)
-                                                    - 4.0 * (*cfock)(nclosed_+istart+i, nclosed_+jstart+j) * rdm1(istart+i, jstart+j)
-                                                    - 2.0 * fcd(istart+i, istart+i) - 2.0 * fcd(jstart+j, jstart+j);
       }
 
 /*
@@ -1175,6 +1172,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
         blas::ax_plus_y_n(-4.0, outmat->diag().get()+istart+nact_*(jstart+j), inorb, denom->ptr_aa_offset(offset)+j*inorb);
       }
 */
+
     } // end of looping over second active index
   } // end of looping over blocks
 #endif
