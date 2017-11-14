@@ -645,6 +645,19 @@ void ASD_DMRG_Second::compute() {
                 }
                 hessian->element(i+t*nclosed_, aa_offset+offset+u+v*inorb) += value;
                 hessian->element(aa_offset+offset+u+v*inorb, i+t*nclosed_) += value;
+                
+                // Q' and Q''
+                double value2 = 0.0;
+                for (int x = 0; x != nact_; ++x) {
+                  for (int y = 0; y != nact_; ++y) {
+                    value2 += 2.0 * (rdm2(t, istart+u, x, y) * mo2e(nclosed_+jstart+v+i*norb_, nclosed_+x+(nclosed_+y)*norb_)
+                                  + (rdm2(istart+u, x, t, y) + rdm2(istart+u, x, y, t)) * mo2e(nclosed_+jstart+v+(nclosed_+x)*norb_, nclosed_+y+i*norb_));
+                    value2 -= 2.0 * (rdm2(t, jstart+v, x, y) * mo2e(nclosed_+istart+u+i*norb_, nclosed_+x+(nclosed_+y)*norb_)
+                                  + (rdm2(jstart+v, x, t, y) + rdm2(jstart+v, x, y, t)) * mo2e(nclosed_+istart+u+(nclosed_+x)*norb_, nclosed_+y+i*norb_));
+                  }
+                }
+                hessian->element(i+t*nclosed_, aa_offset+offset+u+v*inorb) += value2;
+                hessian->element(aa_offset+offset+u+v*inorb, i+t*nclosed_) += value2;
               }
             }
           }
@@ -675,6 +688,19 @@ void ASD_DMRG_Second::compute() {
                 }
                 hessian->element(va_offset+a+t*nvirt_, aa_offset+offset+u+v*inorb) += value;
                 hessian->element(aa_offset+offset+u+v*inorb, va_offset+a+t*nvirt_) += value;
+
+                // Q' and Q''
+                double value2 = 0.0;
+                for (int x = 0; x != nact_; ++x) {
+                  for (int y = 0; y != nact_; ++y) {
+                    value2 += 2.0 * (rdm2(t, jstart+v, x, y) * mo2e(nclosed_+istart+u+(nocc_+a)*norb_, nclosed_+x+(nclosed_+y)*norb_)
+                                  + (rdm2(jstart+v, x, t, y) + rdm2(jstart+v, x, y, t)) * mo2e(nclosed_+istart+u+(nclosed_+x)*norb_, nclosed_+y+(nocc_+a)*norb_));
+                    value2 -= 2.0 * (rdm2(t, istart+u, x, y) * mo2e(nclosed_+jstart+v+(nocc_+a)*norb_, nclosed_+x+(nclosed_+y)*norb_)
+                                  + (rdm2(istart+u, x, t, y) + rdm2(istart+u, x, y, t)) * mo2e(nclosed_+jstart+v+(nclosed_+x)*norb_, nclosed_+y+(nocc_+a)*norb_));
+                  }
+                }
+                hessian->element(va_offset+a+t*nvirt_, aa_offset+offset+u+v*inorb) += value2;
+                hessian->element(aa_offset+offset+u+v*inorb, va_offset+a+t*nvirt_) += value2;
               }
             }
           }
@@ -733,6 +759,26 @@ void ASD_DMRG_Second::compute() {
                     }
                   }
                   hessian->element(aa_offset+offset+t+u*inorb, aa_offset+offset2+v+w*inorb2) += value;
+
+                  // Q' and Q''
+                  double value2 = 0.0;
+                  for (int x = 0; x != nact_; ++x) {
+                    for (int y = 0; y != nact_; ++y) {
+                      value2 += rdm2(jstart2+w, jstart+u, x, y) * mo2e(nclosed_+istart2+v+(nclosed_+istart+t)*norb_, nclosed_+x+(nclosed_+y)*norb_)
+                             + (rdm2(jstart2+w, x, jstart+u, y) + rdm2(x, jstart2+w, jstart+u, y)) * mo2e(nclosed_+istart2+v+(nclosed_+x)*norb_, 
+                                                                                                          nclosed_+istart+t+(nclosed_+y)*norb_);
+                      value2 -= rdm2(istart2+v, jstart+u, x, y) * mo2e(nclosed_+jstart2+w+(nclosed_+istart+t)*norb_, nclosed_+x+(nclosed_+y)*norb_)
+                             + (rdm2(istart2+v, x, jstart+u, y) + rdm2(x, istart2+v, jstart+u, y)) * mo2e(nclosed_+jstart2+w+(nclosed_+x)*norb_,
+                                                                                                          nclosed_+istart+t+(nclosed_+y)*norb_);
+                      value2 -= rdm2(jstart2+w, istart+t, x, y) * mo2e(nclosed_+istart2+v+(nclosed_+jstart+u)*norb_, nclosed_+x+(nclosed_+y)*norb_)
+                             + (rdm2(jstart2+w, x, istart+t, y) + rdm2(x, jstart2+w, istart+t, y)) * mo2e(nclosed_+istart2+v+(nclosed_+x)*norb_,
+                                                                                                          nclosed_+jstart+u+(nclosed_+y)*norb_);
+                      value2 += rdm2(istart2+v, istart+t, x, y) * mo2e(nclosed_+jstart2+w+(nclosed_+jstart+u)*norb_, nclosed_+x+(nclosed_+y)*norb_)
+                             + (rdm2(istart2+v, x, istart+t, y) + rdm2(x, istart2+v, istart+t, y)) * mo2e(nclosed_+jstart2+w+(nclosed_+x)*norb_,
+                                                                                                          nclosed_+jstart+u+(nclosed_+y)*norb_);
+                    }
+                  }
+                  hessian->element(aa_offset+offset+t+u*inorb, aa_offset+offset2+v+w*inorb2) += 2.0 * value;
                 }
               }
             }
@@ -743,7 +789,7 @@ void ASD_DMRG_Second::compute() {
     } // end of Qvec part
 
     // check for compute_gradient
-    {
+    if (0) {
       cout << " * checking compute_grad" << endl;
       VectorB grad_vec(rotsize);
       copy_n(grad->data(), rotsize, grad_vec.data());
@@ -758,7 +804,7 @@ void ASD_DMRG_Second::compute() {
       cout << "diff grad rms = " << grad_diff.rms() << endl;
     }
     // check for compute_denom
-    {
+    if (0) {
       cout << " * checking compute_denom" << endl;
       VectorB denom_vec(rotsize);
       copy_n(denom->data(), rotsize, denom_vec.data());
@@ -782,7 +828,7 @@ void ASD_DMRG_Second::compute() {
       std::iota(rot->begin()+va_offset, rot->begin()+vc_offset, 1.0);
 #ifdef AAROT
       std::iota(rot->begin()+vc_offset, rot->begin()+aa_offset, 1.0);
-      std::iota(rot->begin()+aa_offset, rot->end(), 1.0);
+//      std::iota(rot->begin()+aa_offset, rot->end(), 1.0);
 #else
       std::iota(rot->begin()+vc_offset, rot->end(), 1.0);
 #endif
@@ -1384,8 +1430,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     if (nclosed_)
       sigma->ax_plus_y_ca(-4.0, ccoeff % (*qp + *qpp));
 
-//#ifdef AAROT
-#if 0
+#ifdef AAROT
     // active-active part
     for (auto& block : act_rotblocks_) {
       const int istart = block.iorbstart;
@@ -1401,6 +1446,68 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       const MatView acoeffi = coeff_->slice(nclosed_+istart, nclosed_+istart+inorb);
       const MatView acoeffj = coeff_->slice(nclosed_+jstart, nclosed_+jstart+jnorb);
 
+# if 1
+      auto filti = make_shared<Matrix>(nact_, nact_);
+      for (int i = istart; i != istart+inorb; ++i)
+        filti->element(i, i) = 1.0;
+      auto filtj = make_shared<Matrix>(nact_, nact_);
+      for (int j = jstart; j != jstart+jnorb; ++j)
+        filtj->element(j, j) = 1.0;
+      Matrix rotmat_aa(nact_, nact_);
+      rotmat_aa.copy_block(istart, jstart, inorb, jnorb, rotblock_aa->data());
+      
+      shared_ptr<const DFFullDist> fullaa_0J = halfa->compute_second_transform(acoeff);
+
+      shared_ptr<const DFHalfDist> half1;
+      shared_ptr<const DFFullDist> full1;
+      shared_ptr<const DFFullDist> full2D;
+      // uv->at and uv->it
+      {
+        half1 = halfa->transform_occ(make_shared<Matrix>((*filti) * rotmat_aa));
+        full2D = fullaaD->transform_occ1(filtj);
+        shared_ptr<const Matrix> qpp1 = half1->form_2index(full2D, 1.0);
+
+        half1 = halfa->transform_occ(make_shared<Matrix>((*filtj) ^ rotmat_aa));
+        full2D = fullaaD->transform_occ1(filti);
+        shared_ptr<const Matrix> qpp2 = half1->form_2index(full2D, 1.0);
+
+        half1 = halfa;
+        auto tmpfull2 = fullaa->transform_occ1(make_shared<Matrix>(*filti * rotmat_aa));
+        auto tmpfull2s = tmpfull2->swap();
+        tmpfull2->ax_plus_y(1.0, tmpfull2s);
+        full2D = tmpfull2->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+        shared_ptr<const Matrix> qp1 = half1->form_2index(full2D, 1.0);
+
+        half1 = halfa;
+        tmpfull2 = fullaa->transform_occ1(make_shared<Matrix>((*filtj) ^ rotmat_aa));
+        tmpfull2s = tmpfull2->swap();
+        tmpfull2->ax_plus_y(1.0, tmpfull2s);
+        full2D = tmpfull2->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+        shared_ptr<const Matrix> qp2 = half1->form_2index(full2D, 1.0);
+
+        sigma->ax_plus_y_va(4.0, vcoeff % (*qp1 - *qp2 + *qpp1 - *qpp2));
+        if (nclosed_)
+          sigma->ax_plus_y_ca(-4.0, ccoeff % (*qp1 - *qp2 + *qpp1 - *qpp2));
+      }
+
+      // at->uv and it->uv
+      {
+        Matrix Qp(inorb, jnorb);
+
+        full1 = halfta->compute_second_transform(acoeff);
+        full2D = fullaaD;
+        shared_ptr<const Matrix> qpp = full1->form_2index(full2D, 1.0);
+        Qp += *qpp->get_submatrix(istart, jstart, inorb, jnorb) - *(qpp->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
+
+        full1 = fullaa;
+        full2D = fullta->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+        shared_ptr<const Matrix> qp = full1->form_2index(full2D, 1.0);
+        Qp += *qp->get_submatrix(istart, jstart, inorb, jnorb) - *(qp->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
+
+        sigma->ax_plus_y_aa_offset(4.0, Qp, offset);
+      }
+
+#else
       // (at, uv) and (ti, uv) terms
       shared_ptr<Matrix> rotmat2i;
       shared_ptr<Matrix> rotmat2j;
@@ -1462,7 +1569,9 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
 
         sigma->ax_plus_y_aa_offset(4.0, (*Qpp + *Qp), offset);
       }
+#endif
 
+#if 0
       // (tu, vw) part
       {
         auto qp_aa = make_shared<Matrix>(inorb, jnorb);
@@ -1593,6 +1702,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
           qpp_aa->zero(); // TODO not necessary, just in case, to be deleted..
         }
       }
+#endif
     } // end of looping over block
 #endif
   } // end of Q' and Q'' part
