@@ -54,6 +54,7 @@ void ASD_DMRG_OrbOpt::common_init() {
   norb_ = ref_->coeff()->mdim();
 
 #ifdef AAROT
+  cout << " *** Active-active rotation turned on!" << endl;
   nsites_ = multisite_->nsites();
   // initialize active-active rotation parameters
   int offset = 0;

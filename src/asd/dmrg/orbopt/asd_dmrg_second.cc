@@ -92,7 +92,6 @@ void ASD_DMRG_Second::compute() {
 #ifdef DEBUG
   // build Hessian matrix
   const int rotsize = denom->size();
-  cout << "rotsize = " << rotsize << endl;
   Matrix rdm1(nact_, nact_);
   copy_n(asd_dmrg_->rdm1_av()->data(), rdm1.size(), rdm1.data());
   auto rdm2 = *asd_dmrg_->rdm2_av();
@@ -105,11 +104,8 @@ void ASD_DMRG_Second::compute() {
   }
   const int va_offset = nclosed_ * nact_;
   const int vc_offset = va_offset + nvirt_ * nact_;
-  cout << "va_offset = " << va_offset << endl;
-  cout << "vc_offset = " << vc_offset << endl;
 #ifdef AAROT
   const int aa_offset = vc_offset + nvirt_ * nclosed_;
-  cout << "aa_offset = " << aa_offset << endl;
 #endif
   const Matrix fock = *cfock + *afock;
   shared_ptr<const Matrix> cfk_xt = cfock->get_submatrix(0, nclosed_, norb_, nact_);
@@ -760,7 +756,6 @@ void ASD_DMRG_Second::compute() {
                   }
                   hessian->element(aa_offset+offset+t+u*inorb, aa_offset+offset2+v+w*inorb2) += value;
 
-/*
                   // Q' and Q''
                   double value2 = 0.0;
                   for (int x = 0; x != nact_; ++x) {
@@ -780,7 +775,6 @@ void ASD_DMRG_Second::compute() {
                     }
                   }
                   hessian->element(aa_offset+offset+t+u*inorb, aa_offset+offset2+v+w*inorb2) += 2.0 * value2;
-*/
                 }
               }
             }
@@ -1102,8 +1096,21 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
     const int inorb = block.norb_i;
     const int jnorb = block.norb_j;
     const int offset = block.offset;
+    
+    // prepare for mixed rdm2
+    btas::CRange<3> range(nact_, nact_, nact_*nact_);
+    auto tmptensor = make_shared<btas::Tensor3<double>>(range, asd_dmrg_->rdm2_av()->storage());
+    vector<double> buf(nact_*nact_);
+    for (int i = 0; i != tmptensor->extent(2); ++i) {
+      copy_n(&(*tmptensor)(0,0,i), buf.size(), buf.data());
+      blas::transpose(buf.data(), nact_, nact_, &(*tmptensor)(0,0,i));
+    }
+    RDM<2> rdmmix = *asd_dmrg_->rdm2_av()->copy();
+    blas::ax_plus_y_n(1.0, tmptensor->data(), tmptensor->size(), rdmmix.data());
+    auto mat1 = make_shared<Matrix>(nact_*nact_, inorb*jnorb);
+    auto mat2 = mat1->clone();
+    
     for (int j = 0; j != jnorb; ++j) {
-      
       // [t,t] = \Gamma_{vw,xt}(vw|xt)
       const double e2j = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact_*(jstart+j)), nact_*nact_*nact_, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,jstart+j));
 
@@ -1116,9 +1123,14 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
                                                     - 4.0 * (*cfock)(nclosed_+istart+i, nclosed_+jstart+j) * rdm1(istart+i, jstart+j)
                                                     - 2.0 * fcd(istart+i, istart+i) - 2.0 * fcd(jstart+j, jstart+j)
                                                     + e2j + e2i;
+        
+        // mixed rdm2
+        for (int y = 0; y != nact_; ++y) {
+          copy_n(&rdmmix(0, istart+i, y, jstart+j), nact_, mat1->element_ptr(y*nact_, i+j*inorb));
+          copy_n(mo2e->element_ptr((jstart+j)*nact_, y+(istart+i)*nact_), nact_, mat2->element_ptr(y*nact_, i+j*inorb));
+        }
       }
 
-/*
       // [tt|pq] = \Gamma_{vw,tt}(vw|pq)
       Matrix tmp1_act(nact_, nact_);
       dgemv_("T", nri, nact_*nact_, 1.0, vaa_exc->block(0)->data(), nri, vgaa->block(0)->data()+nri*(jstart+j+nact_*(jstart+j)), 1, 0.0, tmp1_act.data(), 1);
@@ -1126,54 +1138,14 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
       blas::ax_plus_y_n(2.0, tmp1_act.diag().get()+istart, inorb, denom->ptr_aa_offset(offset)+j*inorb);
       blas::ax_plus_y_n(-4.0, mgaa.data()+istart+nact_*(jstart+j), inorb, denom->ptr_aa_offset(offset)+j*inorb);
 
-      // mixed rdm2
       blas::ax_plus_y_n(2.0, ((rdmk % *maa) + (*maa % rdmk)).data()+istart+nact_*(jstart+j), inorb, denom->ptr_aa_offset(offset)+j*inorb);
-      {
-        auto rdm_mat = make_shared<Matrix>(nact_*nact_, nact_*nact_);
-        {
-          btas::CRange<3> range1(nact_, nact_, nact_*nact_);
-          auto tmptensor1 = make_shared<btas::Tensor3<double>>(range1, asd_dmrg_->rdm2_av()->storage());
-          vector<double> buf1(nact_*nact_);
-          for (int i = 0; i != range1.extent(2); ++i) {
-            copy_n(&(*tmptensor1)(0,0,i), buf1.size(), buf1.data());
-            blas::transpose(buf1.data(), nact_, nact_, &(*tmptensor1)(0,0,i));
-          }
-          copy_n(asd_dmrg_->rdm2_av()->data(), rdm_mat->size(), rdm_mat->data());
-          blas::ax_plus_y_n(1.0, tmptensor1->data(), rdm_mat->size(), rdm_mat->data());
-          btas::CRange<3> range2(nact_*nact_, nact_, nact_);
-          auto tmptensor2 = make_shared<btas::Tensor3<double>>(range2, move(tmptensor1->storage()));
-          vector<double> buf2(nact_*nact_*nact_);
-          for (int i = 0; i != range2.extent(2); ++i) {
-            copy_n(&(*tmptensor2)(0,0,i), buf2.size(), buf2.data());
-            blas::transpose(buf2.data(), nact_*nact_, nact_, &(*tmptensor2)(0,0,i));
-          } 
-          btas::CRange<3> range3(nact_, nact_, nact_*nact_);
-          auto tmptensor3 = make_shared<btas::Tensor3<double>>(range3, move(tmptensor2->storage()));
-          vector<double> buf3(nact_*nact_);
-          for (int i = 0; i != range3.extent(2); ++i) {
-            copy_n(&(*tmptensor3)(0,0,i), buf3.size(), buf3.data());
-            blas::transpose(buf3.data(), nact_, nact_, &(*tmptensor3)(0,0,i));
-          }
-          copy_n(tmptensor3->data(), rdm_mat->size(), rdm_mat->data());
-        } // now we have \Gamma_{txuy} + \Gamma_{xtuy} stored in rdm_mat(tu,xy)
-        auto mo2ep = mo2e->clone();
-        {
-          btas::CRange<3> range4(nact_*nact_, nact_, nact_);
-          auto tmptensor4 = make_shared<btas::Tensor3<double>>(range4, mo2e->storage());
-          vector<double> buf4(nact_*nact_*nact_);
-          for (int i = 0; i != range4.extent(2); ++i) {
-            copy_n(&(*tmptensor4)(0,0,i), buf4.size(), buf4.data());
-            blas::transpose(buf4.data(), nact_*nact_, nact_, &(*tmptensor4)(0,0,i));
-          }
-          copy_n(tmptensor4->data(), mo2ep->size(), mo2ep->data());
-        } // (ux|ty) stored in mo2ep(tu,xy)
-        auto outmat = mo2ep->clone();
-        contract(1.0, *rdm_mat, {0,2}, *mo2ep, {1,2}, 0.0, *outmat, {0,1});
-        blas::ax_plus_y_n(-4.0, outmat->diag().get()+istart+nact_*(jstart+j), inorb, denom->ptr_aa_offset(offset)+j*inorb);
-      }
-*/
 
     } // end of looping over second active index
+
+    // mixed rdm2
+    const Matrix out = *mat1 % *mat2;
+    blas::ax_plus_y_n(-4.0, out.diag().get(), inorb*jnorb, denom->ptr_aa_offset(offset));
+
   } // end of looping over blocks
 #endif
 
