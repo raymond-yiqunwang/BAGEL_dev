@@ -778,7 +778,7 @@ void ASD_DMRG_Second::compute() {
                                                                                                           nclosed_+jstart+u+(nclosed_+y)*norb_);
                     }
                   }
-                  hessian->element(aa_offset+offset+t+u*inorb, aa_offset+offset2+v+w*inorb2) += 2.0 * value;
+                  hessian->element(aa_offset+offset+t+u*inorb, aa_offset+offset2+v+w*inorb2) += 2.0 * value2;
                 }
               }
             }
@@ -824,11 +824,11 @@ void ASD_DMRG_Second::compute() {
     {
       cout << " * checking compute_hess_trial" << endl;
       auto rot = trot->clone();
-      std::iota(rot->begin(), rot->begin()+va_offset, 1.0);
-      std::iota(rot->begin()+va_offset, rot->begin()+vc_offset, 1.0);
+//      std::iota(rot->begin(), rot->begin()+va_offset, 1.0);
+//      std::iota(rot->begin()+va_offset, rot->begin()+vc_offset, 1.0);
 #ifdef AAROT
-      std::iota(rot->begin()+vc_offset, rot->begin()+aa_offset, 1.0);
-//      std::iota(rot->begin()+aa_offset, rot->end(), 1.0);
+//      std::iota(rot->begin()+vc_offset, rot->begin()+aa_offset, 1.0);
+      std::iota(rot->begin()+aa_offset, rot->end(), 1.0);
 #else
       std::iota(rot->begin()+vc_offset, rot->end(), 1.0);
 #endif
@@ -1446,7 +1446,6 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       const MatView acoeffi = coeff_->slice(nclosed_+istart, nclosed_+istart+inorb);
       const MatView acoeffj = coeff_->slice(nclosed_+jstart, nclosed_+jstart+jnorb);
 
-# if 1
       auto filti = make_shared<Matrix>(nact_, nact_);
       for (int i = istart; i != istart+inorb; ++i)
         filti->element(i, i) = 1.0;
@@ -1456,8 +1455,6 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
       Matrix rotmat_aa(nact_, nact_);
       rotmat_aa.copy_block(istart, jstart, inorb, jnorb, rotblock_aa->data());
       
-      shared_ptr<const DFFullDist> fullaa_0J = halfa->compute_second_transform(acoeff);
-
       shared_ptr<const DFHalfDist> half1;
       shared_ptr<const DFFullDist> full1;
       shared_ptr<const DFFullDist> full2D;
@@ -1507,75 +1504,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         sigma->ax_plus_y_aa_offset(4.0, Qp, offset);
       }
 
-#else
-      // (at, uv) and (ti, uv) terms
-      shared_ptr<Matrix> rotmat2i;
-      shared_ptr<Matrix> rotmat2j;
-      {
-        rotmat2i = make_shared<Matrix>(nact_, inorb);
-        for (int i = 0; i != inorb; ++i)
-          *rotmat2i->element_ptr(istart+i, i) = 1.0;
-        rotmat2j = make_shared<Matrix>(nact_, jnorb);
-        for (int j = 0; j != jnorb; ++j)
-          *rotmat2j->element_ptr(jstart+j, j) = 1.0;
-        const Matrix tcoeff2i = acoeffj ^ *rotblock_aa;
-        const Matrix tcoeff2j = acoeffi * *rotblock_aa;
-        shared_ptr<const DFHalfDist> halfta_2i = geom_->df()->compute_half_transform(tcoeff2i);
-        shared_ptr<const DFHalfDist> halfta_2j = geom_->df()->compute_half_transform(tcoeff2j);
-        shared_ptr<DFFullDist> fullta_2i = halfta_2i->compute_second_transform(acoeff);
-        shared_ptr<DFFullDist> fullta_2j = halfta_2j->compute_second_transform(acoeff);
-        fullta_2i = fullta_2i->transform_occ1(rotmat2i->transpose());
-        fullta_2j = fullta_2j->transform_occ1(rotmat2j->transpose());
-        shared_ptr<const DFFullDist> fulltas_2i = fullta_2i->swap();
-        shared_ptr<const DFFullDist> fulltas_2j = fullta_2j->swap();
-        fullta_2i->ax_plus_y(1.0, fulltas_2i);
-        fullta_2j->ax_plus_y(1.0, fulltas_2j);
-        shared_ptr<const DFFullDist> fulltaD_2i = fullta_2i->apply_2rdm(*asd_dmrg_->rdm2_av());
-        shared_ptr<const DFFullDist> fulltaD_2j = fullta_2j->apply_2rdm(*asd_dmrg_->rdm2_av());
-        shared_ptr<DFFullDist> fulltaD_ij = fulltaD_2j->copy();
-        fulltaD_ij->ax_plus_y(-1.0, fulltaD_2i); // TODO check here later
-        shared_ptr<const Matrix> qp = halfa_JJ->form_2index(fulltaD_ij, 1.0);
-        
-        shared_ptr<DFFullDist> fullaaD_2i = fullaaD->copy();
-        shared_ptr<DFFullDist> fullaaD_2j = fullaaD->copy();
-        fullaaD_2i = fullaaD_2i->transform_occ1(rotmat2i);
-        fullaaD_2j = fullaaD_2j->transform_occ1(rotmat2j);
-        shared_ptr<const Matrix> qpp2i = halfta_2i->form_2index(fullaaD_2i, 1.0);
-        shared_ptr<const Matrix> qpp2j = halfta_2j->form_2index(fullaaD_2j, 1.0);
-
-        sigma->ax_plus_y_va(4.0, vcoeff % (*qp + *qpp2j - *qpp2i));
-        if (nclosed_)
-          sigma->ax_plus_y_ca(-4.0, ccoeff % (*qp + *qpp2j - *qpp2i));
-
-        shared_ptr<const DFFullDist> fullaaDs_2i = fullaaD_2i->swap();
-        shared_ptr<const DFFullDist> fullaaDs_2j = fullaaD_2j->swap();
-        shared_ptr<const DFFullDist> fulltta_2i = halfta->compute_second_transform(acoeffi);
-        shared_ptr<const DFFullDist> fulltta_2j = halfta->compute_second_transform(acoeffj);
-        shared_ptr<const Matrix> Qpp1 = fulltta_2i->form_2index(fullaaDs_2j, 1.0);
-        shared_ptr<const Matrix> Qpp2 = fullaaDs_2i->form_2index(fulltta_2j, 1.0);
-        shared_ptr<const Matrix> Qpp = make_shared<Matrix>(*Qpp1 - *Qpp2);
-
-        auto tmp_2i = fulltaD->copy();
-        tmp_2i = tmp_2i->transform_occ1(rotmat2i);
-        shared_ptr<const DFFullDist> fullttaD_2i = tmp_2i->swap();
-        auto tmp_2j = fulltaD->copy();
-        tmp_2j = tmp_2j->transform_occ1(rotmat2j);
-        shared_ptr<const DFFullDist> fullttaD_2j = tmp_2j->swap();
-        shared_ptr<const DFFullDist> fullaa_2i = halfa_JJ->compute_second_transform(acoeffi);
-        shared_ptr<const DFFullDist> fullaa_2j = halfa_JJ->compute_second_transform(acoeffj);
-        shared_ptr<const Matrix> Qp1 = fullaa_2i->form_2index(fullttaD_2j, 1.0);
-        shared_ptr<const Matrix> Qp2 = fullttaD_2i->form_2index(fullaa_2j, 1.0);
-        shared_ptr<const Matrix> Qp = make_shared<Matrix>(*Qp1 - *Qp2);
-
-        sigma->ax_plus_y_aa_offset(4.0, (*Qpp + *Qp), offset);
-      }
-#endif
-
-#if 0
       // (tu, vw) part
       {
-        auto qp_aa = make_shared<Matrix>(inorb, jnorb);
-        auto qpp_aa = qp_aa->clone();
         for (auto& block2 : act_rotblocks_) {
           const int istart2 = block2.iorbstart;
           const int jstart2 = block2.jorbstart;
@@ -1583,126 +1513,54 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
           const int jnorb2 = block2.norb_j;
           const int offset2 = block2.offset;
           const int bsize2 = block2.size;
-
+        
+          Matrix out(inorb, jnorb);
+          
           auto rotblock2_aa = make_shared<Matrix>(inorb2, jnorb2);
           copy_n(trot->ptr_aa_offset(offset2), bsize2, rotblock2_aa->data());
 
-          const MatView acoeffi2 = coeff_->slice(nclosed_+istart2, nclosed_+istart2+inorb2);
-          const MatView acoeffj2 = coeff_->slice(nclosed_+jstart2, nclosed_+jstart2+jnorb2);
+          auto filti2 = filti->clone();
+          for (int i = istart2; i != istart2+inorb2; ++i)
+            filti2->element(i, i) = 1.0;
+          auto filtj2 = filtj->clone();
+          for (int j = jstart2; j != jstart2+jnorb2; ++j)
+            filtj2->element(j, j) = 1.0;
+          Matrix rotmat2_aa(nact_, nact_);
+          rotmat2_aa.copy_block(istart2, jstart2, inorb2, jnorb2, rotblock2_aa->data());
 
-          auto rotmat2i2 = make_shared<Matrix>(nact_, inorb2);
-          for (int i = 0; i != inorb2; ++i)
-            *rotmat2i2->element_ptr(istart2+i, i) = 1.0;
-          auto rotmat2j2 = make_shared<Matrix>(nact_, jnorb2);
-          for (int j = 0; j != jnorb2; ++j)
-            *rotmat2j2->element_ptr(jstart2+j, j) = 1.0; 
-          
-          const Matrix matv2w = acoeffi2 * *rotblock2_aa;
-          shared_ptr<const DFHalfDist> halfav2w = geom_->df()->compute_half_transform(matv2w);
-          shared_ptr<const Matrix> tmpout;
-          {
-            shared_ptr<DFFullDist> full_wu;
-            shared_ptr<DFFullDist> full_wt;
-            auto fullaaD1 = fullaaD->copy();
-            fullaaD1 = fullaaD1->transform_occ1(rotmat2j);
-            fullaaD1 = fullaaD1->swap();
-            full_wu = fullaaD1->copy();
-            full_wu = full_wu->transform_occ1(rotmat2j2);
-            full_wt = halfav2w->compute_second_transform(acoeffi);
-            tmpout = full_wt->form_2index(full_wu, 1.0);
-            assert(tmpout->size() == tmpout->size());
-            copy_n(tmpout->data(), tmpout->size(), qpp_aa->data());
+          shared_ptr<const DFFullDist> fullaa_0J = halfa->compute_second_transform(acoeff);
+          shared_ptr<const DFFullDist> fulltaj2_0J = fullaa_0J->transform_occ1(make_shared<Matrix>((*filti2) * rotmat2_aa));
+          shared_ptr<const DFFullDist> fulltai2_0J = fullaa_0J->transform_occ1(make_shared<Matrix>((*filtj2) ^ rotmat2_aa));
 
-            full_wu = fullaaD1->copy();
-            full_wu = full_wu->transform_occ1(make_shared<Matrix>(*rotmat2i2 * *rotblock2_aa));
-            shared_ptr<const DFHalfDist> halfa2 = geom_->df()->compute_half_transform(acoeffj2);
-            full_wt = halfa2->compute_second_transform(acoeffi);
-            tmpout = full_wt->form_2index(full_wu, 1.0);
-            assert(tmpout->size() == qpp_aa->size());
-            blas::ax_plus_y_n(-1.0, tmpout->data(), tmpout->size(), qpp_aa->data());
+          full1 = fulltaj2_0J;
+          full2D = fullaaD->transform_occ1(filtj2);
+          shared_ptr<const Matrix> Qpp1 = full1->form_2index(full2D, 1.0);
+          out += *Qpp1->get_submatrix(istart, jstart, inorb, jnorb) - *(Qpp1->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
 
-            auto fullaaD2 = fullaaD->copy();
-            fullaaD2 = fullaaD2->transform_occ1(rotmat2i);
-            fullaaD2 = fullaaD2->swap();
-            full_wt = fullaaD2->copy();
-            full_wt = full_wt->transform_occ1(rotmat2j2);
-            full_wu = halfav2w->compute_second_transform(acoeffj);
-            tmpout = full_wt->form_2index(full_wu, 1.0);
-            assert(tmpout->size() == qpp_aa->size());
-            blas::ax_plus_y_n(-1.0, tmpout->data(), tmpout->size(), qpp_aa->data());
+          full1 = fulltai2_0J;
+          full2D = fullaaD->transform_occ1(filti2);
+          shared_ptr<const Matrix> Qpp2 = full2D->form_2index(full1, 1.0);
+          out += *Qpp2->get_submatrix(istart, jstart, inorb, jnorb) - *(Qpp2->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
 
-            full_wt = fullaaD2->copy();
-            full_wt = full_wt->transform_occ1(make_shared<Matrix>(*rotmat2i2 * *rotblock2_aa));
-            full_wu = halfa2->compute_second_transform(acoeffj);
-            tmpout = full_wt->form_2index(full_wu, 1.0);
-            assert(tmpout->size() == qpp_aa->size());
-            blas::ax_plus_y_n(1.0, tmpout->data(), tmpout->size(), qpp_aa->data());
-          }
+          full1 = fullaa;
+          shared_ptr<DFFullDist> tmpfull2 = fulltaj2_0J->copy();
+          auto tmpfull2s = tmpfull2->swap();
+          tmpfull2->ax_plus_y(1.0, tmpfull2s);
+          full2D = tmpfull2->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+          shared_ptr<const Matrix> Qp1 = full1->form_2index(full2D, 1.0);
+          out += *Qp1->get_submatrix(istart, jstart, inorb, jnorb) - *(Qp1->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
 
-          {
-            shared_ptr<DFFullDist> full_yu;
-            shared_ptr<DFFullDist> full_yt;
-            shared_ptr<DFFullDist> full_wx = halfav2w->compute_second_transform(acoeff);
-            full_wx = full_wx->transform_occ1(rotmat2j2->transpose());
-            shared_ptr<const DFFullDist> full_wxs = full_wx->swap();
-            full_wx->ax_plus_y(1.0, full_wxs);
-            shared_ptr<const DFFullDist> full_dwx = full_wx->apply_2rdm(*asd_dmrg_->rdm2_av());
-            
-            auto full_uy = full_dwx->copy();
-            full_uy = full_uy->transform_occ1(rotmat2j);
-            full_yu = full_uy->swap();
-            auto full_ty = fullaa->copy();
-            full_ty = full_ty->transform_occ1(rotmat2i);
-            full_yt = full_ty->swap();
-            tmpout = full_yt->form_2index(full_yu, 1.0);
-            assert(tmpout->size() == qp_aa->size());
-            copy_n(tmpout->data(), tmpout->size(), qp_aa->data());
+          full1 = fullaa;
+          tmpfull2 = fulltai2_0J->copy();
+          tmpfull2s = tmpfull2->swap();
+          tmpfull2->ax_plus_y(1.0, tmpfull2s);
+          full2D = tmpfull2->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+          shared_ptr<const Matrix> Qp2 = full2D->form_2index(full1, 1.0);
+          out += *Qp2->get_submatrix(istart, jstart, inorb, jnorb) - *(Qp2->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
 
-            full_ty = full_dwx->copy();
-            full_ty = full_ty->transform_occ1(rotmat2i);
-            full_yt = full_ty->swap();
-            full_uy = fullaa->copy();
-            full_uy = full_uy->transform_occ1(rotmat2j);
-            full_yu = full_uy->swap();
-            tmpout = full_yt->form_2index(full_yu, 1.0);
-            assert(tmpout->size() == qp_aa->size());
-            blas::ax_plus_y_n(-1.0, tmpout->data(), tmpout->size(), qp_aa->data());
-
-            const Matrix w2v = acoeffj2 ^ *rotblock2_aa;
-            auto full_xv = halfa->compute_second_transform(w2v);
-            auto full_vx = full_xv->swap();
-            full_vx = full_vx->transform_occ1(rotmat2i2->transpose());
-            full_xv = full_vx->swap();
-            full_vx->ax_plus_y(1.0, full_xv);
-            shared_ptr<const DFFullDist> full_dvx = full_vx->apply_2rdm(*asd_dmrg_->rdm2_av());
-
-            full_uy = full_dvx->copy();
-            full_uy = full_uy->transform_occ1(rotmat2j);
-            full_yu = full_uy->swap();
-            full_ty = fullaa->copy();
-            full_ty = full_ty->transform_occ1(rotmat2i);
-            full_yt = full_ty->swap();
-            tmpout = full_yt->form_2index(full_yu, 1.0);
-            assert(tmpout->size() == qp_aa->size());
-            blas::ax_plus_y_n(-1.0, tmpout->data(), tmpout->size(), qp_aa->data());
-
-            full_ty = full_dvx->copy();
-            full_ty = full_ty->transform_occ1(rotmat2i);
-            full_yt = full_ty->swap();
-            full_uy = fullaa->copy();
-            full_uy = full_uy->transform_occ1(rotmat2j);
-            full_yu = full_uy->swap();
-            tmpout = full_yt->form_2index(full_yu, 1.0);
-            assert(tmpout->size() == qp_aa->size());
-            blas::ax_plus_y_n(1.0, tmpout->data(), tmpout->size(), qp_aa->data());
-          }
-
-          sigma->ax_plus_y_aa_offset(4.0, (*qp_aa + *qpp_aa), offset);
-          qp_aa->zero();
-          qpp_aa->zero(); // TODO not necessary, just in case, to be deleted..
+          sigma->ax_plus_y_aa_offset(4.0, out, offset);
         }
       }
-#endif
     } // end of looping over block
 #endif
   } // end of Q' and Q'' part
