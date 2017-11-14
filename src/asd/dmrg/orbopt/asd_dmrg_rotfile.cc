@@ -262,12 +262,11 @@ void ASD_DMRG_RotFile::print(const string input) const {
       cout << endl;
     }
   }
-/*
-  if (nact_) {
-    cout << " printing active-active block" << endl;
-    cout << " not implemented yet.." << endl;
-  }
-*/
+#ifdef AAROT
+  cout << " printing active-active block" << endl;
+  for (int i = 0; i != naa_; ++i)
+    cout << setw(10) << setprecision(4) << *(ptr_aa_offset(0)+i) << endl;
+#endif
 }
 
 

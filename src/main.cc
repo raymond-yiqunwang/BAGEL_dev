@@ -37,8 +37,6 @@
 #include <src/util/exception.h>
 #include <src/util/archive.h>
 #include <src/util/io/moldenout.h>
-//dmrg_hubbard
-#include <src/dmrg_hubbard/dmrg_hubbard.h>
 
 using namespace std;
 using namespace bagel;
@@ -76,14 +74,6 @@ int main(int argc, char** argv) {
 
       const string title = to_lower(itree->get<string>("title", ""));
       if (title.empty()) throw runtime_error("title is missing in one of the input blocks");
-
-      //dmrg_hubbard
-      if (title == "dmrg_hubbard") {
-        const shared_ptr<const PTree> input = itree->get_child("parameters");
-        DMRG_Hubbard dmrg_hubbard(input);
-        dmrg_hubbard.compute();
-        return 0;
-      }
 
       if (title == "molecule") {
         geom = geom ? make_shared<Geometry>(*geom, itree) : make_shared<Geometry>(itree);
