@@ -33,7 +33,7 @@ ASD_DMRG::ASD_DMRG(shared_ptr<const PTree> input, shared_ptr<const MultiSite> mu
   metal_ = input_->get<bool>("metal", false);
   nsites_ = multisite->nsites();
   nstate_ = input_->get<int>("nstate", 1);
-  nactorb_ = multisite_->ref()->nact();
+  if (metal_) nactorb_ = multisite_->ref()->nact();
   ntrunc_ = input_->get<int>("ntrunc");
   thresh_ = input_->get<double>("thresh", 1.0e-6);
   maxiter_ = input_->get<int>("maxiter", 50);

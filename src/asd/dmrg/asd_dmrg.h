@@ -111,6 +111,11 @@ class ASD_DMRG {
     // compute RDM
     void compute_rdm12();
 
+    // two-site systems
+    void compute_rdm2_31(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_22(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_13(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+
     // site == 1
     void compute_rdm2_310(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
     void compute_rdm2_301(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
