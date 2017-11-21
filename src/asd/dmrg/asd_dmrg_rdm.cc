@@ -47,10 +47,9 @@ void ASD_DMRG::compute_rdm12() {
   for (int site = 0; site != nsites_; ++site) {
     left_block = (site==0) ? nullptr : left_blocks_[site-1];
     right_block = (site==nsites_-1) ? nullptr : right_blocks_[nsites_-site-2];
-
-    if (site != 0) {
+    
+    if (site != 0)
       left_block->compute_left_index(site, multisite_->active_sizes());
-    }
 
     // obtain ProductRASCivec 
     vector<shared_ptr<ProductRASCivec>> cc;
@@ -81,16 +80,18 @@ void ASD_DMRG::compute_rdm12() {
     // construct RDM by collecting terms during sweeping
     if (site == 0) {
       compute_rdm2_ras(cc, site);
-      // compute_31(0)
-      compute_rdm2_31(cc);
-      // compute_22(0)
-      compute_rdm2_22(cc);
-
+      if (nsites_ == 2) {
+        // compute_31(0)
+        compute_rdm2_31(cc);
+      }
     } else if (site == nsites_-1) {
       compute_rdm2_ras(cc, site);
-      // compute_(0)13
-      compute_rdm2_13(cc);
-
+      if (nsites_ == 2) {
+        // compute_(0)13
+        compute_rdm2_13(cc);
+        // compute_22(0)
+        compute_rdm2_22(cc);
+      }
     } else {
       // special treatment for first configuration as described by Garnet Chan, 2008
       if (site == 1) {
@@ -2634,7 +2635,7 @@ void ASD_DMRG::compute_rdm2_22(vector<shared_ptr<ProductRASCivec>> dvec) {
   for (int istate = 0; istate != dvec.size(); ++istate) {
     auto prod_civec = dvec.at(istate);
     shared_ptr<const DMRG_Block1> left_block = dynamic_pointer_cast<const DMRG_Block1>(prod_civec->left());
-    const int norb_site = multisite_->active_sizes().at(0);
+    const int norb_site = multisite_->active_sizes().at(1);
     const int norb_left = left_block->norb();
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
