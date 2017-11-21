@@ -48,7 +48,7 @@ void ASD_DMRG_Second::compute() {
     
     // first obtain RDM from ASD_DMRG
     {
-      muffle_->mute();
+      //muffle_->mute();
       if (iter) asd_dmrg_->update_multisite(coeff_);
       asd_dmrg_->compute(!iter);
       asd_dmrg_->compute_rdm12();
@@ -358,7 +358,7 @@ void ASD_DMRG_Second::compute() {
             for (int a = 0; a != nvirt_; ++a) {
               double value = 0;
               for (int v = 0; v != nact_; ++v) {
-                assert(mo2e(nocc_+a+(nclosed_+v)*norb_, nclosed_+u+i*norb_) - mo2e(nclosed_+v+(nocc_+a)*norb_, nclosed_+u+i*norb_) < 1.0e-15);
+                assert(mo2e(nocc_+a+(nclosed_+v)*norb_, nclosed_+u+i*norb_) - mo2e(nclosed_+v+(nocc_+a)*norb_, nclosed_+u+i*norb_) < 1.0e-14);
                 value += 2.0 * rdm1(t, v) * (4.0 * mo2e(nocc_+a+(nclosed_+v)*norb_, nclosed_+u+i*norb_) - mo2e(nocc_+a+(nclosed_+u)*norb_, nclosed_+v+i*norb_)
                                                                                                         - mo2e(nocc_+a+i*norb_, nclosed_+u+(nclosed_+v)*norb_));
               }
