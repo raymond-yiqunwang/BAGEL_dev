@@ -26,7 +26,7 @@
 #include <src/scf/hf/fock.h>
 #include <src/util/math/aughess.h>
 
-#ifdef DEBUG
+#ifdef DEBUG_Hess
 #include <src/multi/casscf/cassecond.h>
 #endif
 
@@ -36,7 +36,7 @@ using namespace bagel;
 void ASD_DMRG_Second::compute() {
   assert(nvirt_ && nact_);
 
-#ifdef DEBUG
+#ifdef DEBUG_Hess
   cout << string(12,'=') << endl;
   auto casscf_input = input_->get_child("casscf");
   auto casscf = make_shared<CASSecond>(casscf_input, geom_, ref_); // same orbital ordering with ASD
@@ -89,7 +89,7 @@ void ASD_DMRG_Second::compute() {
     shared_ptr<ASD_DMRG_RotFile> trot = apply_denom(grad, denom, 0.001, 1.0);
     trot->normalize();
 
-#ifdef DEBUG
+#ifdef DEBUG_Hess
   // build Hessian matrix
   const int rotsize = denom->size();
   Matrix rdm1(nact_, nact_);

@@ -75,14 +75,6 @@ class GammaForestASD2 : public GammaForest<VecType, 1> {
 
           for (auto& bra : bra_states) {
             if (BlockKey(new_nelea, new_neleb)==bra.first) {
-#ifdef DEBUG
-/*
-              std::cout << "inserting: <" << bra.first.nelea << ", " << bra.first.neleb << "|";
-              for (auto opiter = coupling.begin(); opiter != coupling.end(); ++opiter)
-                std::cout << (is_alpha(*opiter) ? "(A)" : "(B)") << (is_creation(*opiter) ? "^t" : "");
-              std::cout << "|" << ket.first.nelea << ", " << ket.first.neleb << ">" << std::endl;
-*/
-#endif
               sparselist_.emplace_back(coupling, BlockInfo(bra.first.nelea, bra.first.neleb, bra.second->ij()), BlockInfo(ket.first.nelea, ket.first.neleb, ket.second->ij()));
               this->template insert<0>(bra.second, block_tag(bra.first), ket.second, block_tag(ket.first), coupling);
             }

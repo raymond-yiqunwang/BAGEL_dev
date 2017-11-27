@@ -26,6 +26,12 @@
 #include <src/asd/dmrg/gamma_forest_asd2.h>
 #include <src/util/muffle.h>
 
+#define DEBUG_RDM
+
+#ifdef DEBUG_RDM
+#include <src/ci/fci/knowles.h>
+#endif
+
 using namespace std;
 using namespace bagel;
 
@@ -172,6 +178,68 @@ void ASD_DMRG::compute_rdm12() {
     rdm1_av_ = rdm1_->at(0,0);
     rdm2_av_ = rdm2_->at(0,0);
   }
+
+#ifdef DEBUG_RDM
+  cout << "  * DEBUGGING RDM" << endl;
+  auto fci_info = input_->get_child_optional("fci");
+  if (!fci_info) throw runtime_error("FCI info should be provided when DEBUG_RDM is turned on.");
+  shared_ptr<KnowlesHandy> fci;
+  {
+    Muffle hidefci("fci_debug.log", false);
+    fci = make_shared<KnowlesHandy>(fci_info, multisite_->geom(), multisite_->ref());
+    fci->compute();
+  }
+  cout << "FCI energy : " << setprecision(12) << fci->energy().at(0) << endl;
+  // FCI RDM
+  auto fci_rdm1 = fci->rdm1()->at(0);
+  auto fci_rdm2 = fci->rdm2()->at(0);
+  // ASD-DMRG_RDM
+  auto asd_rdm1 = rdm1_->at(0);
+  auto asd_rdm2 = rdm2_->at(0);
+  // RDM Diff
+  auto diff_rdm1 = make_shared<RDM<1>>(*fci_rdm1 - *asd_rdm1);
+  auto diff_rdm2 = make_shared<RDM<2>>(*fci_rdm2 - *asd_rdm2);
+  // print DEBUG info
+  const double reldiff_thresh = 1.0e-6;
+  const double diff_product = 1.0e-10;
+  const double zero_thresh = 1.0e-13;
+  // RDM1
+  {
+    cout << "    * PROCESSING RDM1" << endl;
+    for (int i = 0; i != nactorb_; ++i) {
+      for (int j = 0; j != nactorb_; ++j) {
+        const double diff_value = diff_rdm1->element(j, i);
+        const double value = fci_rdm1->element(j, i);
+        if (fabs(value) < zero_thresh && fabs(asd_rdm1->element(j, i)) < zero_thresh) continue;
+        const double reldiff = fabs(diff_value / value);
+        if (reldiff >= reldiff_thresh && (fabs(diff_value * value) > diff_product)) {
+          cout << "(" << j << ", " << i << ") relative diff : " << scientific << setprecision(8) << reldiff << endl;
+          cout << "       diff : " << scientific << setprecision(8) << diff_value << ", value : " << value << endl;
+        }
+      }
+    }
+  }
+  // RDM2
+  {
+    cout << "    * PROCESSING RDM2" << endl;
+    for (int i = 0; i != nactorb_; ++i) {
+      for (int j = 0; j != nactorb_; ++j) {
+        for (int k = 0; k != nactorb_; ++k) {
+          for (int l = 0; l != nactorb_; ++l) {
+            const double diff_value = diff_rdm1->element(l, k, j, i);
+            const double value = fci_rdm2->element(l, k, j, i);
+            if (fabs(value) < zero_thresh && fabs(asd_rdm2->element(l, k, j, i)) < zero_thresh) continue;
+            const double reldiff = fabs(diff_value / value);
+            if (reldiff >= reldiff_thresh && (fabs(diff_value * value) > diff_product)) {
+              cout << "(" << l << "," << k << "," << j << "," << i << ") relative diff : " << scientific << setprecision(8) << reldiff << endl;
+              cout << "       diff : " << scientific << setprecision(8) << diff_value << ", value : " << value << endl;
+            }
+          }
+        }
+      }
+    }
+  }
+#endif
 }
 
 
@@ -215,9 +283,6 @@ void ASD_DMRG::compute_rdm2_ras(vector<shared_ptr<ProductRASCivec>> dvec, const 
 
 
 void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_130" << endl;
-#endif
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on site}, {ops on left}, {left nele change}}
     { {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha}, {GammaSQ::CreateAlpha}, {-1, 0} },
@@ -2492,9 +2557,6 @@ void ASD_DMRG::compute_rdm2_31(vector<shared_ptr<ProductRASCivec>> dvec) {
 
 
 void ASD_DMRG::compute_rdm2_13(vector<shared_ptr<ProductRASCivec>> dvec) {
-#ifdef DEBUG
-  cout << "  * compute_rdm2_13" << endl;
-#endif
   assert(nsites_ == 2);
   const list<tuple<list<GammaSQ>, list<GammaSQ>, pair<int, int>>> gammalist_tuple_list = { 
     // { {ops on site}, {ops on left}, {left nele change}}
