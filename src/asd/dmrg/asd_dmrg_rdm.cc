@@ -201,7 +201,7 @@ void ASD_DMRG::compute_rdm12() {
   auto diff_rdm2 = make_shared<RDM<2>>(*fci_rdm2 - *asd_rdm2);
   // print DEBUG info
   const double reldiff_thresh = 1.0e-6;
-  const double diff_product = 1.0e-10;
+  const double diff_product = 1.0e-9;
   const double zero_thresh = 1.0e-13;
   // RDM1
   {

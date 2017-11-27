@@ -106,7 +106,7 @@ MultiSite::MultiSite(shared_ptr<const PTree> itree, shared_ptr<const Reference> 
   // canonicalize active orbitals in sub spaces
   canonicalize();
   // TODO change back
-  ref_ = active_ref_;
+//  ref_ = active_ref_;
 }
 
 
