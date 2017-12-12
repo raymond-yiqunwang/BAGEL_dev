@@ -62,9 +62,6 @@ class Reference : public std::enable_shared_from_this<Reference> {
 
     int nclosed_;
     int nact_;
-    int nactclo_;
-    int nactvirt_;
-    int nlink_;
     int nvirt_;
 
     int nstate_;
@@ -96,10 +93,6 @@ class Reference : public std::enable_shared_from_this<Reference> {
               std::shared_ptr<const RDM<2>> rdm2_av = nullptr,
               std::shared_ptr<const CIWfn> ci = nullptr);
 
-    Reference(std::shared_ptr<const Geometry> geom, std::shared_ptr<const Coeff> coeff,
-              const int nclosed, const int nact, const int nvirt,
-              const int nactclo, const int nactvirt, const int nlink);
-
     // copy construct with optionally updating coeff
     Reference(const Reference& o, std::shared_ptr<const Coeff> c = nullptr) :
       Reference(o.geom(), c ? c : o.coeff(), o.nclosed(), o.nact(), o.nvirt(), o.energy(), o.rdm1(), o.rdm2(), o.rdm1_av(), o.rdm2_av(), o.ciwfn()) { }
@@ -122,11 +115,8 @@ class Reference : public std::enable_shared_from_this<Reference> {
 
     int nclosed() const { return nclosed_; }
     int nact() const { return nact_; }
-    int nactclo() const { return nactclo_; }
-    int nactvirt() const { return nactvirt_; }
     int nvirt() const { return nvirt_; }
     int nocc() const { return nclosed_ + nact_; }
-    int nlink() const { return nlink_; }
 
     int noccA() const { return noccA_; }
     int noccB() const { return noccB_; }

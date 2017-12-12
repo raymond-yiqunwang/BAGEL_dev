@@ -119,7 +119,7 @@ void Dimer::localize(const shared_ptr<const PTree> idata, shared_ptr<const Matri
   for (int sub = 0; sub < nsubspaces; ++sub) {
     size_t imo = orbital_subspaces[sub].first;
 
-    vector<set<int>> subsets{subsets_A[sub], subsets_B[sub], ambiguous_subsets[sub]};
+    vector<set<int>> subsets{{subsets_A[sub], subsets_B[sub], ambiguous_subsets[sub]}};
     for (auto& subset : subsets) {
       if (subset.empty()) continue;
       auto subspace = make_shared<Matrix>(dimerbasis, subset.size());
@@ -281,8 +281,7 @@ void Dimer::set_active(const shared_ptr<const PTree> idata, const bool localize_
         copy_n(subcoeff->element_ptr(0, i), dimerbasis, subspace.element_ptr(0, ii++));
 
       Matrix Sactive(active % S * active);
-//      Sactive.inverse_half(); // Raymond Debug
-      Sactive.inverse_symmetric();
+      Sactive.inverse_half();
 
       Matrix projector( Sactive * ( active % S * subspace ) );
       vector<double> singulars(active_size, 0.0);

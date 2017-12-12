@@ -142,7 +142,7 @@ shared_ptr<Matrix> Dimer::form_reference_active_coeff() const {
   //closed
   auto ccoeff = make_shared<Matrix>(dimerbasis, nclosed+nactcloA+nactcloB);
   ccoeff->copy_block(0,0,                dimerbasis,nclosed,  sref_->coeff()->get_submatrix(0,0,             dimerbasis,nclosed)); //shared closed
-  ccoeff->copy_block(0,nclosed,          dimerbasis,nactcloA, sref_->coeff()->get_submatrix(0,nclosed,       dimerbasis,nactcloA)); //embed activeA
+  ccoeff->copy_block(0,nclosed,          dimerbasis,nactcloA, sref_->coeff()->get_submatrix(0,nclosed,       dimerbasis,nactcloA)); //embed activeB
   ccoeff->copy_block(0,nclosed+nactcloA, dimerbasis,nactcloB, sref_->coeff()->get_submatrix(0,nclosed+nactA, dimerbasis,nactcloB)); //embed activeB
 
   //AO Fock

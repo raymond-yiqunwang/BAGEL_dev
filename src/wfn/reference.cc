@@ -63,15 +63,6 @@ Reference::Reference(shared_ptr<const Geometry> g, shared_ptr<const Coeff> c,
 
 }
 
-Reference::Reference(shared_ptr<const Geometry> geom, shared_ptr<const Coeff> coeff,
-                     const int nclosed, const int nact, const int nvirt,
-                     const int nactclo, const int nactvirt, const int nlink) : 
-  Reference(geom, coeff, nclosed, nact, nvirt) {
-    nactclo_ = nactclo;
-    nactvirt_ = nactvirt;
-    nlink_ = nlink;
-}
-
 
 Reference::Reference(shared_ptr<const Geometry> g, shared_ptr<const PTree> itree) : geom_(g), hcore_(make_shared<Hcore>(geom_)) {
   // Note that other informations are not available...
@@ -287,7 +278,6 @@ shared_ptr<Reference> Reference::set_active(set<int> active_indices) const {
 
   return make_shared<Reference>(geom_, make_shared<const Coeff>(*tmp_coeff), nclosed, nactive, nvirt);
 }
-
 
 // This function currently assumes it is being called on a Reference object with no defined active space
 shared_ptr<Reference> Reference::set_ractive(set<int> ras1, set<int> ras2, set<int> ras3) const {
