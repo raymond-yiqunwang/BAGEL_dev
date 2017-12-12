@@ -4,7 +4,7 @@
 // Copyright (C) 2014 Shane Parker
 //
 // Author: Shane Parker <shane.parker@u.northwestern.edu>
-// Maintainer: NU theory
+// Maintainer: Shiozaki Group
 //
 // This file is part of the BAGEL package.
 //
@@ -32,85 +32,44 @@
 
 namespace bagel {
 
-/// Contains references for isolated sites in the ASD_DMRG algorithm.
-class MultiSite : public std::enable_shared_from_this<MultiSite> {
-  protected: // Raymond version
-    std::shared_ptr<const PTree> input_;
-    std::shared_ptr<const Geometry> geom_;
-
-    std::shared_ptr<const Reference> ref_;
-    std::shared_ptr<const Reference> hf_ref_;
-    std::shared_ptr<const Reference> active_ref_;
-
-    double active_thresh_; // overlap threshold for inclusion in the active space
-    std::vector<int> active_sizes_;
-    std::vector<int> active_electrons_;
-
-    // reorder MO coeff to closed - active - virtual
-    void set_active_metal();
-    // project active orbitals to fragments
-    void project_active();
-    // canonicalize in sub-active spaces
-    void canonicalize();
-
-    int nsites_; // TODO better to be const
-
+// MultiSite provides system information for ASD-DMRG solver
+class MultiSite {
   protected:
-    std::vector<std::shared_ptr<const Reference>> isolated_refs_; ///< Reference objects of the isolated monomers BEFORE active spaces have been chosen
-    std::vector<std::shared_ptr<const Reference>> active_refs_;   ///< Reference objects of the isolated monomers AFTER the active spaces have been chosen
+    std::shared_ptr<const PTree> input_;
+    std::shared_ptr<const Reference> hf_ref_;
+    std::shared_ptr<const Reference> sref_;
 
-    std::vector<std::shared_ptr<const Geometry>> geoms_; ///< hold onto original geometry objects for nbasis and natom information
-
-    std::shared_ptr<const Reference> sref_; ///< Super-reference, i.e., Reference of whole multisite system
-
-    std::vector<std::pair<int, int>> closed_bounds_; ///< list of [start, end) pairs for the closed spaces of each site
-    std::vector<std::pair<int, int>> active_bounds_; ///< list of [start, end) pairs for the active spaces of each site
-    std::vector<std::pair<int, int>> virt_bounds_; ///< list of [start, end) pairs for the virtual spaces of each site
-    std::vector<std::pair<int, int>> occ_act_bounds_; ///< list of [start, end) pairs for all of the occupied active orbitals (orbitals occupied in a HF sense)
-
-//    const int nsites_; 
-
-  public: // Raymond version
-    // constructor
-    MultiSite(std::shared_ptr<const PTree> itree, std::shared_ptr<const Reference> ref);
-
-    void precompute();
-
-    int nsites() const { return nsites_; }
-    std::vector<int> active_electrons() const { return active_electrons_; }
-    int active_electrons(int i) const { return active_electrons_[i]; }
-    std::vector<int> active_sizes() const { return active_sizes_; }
-
-    // Creates a Reference object for an ASD calculation
-    std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield, bool metal = false) const;
-
-    // Return functions
-    std::shared_ptr<const Reference> ref() const { return ref_; }
-    std::shared_ptr<const Reference> hf_ref() const { return hf_ref_; }
-    std::shared_ptr<const Geometry> geom() const { return geom_; }
+    // system info
+    const int nsites_;
+    int charge_;
+    int nspin_;
+    std::vector<int> active_electrons_; // specify number of electrons on each site as initial guess
+    std::vector<int> active_sizes_;     // number of active orbitals localized on each site
+    std::vector<int> region_sizes_;     // number of atoms on each site; atoms should be ordered by sites in molecular geometry
 
   public:
-    // Constructors
-    MultiSite(std::shared_ptr<const PTree> input, std::vector<std::shared_ptr<const Reference>> refs); ///< Conjoins the provided Reference objects
+    // constructor
+    MultiSite(std::shared_ptr<const PTree> input, std::shared_ptr<const Reference> ref, const int nsites);
 
-    // Return functions
-    std::vector<std::shared_ptr<const Reference>> isolated_refs() const { return isolated_refs_; }
-    std::vector<std::shared_ptr<const Reference>> active_refs() const { return active_refs_; }
+    void compute();
 
-    std::shared_ptr<const Reference> isolated_refs(const int i) const { return isolated_refs_.at(i); }
-    std::shared_ptr<const Reference> active_refs(const int i) const { return active_refs_.at(i); }
+    // utility functions
+    void localize(std::shared_ptr<const PTree> ldata, std::shared_ptr<const Matrix> fock);
+    void set_active_orbitals();
+    void canonicalize(std::shared_ptr<const Matrix> fock);
 
+    // return functions
+    int nsites() const { return nsites_; }
+    int charge() const { return charge_; }
+    int nspin() const { return nspin_; }
+    std::vector<int> active_electrons() const { return active_electrons_; }
+    std::vector<int> active_sizes() const { return active_sizes_; }
     std::shared_ptr<const Reference> conv_to_ref() const { return sref_; }
+    
     std::shared_ptr<const MultiSite> reset_coeff(std::shared_ptr<const Coeff> new_coeff) const;
-
-    // Utility functions
-    /// Sets active space of sref_ using overlaps with isolated_ref_ active spaces
-    void set_active(std::shared_ptr<const PTree> idata);
-    /// Localizes active space and uses the given Fock matrix to diagonalize the subspaces
-    void localize(std::shared_ptr<const PTree> idata, std::shared_ptr<const Matrix> fock);
-
-    void scf(std::shared_ptr<const PTree> idata); ///< Driver for preparation of sites for ASD_DMRG
-
+    
+    // prepare input reference for ASD-DMRG
+    std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield) const;
 };
 
 }
