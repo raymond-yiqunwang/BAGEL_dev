@@ -35,7 +35,7 @@
 using namespace std;
 using namespace bagel;
 
-RASD::RASD(const shared_ptr<const PTree> input, shared_ptr<MultiSite> multisite) : ASD_DMRG(input, multisite) { }
+RASD::RASD(const shared_ptr<const PTree> input, shared_ptr<const MultiSite> multisite) : ASD_DMRG(input, multisite) { }
 
 
 shared_ptr<Matrix> RASD::compute_sigma2e(shared_ptr<const RASDvec> cc, shared_ptr<const MOFile> jop) const {

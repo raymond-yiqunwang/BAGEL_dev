@@ -32,40 +32,38 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   
   print_header();
   
-  // first construct multisite
-  asd_dmrg_info_ = input_->get_child_optional("asd_dmrg_info");
-  if (!asd_dmrg_info_) throw runtime_error("ASD-DMRG info has to be provided for orbital optimization");
-  { // collect information for MultiSite
+  // collect ASD-DMRG info
+  auto asd_dmrg_info = input_->get_child_optional("asd_dmrg_info");
+  if (!asd_dmrg_info) throw runtime_error("ASD-DMRG info has to be provided for orbital optimization");
+  
+  // collect MultiSite info
+  shared_ptr<const MultiSite> multisite;
+  {
     auto multisite_info = input_->get_child_optional("multisite");
     if (!multisite_info) throw runtime_error("MultiSite info has to be provided for ASD-DMRG orbital optimization");
     const int nsites = multisite_info->get<int>("nsites");
-    multisite_ = make_shared<MultiSite>(multisite_info, iref, nsites);
-    multisite_->compute();
+    auto ms = make_shared<MultiSite>(multisite_info, iref, nsites);
+    ms->compute();
+    multisite = ms;
   }
-  geom_ = multisite_->sref()->geom();
-  ref_ = multisite_->sref();
-  coeff_ = ref_->coeff();
-  hcore_ = ref_->hcore();
   
-  common_init();
-}
-
-
-void ASD_DMRG_OrbOpt::common_init() {
-
-  nclosed_ = ref_->nclosed();
-  nact_ = ref_->nact();
+  auto mref = multisite->sref();
+  geom_ = mref->geom();
+  coeff_ = mref->coeff();
+  hcore_ = mref->hcore();
+  nclosed_ = mref->nclosed();
+  nact_ = mref->nact();
   nocc_ = nclosed_ + nact_;
-  nvirt_ = ref_->nvirt();
-  norb_ = ref_->coeff()->mdim();
+  nvirt_ = mref->nvirt();
+  norb_ = mref->coeff()->mdim();
 
 #ifdef AAROT
   cout << " *** Active-active rotation turned on!" << endl;
-  nsites_ = multisite_->nsites();
+  nsites_ = multisite->nsites();
   // initialize active-active rotation parameters
   int offset = 0;
   for (int sj = 0; sj != nsites_-1; ++sj)
-    act_rotblocks_.emplace_back(multisite_->active_sizes(), sj, offset);
+    act_rotblocks_.emplace_back(multisite->active_sizes(), sj, offset);
   naa_ = offset;
 #else
   naa_ = 0;
@@ -86,11 +84,9 @@ void ASD_DMRG_OrbOpt::common_init() {
   muffle_->unmute();
 
   // DMRG with RHF orbitals
-  asd_dmrg_ = make_shared<RASD>(asd_dmrg_info_, multisite_);
+  asd_dmrg_ = make_shared<RASD>(asd_dmrg_info, multisite);
   
-  muffle_->unmute();
   cout << "  ===== Orbital Optimization Iteration =====" << endl << endl;
-
 }
 
 
@@ -102,7 +98,6 @@ void ASD_DMRG_OrbOpt::print_header() const {
 
 
 void ASD_DMRG_OrbOpt::print_iteration(const int iter, const vector<double>& energy, const double error) const {
-  muffle_->unmute();
   if (energy.size() != 1 && iter) cout << endl;
 
   int i = 0;
@@ -111,7 +106,6 @@ void ASD_DMRG_OrbOpt::print_iteration(const int iter, const vector<double>& ener
                  << setw(10) << scientific << setprecision(2) << (i==0 ? error : 0.0) << endl;
     ++i;
   }
-  //muffle_->mute();
 }
 
 

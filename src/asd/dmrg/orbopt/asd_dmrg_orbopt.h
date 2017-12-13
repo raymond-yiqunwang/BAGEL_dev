@@ -49,14 +49,12 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     double thresh_micro_;
    
     std::shared_ptr<RASD> asd_dmrg_; // should have DMRG member
+    std::shared_ptr<const MultiSite> multisite_;
     std::shared_ptr<const PTree> input_;
-    std::shared_ptr<const PTree> asd_dmrg_info_; // information for doing ASD-DMRG
-    std::shared_ptr<MultiSite> multisite_;
     std::shared_ptr<const Coeff> coeff_;
     std::vector<double> energy_;
-    std::shared_ptr<const Reference> ref_;
-    std::shared_ptr<const Matrix> hcore_;
     std::shared_ptr<const Geometry> geom_;
+    std::shared_ptr<const Matrix> hcore_;
     
 #ifdef AAROT
     // active-active rotation parameters
@@ -69,7 +67,6 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     // util functions
     void print_header() const;
     void print_iteration(const int iter, const std::vector<double>& energy, const double error) const;
-    void common_init();
 
     // mask some of the output
     mutable std::shared_ptr<Muffle> muffle_;
@@ -91,8 +88,6 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     double thresh() const { return thresh_; }
     double thresh_micro() const { return thresh_micro_; }
 
-    std::shared_ptr<const Reference> ref() const { return ref_; }
-    
     double energy(const int i) const { return energy_[i]; }
     double energy_av() const { return blas::average(energy_); }
     const std::vector<double>& energy() const { return energy_; }

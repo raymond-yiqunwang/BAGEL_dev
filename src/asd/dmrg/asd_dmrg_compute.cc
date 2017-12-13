@@ -101,6 +101,8 @@ void ASD_DMRG::compute(const bool restart) {
       const double sweep_average = accumulate(sweep_energies_[i].begin(), sweep_energies_[i].end(), 0.0)/static_cast<double>(sweep_energies_[i].size());
       const double sweep_range = *mnmx.second - *mnmx.first;
 
+      cout << "sweeping energies : " << endl;
+      for (auto& e : sweep_energies_[i]) cout << e << endl;
       if (iter != 0)
         cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(12) << sweep_average << setw(12) << setprecision(8) << sweep_range
                                                                                << setw(12) << setprecision(8) << energies_[i] - sweep_average << endl;

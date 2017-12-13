@@ -37,24 +37,20 @@ void ASD_DMRG_Second::compute() {
   assert(nvirt_ && nact_);
 
 #ifdef DEBUG_Hess
-  cout << string(12,'=') << endl;
   auto casscf_input = input_->get_child("casscf");
-  auto casscf = make_shared<CASSecond>(casscf_input, geom_, ref_); // same orbital ordering with ASD
+  auto casscf = make_shared<CASSecond>(casscf_input, geom_, asd_dmrg_->multisite()->sref()); // same orbital ordering with ASD
   casscf->compute();
 #endif
 
-  muffle_->mute();
   for (int iter = 0; iter != max_iter_; ++iter) {
     
     // first obtain RDM from ASD_DMRG
     {
-      muffle_->mute();
       if (iter) asd_dmrg_->update_multisite(coeff_);
       asd_dmrg_->compute(!iter);
       asd_dmrg_->compute_rdm12();
       trans_natorb();
       energy_ = asd_dmrg_->energies();
-      muffle_->unmute();
     }
     
     shared_ptr<const Matrix> cfockao = nclosed_ ? make_shared<Fock<1>>(geom_, hcore_, nullptr, coeff_->slice(0, nclosed_), true/*store*/, true/*rhf*/) : hcore_;
@@ -69,7 +65,6 @@ void ASD_DMRG_Second::compute() {
     const double gradient = grad->rms();
     print_iteration(iter, energy_, gradient);
     if (gradient < thresh_) {
-      muffle_->unmute();
       cout << endl << "    * Second-Order Optimization Converged. *" << endl << endl;
       break;
     }
@@ -857,13 +852,11 @@ void ASD_DMRG_Second::compute() {
       double lambda, epsilon, stepsize;
       tie(residual, lambda, epsilon, stepsize) = solver.compute_residual(trot, sigma);
       const double err = residual->norm() / lambda;
-      muffle_->unmute();
       if (!miter) cout << endl;
       cout << "         res : " << setw(8) << setprecision(2) << scientific << err
            <<       "   lamb: " << setw(8) << setprecision(2) << scientific << lambda
            <<       "   eps : " << setw(8) << setprecision(2) << scientific << epsilon
            <<       "   step: " << setw(8) << setprecision(2) << scientific << stepsize << endl;
-      muffle_->mute();
       if (err < max(thresh_micro_, stepsize*thresh_microstep_))
         break;
 
@@ -895,12 +888,10 @@ void ASD_DMRG_Second::compute() {
     coeff_ = make_shared<Coeff>(*coeff_ * R);
 
     if (iter == max_iter_-1) {
-      muffle_->unmute();
       cout << endl << "    * Max iteration reached during the second-order optimization.  Convergence not reached! *   " << endl << endl;
     }
   
   } // end of macro iter
-  muffle_->unmute();
 
   // block diagonalize coeff_ in nclosed and nvirt
   coeff_ = semi_canonical_orb();
