@@ -38,7 +38,7 @@ using namespace bagel;
 void ASD_DMRG::compute_rdm12() {
 
   cout << endl << "  * Computing ASD-DMRG Reduced Density Matrix.." << endl << endl;
-  // initialize RDM12 with 0.0 then do ax_plus_y
+  // initialize RDM12 with 0ull then do ax_plus_y
   const int nactorb = multisite_->sref()->nact();
   auto rdm1 = make_shared<RDM<1>>(nactorb);
   auto rdm2 = make_shared<RDM<2>>(nactorb);
