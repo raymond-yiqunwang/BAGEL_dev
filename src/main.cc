@@ -185,6 +185,8 @@ int main(int argc, char** argv) {
       } else if (title == "asd_dmrg_orbopt") {
           auto asd_dmrg_orbopt = make_shared<ASD_DMRG_Second>(itree, ref);
           asd_dmrg_orbopt->compute();
+          ref = asd_dmrg_orbopt->ref();
+          geom = ref->geom();
       } else if (title == "localize") {
         if (ref == nullptr) throw runtime_error("Localize needs a reference");
 

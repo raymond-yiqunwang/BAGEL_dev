@@ -50,7 +50,7 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
    
     std::shared_ptr<RASD> asd_dmrg_; // should have DMRG member
     std::shared_ptr<const PTree> input_;
-    std::shared_ptr<const PTree> asd_info_; // information for doing ASD-DMRG
+    std::shared_ptr<const PTree> asd_dmrg_info_; // information for doing ASD-DMRG
     std::shared_ptr<MultiSite> multisite_;
     std::shared_ptr<const Coeff> coeff_;
     std::vector<double> energy_;
@@ -90,6 +90,8 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     int max_micro_iter() const { return max_micro_iter_; }
     double thresh() const { return thresh_; }
     double thresh_micro() const { return thresh_micro_; }
+
+    std::shared_ptr<const Reference> ref() const { return ref_; }
     
     double energy(const int i) const { return energy_[i]; }
     double energy_av() const { return blas::average(energy_); }

@@ -33,12 +33,14 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   print_header();
   
   // first construct multisite
-  asd_info_ = idata->get_child("asd_info");
+  asd_dmrg_info_ = input_->get_child_optional("asd_dmrg_info");
+  if (!asd_dmrg_info_) throw runtime_error("ASD-DMRG info has to be provided for orbital optimization");
   { // collect information for MultiSite
-    auto multisite_info = asd_info_->get_child_optional("multisite");
+    auto multisite_info = input_->get_child_optional("multisite");
     if (!multisite_info) throw runtime_error("MultiSite info has to be provided for ASD-DMRG orbital optimization");
     const int nsites = multisite_info->get<int>("nsites");
     multisite_ = make_shared<MultiSite>(multisite_info, iref, nsites);
+    multisite_->compute();
   }
   geom_ = multisite_->sref()->geom();
   ref_ = multisite_->sref();
@@ -46,7 +48,6 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   hcore_ = ref_->hcore();
   
   common_init();
-
 }
 
 
@@ -71,7 +72,7 @@ void ASD_DMRG_OrbOpt::common_init() {
 #endif
 
   nstate_ = input_->get<int>("opt_nstate", 1);
-  max_iter_ = input_->get<int>("opt_max_iter", 50);
+  max_iter_ = input_->get<int>("opt_maxiter", 50);
   max_micro_iter_ = input_->get<int>("opt_max_micro_iter", 100);
   thresh_ = input_->get<double>("opt_thresh", 1.0e-8); // thresh for macro iteration
   thresh_micro_ = input_->get<double>("opt_thresh_micro", 5.0e-6); // thresh for micro iteration
@@ -85,7 +86,7 @@ void ASD_DMRG_OrbOpt::common_init() {
   muffle_->unmute();
 
   // DMRG with RHF orbitals
-  asd_dmrg_ = make_shared<RASD>(asd_info_, multisite_);
+  asd_dmrg_ = make_shared<RASD>(asd_dmrg_info_, multisite_);
   
   muffle_->unmute();
   cout << "  ===== Orbital Optimization Iteration =====" << endl << endl;
