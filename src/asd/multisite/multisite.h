@@ -64,7 +64,7 @@ class MultiSite {
     int nspin() const { return nspin_; }
     std::vector<int> active_electrons() const { return active_electrons_; }
     std::vector<int> active_sizes() const { return active_sizes_; }
-    std::shared_ptr<const Reference> conv_to_ref() const { return sref_; }
+    std::shared_ptr<const Reference> sref() const { return sref_; }
 
     std::shared_ptr<const MultiSite> reset_coeff(std::shared_ptr<const Coeff> new_coeff) const;
     

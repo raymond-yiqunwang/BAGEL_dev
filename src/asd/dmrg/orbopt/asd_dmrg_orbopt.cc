@@ -34,9 +34,14 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   
   // first construct multisite
   asd_info_ = idata->get_child("asd_info");
-  multisite_ = make_shared<MultiSite>(asd_info_, iref);
-  geom_ = multisite_->geom();
-  ref_ = multisite_->ref();
+  { // collect information for MultiSite
+    auto multisite_info = asd_info_->get_child_optional("multisite");
+    if (!multisite_info) throw runtime_error("MultiSite info has to be provided for ASD-DMRG orbital optimization");
+    const int nsites = multisite_info->get<int>("nsites");
+    multisite_ = make_shared<MultiSite>(multisite_info, iref, nsites);
+  }
+  geom_ = multisite_->sref()->geom();
+  ref_ = multisite_->sref();
   coeff_ = ref_->coeff();
   hcore_ = ref_->hcore();
   

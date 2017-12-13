@@ -40,8 +40,9 @@ void ASD_DMRG::compute_rdm12() {
 
   cout << endl << "  * Computing ASD-DMRG Reduced Density Matrix.." << endl << endl;
   // initialize RDM12 with 0.0 then do ax_plus_y
-  auto rdm1 = make_shared<RDM<1>>(nactorb_);
-  auto rdm2 = make_shared<RDM<2>>(nactorb_);
+  const int nactorb = multisite_->sref()->nact();
+  auto rdm1 = make_shared<RDM<1>>(nactorb);
+  auto rdm2 = make_shared<RDM<2>>(nactorb);
   for (int istate = 0; istate != nstate_; ++istate) {
     rdm1_->emplace(istate, istate, rdm1);
     rdm2_->emplace(istate, istate, rdm2);
@@ -62,11 +63,10 @@ void ASD_DMRG::compute_rdm12() {
     {
       Muffle hide_cout("asd_dmrg_rdm.log", true);
       
-      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal_);
+      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
       shared_ptr<PTree> input = prepare_sweeping_input(site);
       {
         input->put("nclosed", ref->nclosed());
-        input->put("metal", metal_);
         read_restricted(input, site);
         const int nactele = accumulate(actvec.begin(), actvec.end(), input->get<int>("charge"));
         input->put("nactele", nactele);
@@ -154,7 +154,7 @@ void ASD_DMRG::compute_rdm12() {
     auto rdm2 = rdm2_->at(istate);
     auto rdm1 = rdm1_->at(istate);
     const int nactele = accumulate(actvec.begin(), actvec.end(), 0);
-    for (int k = 0; k != nactorb_; ++k) {
+    for (int k = 0; k != nactorb; ++k) {
       blas::ax_plus_y_n((1.0/static_cast<double>(nactele-1)), rdm2->element_ptr(0,0,k,k), rdm1->size(), rdm1->data());
     }
   }
@@ -162,8 +162,8 @@ void ASD_DMRG::compute_rdm12() {
   // for nstate==1, rdm1_av_ = rdm1_->at(0)
   // Needs initialization here because we use daxpy
   if (rdm1_av_ == nullptr && nstate_ > 1) {
-    rdm1_av_ = make_shared<RDM<1>>(nactorb_);
-    rdm2_av_ = make_shared<RDM<2>>(nactorb_);
+    rdm1_av_ = make_shared<RDM<1>>(nactorb);
+    rdm2_av_ = make_shared<RDM<2>>(nactorb);
   } else if (nstate_ > 1) {
     rdm1_av_->zero();
     rdm2_av_->zero();
@@ -186,7 +186,7 @@ void ASD_DMRG::compute_rdm12() {
   shared_ptr<KnowlesHandy> fci;
   {
     Muffle hidefci("fci_debug.log", false);
-    fci = make_shared<KnowlesHandy>(fci_info, multisite_->geom(), multisite_->ref());
+    fci = make_shared<KnowlesHandy>(fci_info, multisite_->sref()->geom(), multisite_->sref());
     fci->compute();
   }
   cout << "FCI energy : " << setprecision(12) << fci->energy().at(0) << endl;
@@ -206,8 +206,8 @@ void ASD_DMRG::compute_rdm12() {
   // RDM1
   {
     cout << "    * PROCESSING RDM1" << endl;
-    for (int i = 0; i != nactorb_; ++i) {
-      for (int j = 0; j != nactorb_; ++j) {
+    for (int i = 0; i != nactorb; ++i) {
+      for (int j = 0; j != nactorb; ++j) {
         const double diff_value = diff_rdm1->element(j, i);
         const double value = fci_rdm1->element(j, i);
         if (fabs(value) < zero_thresh && fabs(asd_rdm1->element(j, i)) < zero_thresh) continue;
@@ -222,10 +222,10 @@ void ASD_DMRG::compute_rdm12() {
   // RDM2
   {
     cout << "    * PROCESSING RDM2" << endl;
-    for (int i = 0; i != nactorb_; ++i) {
-      for (int j = 0; j != nactorb_; ++j) {
-        for (int k = 0; k != nactorb_; ++k) {
-          for (int l = 0; l != nactorb_; ++l) {
+    for (int i = 0; i != nactorb; ++i) {
+      for (int j = 0; j != nactorb; ++j) {
+        for (int k = 0; k != nactorb; ++k) {
+          for (int l = 0; l != nactorb; ++l) {
             const double diff_value = diff_rdm1->element(l, k, j, i);
             const double value = fci_rdm2->element(l, k, j, i);
             if (fabs(value) < zero_thresh && fabs(asd_rdm2->element(l, k, j, i)) < zero_thresh) continue;
