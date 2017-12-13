@@ -27,7 +27,6 @@
 #include <src/util/muffle.h>
 
 //#define DEBUG_RDM
-
 #ifdef DEBUG_RDM
 #include <src/ci/fci/knowles.h>
 #endif
@@ -50,7 +49,7 @@ void ASD_DMRG::compute_rdm12() {
 
   // one additional sweeping after convergence to collect terms required to construct RDM
   shared_ptr<DMRG_Block1> left_block, right_block;
-  vector<int> actvec = multisite_->active_electrons();
+  vector<int> active_electrons = multisite_->active_electrons();
   for (int site = 0; site != nsites_; ++site) {
     left_block = (site==0) ? nullptr : left_blocks_[site-1];
     right_block = (site==nsites_-1) ? nullptr : right_blocks_[nsites_-site-2];
@@ -67,9 +66,10 @@ void ASD_DMRG::compute_rdm12() {
       shared_ptr<PTree> input = prepare_sweeping_input(site);
       {
         input->put("nclosed", ref->nclosed());
-        read_restricted(input, site);
-        const int nactele = accumulate(actvec.begin(), actvec.end(), input->get<int>("charge"));
+        input->put("extern_nactele", true);
+        const int nactele = accumulate(active_electrons.begin(), active_electrons.end(), input->get<int>("charge"));
         input->put("nactele", nactele);
+        read_restricted(input, site);
       }
       shared_ptr<ProductRASCI> prod_ras;
       
@@ -153,7 +153,7 @@ void ASD_DMRG::compute_rdm12() {
   for (int istate = 0; istate != nstate_; ++istate) {
     auto rdm2 = rdm2_->at(istate);
     auto rdm1 = rdm1_->at(istate);
-    const int nactele = accumulate(actvec.begin(), actvec.end(), 0);
+    const int nactele = accumulate(active_electrons.begin(), active_electrons.end(), 0);
     for (int k = 0; k != nactorb; ++k) {
       blas::ax_plus_y_n((1.0/static_cast<double>(nactele-1)), rdm2->element_ptr(0,0,k,k), rdm1->size(), rdm1->data());
     }
@@ -200,8 +200,8 @@ void ASD_DMRG::compute_rdm12() {
   auto diff_rdm1 = make_shared<RDM<1>>(*fci_rdm1 - *asd_rdm1);
   auto diff_rdm2 = make_shared<RDM<2>>(*fci_rdm2 - *asd_rdm2);
   // print DEBUG info
-  const double reldiff_thresh = 1.0e-6;
-  const double diff_product = 1.0e-9;
+  const double reldiff_thresh = 1.0e-5;
+  const double diff_product = 1.0e-8;
   const double zero_thresh = 1.0e-13;
   // RDM1
   {
@@ -239,7 +239,7 @@ void ASD_DMRG::compute_rdm12() {
       }
     }
   }
-#endif
+#endif // end of RDM debug code
 }
 
 
