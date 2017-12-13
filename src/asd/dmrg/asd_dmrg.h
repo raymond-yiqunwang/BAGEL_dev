@@ -50,10 +50,8 @@ class ASD_DMRG {
     std::vector<std::vector<double>> sweep_energies_; ///< Stores the energies of each state for each step of the sweep
     std::vector<double> energies_; ///< final energies
 
-    bool metal_;
     int nsites_;  ///< Number of sites in the DMRG model
     int nstate_;  ///< Number of states to target
-    int nactorb_; ///< Number of total active orbitals
     int maxiter_; ///< Maximum number of full sweeps to perform
     int ntrunc_;  ///< Number of states to keep in each DMRG block. Same as \f$M\f$ in the DMRG literature
 
@@ -74,9 +72,6 @@ class ASD_DMRG {
     std::shared_ptr<RDM<1>> rdm1_av_;
     std::shared_ptr<RDM<2>> rdm2_av_;
     
-    /// Read RASCI info from input
-    void read_restricted(std::shared_ptr<PTree> input, const int site) const;
-
     /// Prints graphical depiction of sweep process, mainly probably useful for debugging
     std::string print_progress(const int position, const std::string left_symbol, const std::string right_symbol) const;
 

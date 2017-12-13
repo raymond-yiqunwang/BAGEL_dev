@@ -29,7 +29,6 @@
 #include <src/ci/ras/civector.h>
 #include <src/ci/ras/civec_spinop.h>
 #include <src/ci/ras/apply_block.h>
-#include <src/ci/fci/fci.h>
 
 using namespace std;
 using namespace bagel;

@@ -37,6 +37,40 @@ using namespace bagel;
 
 RASD::RASD(const shared_ptr<const PTree> input, shared_ptr<MultiSite> multisite) : ASD_DMRG(input, multisite) { }
 
+void RASD::read_restricted(shared_ptr<PTree> input, const int site) const {
+  auto restricted = input_->get_child("restricted");
+
+  auto read = [&input] (const shared_ptr<const PTree> inp, int current) {
+    array<int, 3> nras = inp->get_array<int, 3>("orbitals");
+    input->put("max_holes", inp->get<string>("max_holes"));
+    input->put("max_particles", inp->get<string>("max_particles"));
+
+    input->erase("active");
+    auto parent = std::make_shared<PTree>();
+    for (int i = 0; i < 3; ++i) {
+      auto tmp = std::make_shared<PTree>();
+      const int norb = nras[i];
+      for (int i = 0; i < norb; ++i, ++current)
+        tmp->push_back(current+1);
+      parent->push_back(tmp);
+    }
+    input->add_child("active", parent);
+#ifdef DEBUG
+    //cout << "RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
+#endif
+  };
+
+  if (restricted->size() == 1)
+    read(*restricted->begin(), input->get<int>("nclosed"));
+  else if (restricted->size() == nsites_) {
+    auto iter = restricted->begin();
+    advance(iter, site);
+    read(*iter, input->get<int>("nclosed"));
+  }
+  else
+    throw runtime_error("Must specify either one set of restrictions for all sites, or one set per site");
+}
+
 shared_ptr<Matrix> RASD::compute_sigma2e(shared_ptr<const RASDvec> cc, shared_ptr<const MOFile> jop) const {
   const int nstates = cc->ij();
   // Maybe batchsize should be an attribute of RASD
@@ -199,7 +233,7 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
   map<BlockKey, shared_ptr<const Matrix>> spinmap;
 
   shared_ptr<const DimerJop> jop;
-  
+
   Timer growtime(2);
   for (auto& inp : inputs) {
     const int charge = inp->get<int>("charge");
@@ -285,7 +319,6 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
 }
 
 shared_ptr<DMRG_Block1> RASD::decimate_block(shared_ptr<PTree> input, shared_ptr<const Reference> ref, shared_ptr<DMRG_Block1> system, shared_ptr<DMRG_Block1> environment, const int site) {
-  
   Timer decimatetime(2);
   { // prepare input
     input->put("nclosed", ref->nclosed());
@@ -514,7 +547,7 @@ map<BlockKey, shared_ptr<const RASDvec>> RASD::diagonalize_site_RDM(const vector
   int nvectors = 0;
   double partial_trace = 0.0;
   for (auto i = singular_values.rbegin(); i != singular_values.rend(); ++i, ++nvectors) {
-    if (nvectors==ntrunc_) { cout << "number of vectors == ntrunc" << endl; break; }
+    if (nvectors==ntrunc_) break;
     BlockKey bk = get<0>(i->second);
     const int position = get<1>(i->second);
 
@@ -531,7 +564,6 @@ map<BlockKey, shared_ptr<const RASDvec>> RASD::diagonalize_site_RDM(const vector
     output_vectors[get<0>(i->second)].push_back(tmp);
     partial_trace += i->first;
   }
-  cout << "number of vectors = " << nvectors << endl;
   const double total_trace = accumulate(singular_values.begin(), singular_values.end(), 0.0,
                                           [] (double x, pair<double, tuple<BlockKey, int>> s) { return x + s.first; } );
   cout << "  discarded weights: " << setw(12) << setprecision(8) << scientific <<  total_trace - partial_trace << fixed << endl;
@@ -746,7 +778,7 @@ map<BlockKey, vector<shared_ptr<ProductRASCivec>>> RASD::diagonalize_site_and_bl
   int nvectors = 0;
   double partial_trace = 0.0;
   for (auto i = singular_values.rbegin(); i != singular_values.rend(); ++i, ++nvectors) {
-    if (nvectors==ntrunc_) { cout << "number of vectors == ntrunc" << endl; break; }
+    if (nvectors==ntrunc_) break;
     BlockKey bk = get<0>(i->second);
     const int position = get<1>(i->second);
 

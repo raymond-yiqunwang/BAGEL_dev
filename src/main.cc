@@ -30,7 +30,6 @@
 #include <src/wfn/localization.h>
 #include <src/asd/construct_asd.h>
 #include <src/asd/orbital/construct_asd_orbopt.h>
-#include <src/asd/dmrg/construct_asd_metal.h>
 #include <src/asd/dmrg/orbopt/asd_dmrg_second.h>
 #include <src/asd/dmrg/rasd.h>
 #include <src/asd/multisite/multisite.h>
@@ -183,9 +182,6 @@ int main(int argc, char** argv) {
             throw runtime_error("multisite must be called before asd_dmrg");
           auto asd = make_shared<RASD>(itree, multisite);
           asd->compute();
-      } else if (title == "asd_metal") {
-          auto asd_metal = construct_ASD_METAL(itree, ref);
-          asd_metal->compute();
       } else if (title == "asd_dmrg_orbopt") {
           auto asd_dmrg_orbopt = make_shared<ASD_DMRG_Second>(itree, ref);
           asd_dmrg_orbopt->compute();

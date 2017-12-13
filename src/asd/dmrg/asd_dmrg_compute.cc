@@ -42,7 +42,7 @@ void ASD_DMRG::compute(const bool restart) {
     // Seed lattice
     cout << " ===== Start growing DMRG chain =====" << endl;
     {
-      shared_ptr<const Reference> ref = multisite_->build_reference(0, vector<bool>(nsites_, true), metal_);
+      shared_ptr<const Reference> ref = multisite_->build_reference(0, vector<bool>(nsites_, true));
       // CI calculation on site 1 with all other sites at meanfield
       left_block = compute_first_block(prepare_growing_input(0), ref);
       left_blocks_.push_back(left_block);
@@ -53,7 +53,7 @@ void ASD_DMRG::compute(const bool restart) {
     for (int site = 1; site < nsites_-1; ++site) {
       vector<bool> meanfield(nsites_, true);
       fill_n(meanfield.begin(), site, false);
-      shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield, metal_);
+      shared_ptr<const Reference> ref = multisite_->build_reference(site, meanfield);
       left_block = grow_block(prepare_growing_input(site), ref, left_block, site);
       left_blocks_.push_back(left_block);
       cout << "  " << print_progress(site, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
@@ -74,7 +74,7 @@ void ASD_DMRG::compute(const bool restart) {
     for (int site = nsites_-1; site > 0; --site) {
       left_block = left_blocks_[site-1];
       right_block = (site == nsites_-1) ? nullptr : right_blocks_[nsites_ - site - 2];
-      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal_);
+      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
 
       right_block = decimate_block(prepare_sweeping_input(site), ref, right_block, left_block, site);
       right_blocks_[nsites_ - site - 1] = right_block;
@@ -85,7 +85,7 @@ void ASD_DMRG::compute(const bool restart) {
     for (int site = 0; site < nsites_-1; ++site) {
       left_block = (site == 0) ? nullptr : left_blocks_[site-1];
       right_block = right_blocks_[nsites_ - site - 2];
-      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal_);
+      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
 
       left_block = decimate_block(prepare_sweeping_input(site), ref, left_block, right_block, site);
       left_blocks_[site] = left_block;
@@ -102,10 +102,10 @@ void ASD_DMRG::compute(const bool restart) {
       const double sweep_range = *mnmx.second - *mnmx.first;
 
       if (iter != 0)
-        cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(12) << sweep_average << setw(12) << setprecision(8) << sweep_range
+        cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(8) << sweep_average << setw(12) << setprecision(8) << sweep_range
                                                                                << setw(12) << setprecision(8) << energies_[i] - sweep_average << endl;
       else
-        cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(12) << sweep_average << setw(12) << setprecision(8) << sweep_range
+        cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(8) << sweep_average << setw(12) << setprecision(8) << sweep_range
                                                                                << setw(12) << "---------" << endl;
 
       conv &= abs(energies_[i] - sweep_average) < thresh_;
@@ -170,7 +170,7 @@ void ASD_DMRG::down_sweep() {
       for (int site = nsites_-1; site > 0; --site) {
         left_block = left_blocks_[site-1];
         right_block = (site == nsites_-1) ? nullptr : right_blocks_[nsites_ - site - 2];
-        shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal_);
+        shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
 
         right_block = decimate_block(prepare_sweeping_input(site), ref, right_block, left_block, site);
         right_blocks_[nsites_ - site - 1] = right_block;
@@ -181,7 +181,7 @@ void ASD_DMRG::down_sweep() {
       for (int site = 0; site < nsites_-1; ++site) {
         left_block = (site == 0) ? nullptr : left_blocks_[site-1];
         right_block = right_blocks_[nsites_ - site - 2];
-        shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false), metal_);
+        shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
 
         left_block = decimate_block(prepare_sweeping_input(site), ref, left_block, right_block, site);
         left_blocks_[site] = left_block;
@@ -196,10 +196,10 @@ void ASD_DMRG::down_sweep() {
         const double sweep_range = *mnmx.second - *mnmx.first;
 
         if (iter != 0)
-          cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(12) << sweep_average << setw(12) << setprecision(8) << sweep_range
+          cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(8) << sweep_average << setw(12) << setprecision(8) << sweep_range
                                                                                   << setw(12) << setprecision(8) << energies[i] - sweep_average << endl;
         else
-          cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(12) << sweep_average << setw(12) << setprecision(8) << sweep_range
+          cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(8) << sweep_average << setw(12) << setprecision(8) << sweep_range
                                                                                   << setw(12) << "---------" << endl;
 
         conv &= abs(energies[i]-sweep_average) < down_thresh_;

@@ -26,7 +26,7 @@
 #define __ASD_DMRG_ROTFILE_H
 
 //#define DEBUG_Hess
-#define AAROT
+//#define AAROT
 
 #include <src/util/math/matrix.h>
 #include <src/asd/dmrg/orbopt/actrotblock.h>

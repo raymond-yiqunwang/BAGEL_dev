@@ -40,8 +40,7 @@ vector<shared_ptr<ProductRASCivec>> FormSigmaProdRAS::operator()(const vector<sh
   for_each(ccvec.begin(), ccvec.end(), [&sigmavec] (shared_ptr<const ProductRASCivec> c) { sigmavec.push_back(c->clone()); });
 
   for (int istate = 0; istate != nstate; ++istate) {
-    //Timer pdebug(2);
-    Timer pdebug(3);
+    Timer pdebug(2);
     shared_ptr<const ProductRASCivec> cc = ccvec.at(istate);
     shared_ptr<ProductRASCivec> sigma = sigmavec.at(istate);
 
@@ -71,8 +70,7 @@ vector<shared_ptr<ProductRASCivec>> FormSigmaProdRAS::diagonal(const vector<shar
   for_each(ccvec.begin(), ccvec.end(), [&sigmavec] (shared_ptr<const ProductRASCivec> c) { sigmavec.push_back(c->clone()); });
 
   for (int istate = 0; istate != nstate; ++istate) {
-    //Timer pdebug(2);
-    Timer pdebug(3);
+    Timer pdebug(2);
     shared_ptr<const ProductRASCivec> cc = ccvec.at(istate);
     shared_ptr<ProductRASCivec> sigma = sigmavec.at(istate);
 
@@ -95,8 +93,7 @@ vector<shared_ptr<ProductRASCivec>> FormSigmaProdRAS::diagonal(const vector<shar
 }
 
 void FormSigmaProdRAS::pure_block_and_ras(shared_ptr<const ProductRASCivec> cc, shared_ptr<ProductRASCivec> sigma, shared_ptr<const BlockOperators> blockops, shared_ptr<DimerJop> jop) const {
-  //Timer ptime(2);
-  Timer ptime(3);
+  Timer ptime(2);
 
   const int norb = cc->space()->norb();
 
@@ -177,8 +174,7 @@ void FormSigmaProdRAS::diagonal_terms(shared_ptr<const ProductRASCivec> cc, shar
 
 
 void FormSigmaProdRAS::interaction_terms(shared_ptr<const ProductRASCivec> cc, shared_ptr<ProductRASCivec> sigma, shared_ptr<const BlockOperators> blockops, shared_ptr<DimerJop> jop) const {
-  //Timer ptime(2);
-  Timer ptime(3);
+  Timer ptime(2);
   
   for (auto& isec : cc->sectors()) {
     shared_ptr<const RASBlockVectors> cc_sector = isec.second;

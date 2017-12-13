@@ -323,8 +323,8 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
 
   const int nclosed = accumulate(closed_orbitals.begin(), closed_orbitals.end(), 0, [](int x, shared_ptr<const MatView>m) { return x + m->mdim(); });
   const int nact = active_orbitals.mdim();
- 
-  auto out = make_shared<Matrix>(ref_->geom()->nbasis(), nclosed + nact);
+
+  auto out = make_shared<Matrix>(sref_->geom()->nbasis(), nclosed+nact);
 
   current = 0;
   closed_orbitals.push_back(make_shared<MatView>(active_orbitals));
@@ -338,12 +338,10 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
 
 
 shared_ptr<const MultiSite> MultiSite::reset_coeff(shared_ptr<const Coeff> new_coeff) const {
-  
-  // doing this only to update coeff without reconstructing everything (MultiSite should be const in ASD_DMRG class), ugly and stupid though..
+  //doing this to update coeff without reconstructing everything 
   auto new_multisite = make_shared<MultiSite>(*this);
-  auto prev_ref = this->ref();
-  auto new_ref = make_shared<const Reference>(prev_ref->geom(), new_coeff, prev_ref->nclosed(), prev_ref->nact(), prev_ref->nvirt());
-  new_multisite->ref_ = new_ref;
+  auto new_ref = make_shared<const Reference>(sref_->geom(), new_coeff, sref_->nclosed(), sref_->nact(), sref_->nvirt());
+  new_multisite->sref_ = new_ref;
 
   return new_multisite;
 }
