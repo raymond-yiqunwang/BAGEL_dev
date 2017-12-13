@@ -139,10 +139,6 @@ class RASCI : public Method {
     std::shared_ptr<const RDM<1>> rdm1_av() const { return rdm1_av_; }
     std::shared_ptr<const RDM<2>> rdm2_av() const { return rdm2_av_; }
 
-
-    // move to natural orbitals
-//    std::pair<std::shared_ptr<Matrix>, std::vector<double>> natorb_convert();
-
     const std::shared_ptr<const Geometry> geom() const { return geom_; }
 
     std::shared_ptr<const RASDeterminants> det() const { return det_; }

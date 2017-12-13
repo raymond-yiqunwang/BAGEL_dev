@@ -32,6 +32,7 @@ using namespace bagel;
 ASD_DMRG::ASD_DMRG(shared_ptr<const PTree> input, shared_ptr<const MultiSite> multisite) : input_(input), multisite_(multisite) {
   nsites_ = multisite->nsites();
   nstate_ = input_->get<int>("nstate", 1);
+  ntrunc_ = input_->get<int>("ntrunc");
   thresh_ = input_->get<double>("thresh", 1.0e-6);
   maxiter_ = input_->get<int>("maxiter", 50);
 
@@ -134,9 +135,6 @@ void ASD_DMRG::read_restricted(shared_ptr<PTree> input, const int site) const {
       parent->push_back(tmp);
     }
     input->add_child("active", parent);
-#ifdef DEBUG
-    //cout << "RAS[" << nras[0] << "," << nras[1] << "," << nras[2] << "](" << input->get<int>("max_holes") << "h" << input->get<int>("max_particles") << "p)" << endl;
-#endif
   };
 
   if (restricted->size() == 1)
