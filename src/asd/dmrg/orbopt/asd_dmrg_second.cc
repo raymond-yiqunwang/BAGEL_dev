@@ -43,12 +43,12 @@ void ASD_DMRG_Second::compute() {
   casscf->compute();
 #endif
 
-  //muffle_->mute();
+  muffle_->mute();
   for (int iter = 0; iter != max_iter_; ++iter) {
     
     // first obtain RDM from ASD_DMRG
     {
-      //muffle_->mute();
+      muffle_->mute();
       if (iter) asd_dmrg_->update_multisite(coeff_);
       asd_dmrg_->compute(!iter);
       asd_dmrg_->compute_rdm12();
@@ -863,7 +863,7 @@ void ASD_DMRG_Second::compute() {
            <<       "   lamb: " << setw(8) << setprecision(2) << scientific << lambda
            <<       "   eps : " << setw(8) << setprecision(2) << scientific << epsilon
            <<       "   step: " << setw(8) << setprecision(2) << scientific << stepsize << endl;
-      //muffle_->mute();
+      muffle_->mute();
       if (err < max(thresh_micro_, stepsize*thresh_microstep_))
         break;
 
