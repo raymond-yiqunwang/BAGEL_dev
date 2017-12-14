@@ -49,8 +49,6 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
 
   auto mref = multisite->sref();
   coeff_ = mref->coeff();
-  nvirt_ = mref->nvirt();
-  norb_ = coeff_->mdim();
 
 #ifdef AAROT
   cout << " *** Active-active rotation turned on!" << endl;
@@ -72,7 +70,7 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   cout << "    * nstate   : " << setw(6) << nstate_ << endl;
   cout << "    * nclosed  : " << setw(6) << mref->nclosed() << endl;
   cout << "    * nact     : " << setw(6) << mref->nact() << endl;
-  cout << "    * nvirt    : " << setw(6) << nvirt_ << endl << endl;
+  cout << "    * nvirt    : " << setw(6) << mref->nvirt() << endl << endl;
   assert(mref->nact() && mref->nvirt());
 
   muffle_ = make_shared<Muffle>("asd_dmrg_orbopt.log");
@@ -139,6 +137,8 @@ shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
   const int nclosed = mref->nclosed();
   const int nact = mref->nact();
   const int nocc = nclosed + nact;
+  const int nvirt = mref->nvirt();
+  const int norb = coeff_->mdim();
   
   auto rdm1_mat = make_shared<Matrix>(nact, nact);
   copy_n(asd_dmrg_->rdm1_av()->data(), rdm1_mat->size(), rdm1_mat->data());
@@ -147,14 +147,14 @@ shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
 
   const MatView ccoeff = coeff_->slice(0, nclosed);
   const MatView acoeff = coeff_->slice(nclosed, nocc);
-  const MatView vcoeff = coeff_->slice(nocc, norb_);
+  const MatView vcoeff = coeff_->slice(nocc, norb);
 
   VectorB eig(coeff_->mdim());
   auto core_fock = nclosed ? make_shared<Fock<1>>(mref->geom(), mref->hcore(), nullptr, coeff_->slice(0, nclosed), false/*store*/, true/*rhf*/)
                             : make_shared<Matrix>(*mref->hcore());
   Fock<1> fock(mref->geom(), core_fock, nullptr, acoeff * *rdm1_mat, false, true);
 
-  Matrix trans(norb_, norb_);
+  Matrix trans(norb, norb);
   trans.unit();
   if (nclosed) {
     Matrix ofock = ccoeff % fock * ccoeff;
@@ -163,7 +163,7 @@ shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
   }
   Matrix vfock = vcoeff % fock * vcoeff;
   vfock.diagonalize(eig);
-  trans.copy_block(nocc, nocc, nvirt_, nvirt_, vfock);
+  trans.copy_block(nocc, nocc, nvirt, nvirt, vfock);
   
   return make_shared<Coeff>(*coeff_ * trans);
 }

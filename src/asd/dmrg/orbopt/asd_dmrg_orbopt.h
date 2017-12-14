@@ -46,9 +46,6 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     std::shared_ptr<const PTree> input_;
     std::shared_ptr<const Coeff> coeff_;
 
-    int nvirt_;
-    int norb_;
-    
 #ifdef AAROT
     // active-active rotation parameters
     std::vector<ASD_ActRotBlock> act_rotblocks_;
