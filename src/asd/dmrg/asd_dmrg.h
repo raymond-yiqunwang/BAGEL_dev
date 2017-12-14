@@ -101,6 +101,7 @@ class ASD_DMRG {
     double energies(const int i) const { return energies_.at(i); }
     
     std::shared_ptr<const Reference> conv_to_ref() const;
+    std::shared_ptr<const MultiSite> multisite() const { return multisite_; } 
     void update_multisite(std::shared_ptr<const Coeff> newcoeff) { multisite_ = multisite_->reset_coeff(newcoeff); }
 
     void read_restricted(std::shared_ptr<PTree> input, const int site) const;

@@ -34,31 +34,23 @@ namespace bagel {
 class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
 
   protected:
-    int nclosed_;
-    int nact_;
-    int nocc_; // sum of nclosed_ + nact_
-    int nvirt_;
-    int norb_;
     int nstate_;
     int naa_; // size of active-active part
-
     // parameters for iteration
     int max_iter_;
     int max_micro_iter_;
     double thresh_;
     double thresh_micro_;
    
-    std::shared_ptr<RASD> asd_dmrg_; // should have DMRG member
-    std::shared_ptr<const MultiSite> multisite_;
+    std::shared_ptr<RASD> asd_dmrg_;
     std::shared_ptr<const PTree> input_;
     std::shared_ptr<const Coeff> coeff_;
-    std::vector<double> energy_;
-    std::shared_ptr<const Geometry> geom_;
-    std::shared_ptr<const Matrix> hcore_;
+
+    int nvirt_;
+    int norb_;
     
 #ifdef AAROT
     // active-active rotation parameters
-    int nsites_;
     std::vector<ASD_ActRotBlock> act_rotblocks_;
 #endif
 
@@ -77,25 +69,14 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     virtual void compute() = 0;
   
     // return functions
-    int nclosed() const { return nclosed_; }
-    int nact() const { return nact_; }
-    int nocc() const { return nocc_; }
-    int nvirt() const { return nvirt_; }
-    int norb() const { return norb_; }
     int nstate() const { return nstate_; }
     int max_iter() const { return max_iter_; }
     int max_micro_iter() const { return max_micro_iter_; }
     double thresh() const { return thresh_; }
     double thresh_micro() const { return thresh_micro_; }
 
-    double energy(const int i) const { return energy_[i]; }
-    double energy_av() const { return blas::average(energy_); }
-    const std::vector<double>& energy() const { return energy_; }
-    std::shared_ptr<const Coeff> coeff() const { return coeff_; }
-
     std::shared_ptr<Matrix> compute_active_fock(const MatView acoeff, std::shared_ptr<const RDM<1>> rdm1) const;
     std::shared_ptr<Matrix> compute_qvec(const MatView acoeff, std::shared_ptr<const RDM<2>> rdm2) const;
-
 };
 
 }

@@ -25,7 +25,7 @@
 #ifndef __ASD_DMRG_ROTFILE_H
 #define __ASD_DMRG_ROTFILE_H
 
-#define DEBUG_Hess
+//#define DEBUG_Hess
 //#define AAROT
 
 #include <src/util/math/matrix.h>
