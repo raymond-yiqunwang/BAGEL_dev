@@ -66,7 +66,7 @@ class MultiSite {
     std::vector<int> active_sizes() const { return active_sizes_; }
     std::shared_ptr<const Reference> sref() const { return sref_; }
 
-    std::shared_ptr<const MultiSite> reset_coeff(std::shared_ptr<const Coeff> new_coeff) const;
+    std::shared_ptr<const MultiSite> update_coeff(std::shared_ptr<const Coeff> new_coeff) const;
     
     // prepare input reference for ASD-DMRG
     std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield) const;

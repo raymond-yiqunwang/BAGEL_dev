@@ -896,7 +896,7 @@ void ASD_DMRG_Second::compute() {
   
   } // end of macro iter
   // block diagonalize coeff_ in nclosed and nvirt
-  coeff_ = semi_canonical_orb();
+//  coeff_ = semi_canonical_orb();
   
   // TODO maybe one more ASD iteration
 }

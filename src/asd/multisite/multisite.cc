@@ -337,11 +337,10 @@ shared_ptr<Reference> MultiSite::build_reference(const int site, const vector<bo
 }
 
 
-shared_ptr<const MultiSite> MultiSite::reset_coeff(shared_ptr<const Coeff> new_coeff) const {
+shared_ptr<const MultiSite> MultiSite::update_coeff(shared_ptr<const Coeff> new_coeff) const {
   //doing this to update coeff without reconstructing everything 
   auto new_multisite = make_shared<MultiSite>(*this);
-  auto new_ref = make_shared<const Reference>(sref_->geom(), new_coeff, sref_->nclosed(), sref_->nact(), sref_->nvirt());
-  new_multisite->sref_ = new_ref;
+  new_multisite->sref_ = make_shared<const Reference>(*sref_, new_coeff);
 
   return new_multisite;
 }

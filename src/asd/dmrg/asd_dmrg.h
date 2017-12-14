@@ -102,7 +102,7 @@ class ASD_DMRG {
     
     std::shared_ptr<const Reference> conv_to_ref() const;
     std::shared_ptr<const MultiSite> multisite() const { return multisite_; } 
-    void update_multisite(std::shared_ptr<const Coeff> newcoeff) { multisite_ = multisite_->reset_coeff(newcoeff); }
+    void update_multisite(std::shared_ptr<const Coeff> newcoeff) { multisite_ = multisite_->update_coeff(newcoeff); }
 
     void read_restricted(std::shared_ptr<PTree> input, const int site) const;
 
