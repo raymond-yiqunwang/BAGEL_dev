@@ -39,9 +39,9 @@ MultiSite::MultiSite(shared_ptr<const PTree> input, shared_ptr<const Reference> 
 
   charge_ = input_->get<int>("charge", 0);
   nspin_ = input_->get<int>("nspin", 0);
+  region_sizes_ = input_->get_vector<int>("region_sizes");
   active_electrons_ = input_->get_vector<int>("active_electrons");
   active_sizes_ = input_->get_vector<int>("active_sizes");
-  region_sizes_ = input_->get_vector<int>("region_sizes");
   assert(accumulate(region_sizes_.begin(), region_sizes_.end(), 0) == hf_ref_->geom()->natom());
 }
 

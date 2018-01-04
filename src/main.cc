@@ -182,7 +182,6 @@ int main(int argc, char** argv) {
             throw runtime_error("multisite must be called before asd_dmrg");
           auto asd = make_shared<RASD>(itree, multisite);
           asd->compute();
-          asd->compute_rdm12();
       } else if (title == "asd_dmrg_orbopt") {
           auto asd_dmrg_orbopt = make_shared<ASD_DMRG_Second>(itree, ref);
           asd_dmrg_orbopt->compute();

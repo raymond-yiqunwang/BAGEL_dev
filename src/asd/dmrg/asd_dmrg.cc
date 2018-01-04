@@ -36,8 +36,8 @@ ASD_DMRG::ASD_DMRG(shared_ptr<const PTree> input, shared_ptr<const MultiSite> mu
   thresh_ = input_->get<double>("thresh", 1.0e-6);
   maxiter_ = input_->get<int>("maxiter", 50);
 
-  perturb_ = input_->get<double>("perturb", 0.001);
-  perturb_thresh_ = input_->get<double>("perturb_thresh", 0.0001);
+  perturb_ = input_->get<double>("perturb", 1.0e-3);
+  perturb_thresh_ = input_->get<double>("perturb_thresh", 1.0e-4);
   perturb_min_ = input_->get<double>("perturb_min", 1.0e-5);
 
   down_thresh_ = input_->get<double>("down_thresh", 1.0e-8);

@@ -43,7 +43,6 @@ void ASD_DMRG::compute(const bool restart) {
     cout << " ===== Start growing DMRG chain =====" << endl;
     {
       shared_ptr<const Reference> ref = multisite_->build_reference(0, vector<bool>(nsites_, true));
-      // CI calculation on site 1 with all other sites at meanfield
       left_block = compute_first_block(prepare_growing_input(0), ref);
       left_blocks_.push_back(left_block);
       cout << "  " << print_progress(0, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
@@ -59,9 +58,9 @@ void ASD_DMRG::compute(const bool restart) {
       cout << "  " << print_progress(site, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
     }
     assert(left_blocks_.size() == nsites_-1);
+  
+    right_blocks_.resize(nsites_-1);
   }
-
-  right_blocks_.resize(nsites_-1);
 
   cout << endl << " ===== Starting sweeps =====" << endl << endl;
 
@@ -70,7 +69,7 @@ void ASD_DMRG::compute(const bool restart) {
   cout << setw(6) << "iter" << setw(6) << "state" << setw(22) << "sweep average" << setw(16) << "sweep range"
                                                                           << setw(16) << "dE average" <<  endl;
   for (int iter = 0; iter < maxiter_; ++iter) {
-  // Start sweeping backwards
+    // Start sweeping backwards
     for (int site = nsites_-1; site > 0; --site) {
       left_block = left_blocks_[site-1];
       right_block = (site == nsites_-1) ? nullptr : right_blocks_[nsites_ - site - 2];
@@ -81,7 +80,7 @@ void ASD_DMRG::compute(const bool restart) {
       cout << "  " << print_progress(site, "<<", "<<") << setw(16) << dmrg_timer.tick() << endl;
     }
 
-  // Sweep forwards
+    // Sweep forwards
     for (int site = 0; site < nsites_-1; ++site) {
       left_block = (site == 0) ? nullptr : left_blocks_[site-1];
       right_block = right_blocks_[nsites_ - site - 2];
