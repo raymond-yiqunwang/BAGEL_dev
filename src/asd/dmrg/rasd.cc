@@ -321,7 +321,7 @@ shared_ptr<DMRG_Block1> RASD::decimate_block(shared_ptr<PTree> input, shared_ptr
       decimatetime.tick_print("construct GammaForestASD");
 
       forest.compute();
-      decimatetime.tick_print("renormalize");
+      decimatetime.tick_print("compute GammaForestASD");
 
       auto out = make_shared<DMRG_Block1>(move(forest), hmap, spinmap, ref->coeff()->slice_copy(ref->nclosed(), ref->nclosed()+ref->nact()));
       decimatetime.tick_print("dmrg block");
@@ -369,7 +369,7 @@ shared_ptr<DMRG_Block1> RASD::decimate_block(shared_ptr<PTree> input, shared_ptr
       decimatetime.tick_print("construct GammaForestProdASD");
 
       forest.compute();
-      decimatetime.tick_print("renormalize blocks");
+      decimatetime.tick_print("compute GammaForestProdASD");
 
       auto out = make_shared<DMRG_Block1>(move(forest), hmap, spinmap, ref->coeff()->slice_copy(ref->nclosed(), ref->nclosed()+ref->nact())->merge(system->coeff()));
       return out;
@@ -418,8 +418,8 @@ map<BlockKey, shared_ptr<const RASDvec>> RASD::diagonalize_site_RDM(const vector
         }
       }
     }
-
     diagtime.tick_print("organize outer products");
+
     // add in perturbative correction
     if (perturbation >= perturb_thresh_) {
       for (int ist = 0; ist < nstate_; ++ist) {
@@ -716,7 +716,7 @@ map<BlockKey, vector<shared_ptr<ProductRASCivec>>> RASD::diagonalize_site_and_bl
 
     Matrix orthonormalize(*overlap.tildex(1.0e-11));
 #ifdef HAVE_MPI_H
-    orthonormalize.synchronize();
+    if (orthonormalize.mdim() > 0) orthonormalize.synchronize();
 #endif
     rdmtime.tick_print("ortho built");
 
