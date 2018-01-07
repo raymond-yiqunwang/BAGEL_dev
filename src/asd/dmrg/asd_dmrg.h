@@ -25,35 +25,32 @@
 #ifndef __ASD_DMRG_ASD_DMRG_H
 #define __ASD_DMRG_ASD_DMRG_H
 
-#include <src/asd/multisite/multisite.h>
 #include <src/asd/dmrg/dmrg_block.h>
-#include <src/wfn/rdm.h>
-#include <src/asd/dmrg/product_rasci.h>
 
 namespace bagel {
 
 /// Base class for DMRG using ASD
 class ASD_DMRG {
   protected:
-    /// Input block given to ASD_DMRG
     std::shared_ptr<const PTree> input_;
-    /// contains orbital information
-    std::shared_ptr<const MultiSite> multisite_;
+    std::shared_ptr<const Reference> sref_;
 
-    /// DMRG_Block representing L block containing l sites is in left_blocks_[l-1]
     std::vector<std::shared_ptr<DMRG_Block1>> left_blocks_;
-    /// DMRG_Block representing R block containing l sites is in right_blocks_[l-1]
     std::vector<std::shared_ptr<DMRG_Block1>> right_blocks_;
 
+    int nsites_;
+    int nstate_;
+    int charge_;
+    int nspin_;
+    int ntrunc_;
+    int maxiter_;
+    
+    std::vector<int> active_electrons_;
+    std::vector<int> active_sizes_;
+    std::vector<int> region_sizes_;
     std::vector<double> weights_; ///< weights to use when building RDM
-
-    std::vector<std::vector<double>> sweep_energies_; ///< Stores the energies of each state for each step of the sweep
-    std::vector<double> energies_; ///< final energies
-
-    int nsites_;  ///< Number of sites in the DMRG model
-    int nstate_;  ///< Number of states to target
-    int maxiter_; ///< Maximum number of full sweeps to perform
-    int ntrunc_;  ///< Number of states to keep in each DMRG block. Same as \f$M\f$ in the DMRG literature
+    std::vector<double> energies_;
+    std::vector<std::vector<double>> sweep_energies_;
 
     double thresh_; ///< convergence threshold for initial portion of calculation
     double perturb_; ///< magnitude of perturbation added to RDM
@@ -64,98 +61,27 @@ class ASD_DMRG {
     bool down_sweep_; ///< controls whether to sweep with decreasing values of ntrunc_ after the main calculation
     std::vector<int> down_sweep_truncs_; ///< descending list of values to use for ntrunc_
 
-    // RDM of DMRG wave function
-    std::shared_ptr<VecRDM<1>> rdm1_;
-    std::shared_ptr<VecRDM<2>> rdm2_;
-    // state averaged RDM
-    std::vector<double> weight_;
-    std::shared_ptr<RDM<1>> rdm1_av_;
-    std::shared_ptr<RDM<2>> rdm2_av_;
-    
-    /// Prints graphical depiction of sweep process, mainly probably useful for debugging
     std::string print_progress(const int position, const std::string left_symbol, const std::string right_symbol) const;
 
-    /// Kicks off by doing a CAS/RAS calculation in the first site with the rest of the sites at mean-field
     virtual std::shared_ptr<DMRG_Block1> compute_first_block(std::vector<std::shared_ptr<PTree>> inputs, std::shared_ptr<const Reference> ref) = 0;
-    /// Adds one site to the block
     virtual std::shared_ptr<DMRG_Block1> grow_block(std::vector<std::shared_ptr<PTree>> inputs, std::shared_ptr<const Reference> ref, std::shared_ptr<DMRG_Block1> left, const int site) = 0;
-    /** Performs one step in the sweep by adding one site to the system block
-        @param input input describing the desired total system wavefunction
-        @param ref one-particle reference for site
-        @param system block to be grown
-        @param environment block being decimated
-    */
     virtual std::shared_ptr<DMRG_Block1> decimate_block(std::shared_ptr<PTree> input, std::shared_ptr<const Reference> ref, std::shared_ptr<DMRG_Block1> system, std::shared_ptr<DMRG_Block1> environment, const int site) = 0;
 
   public:
-    /// Unlike MEH classes, ASD_DMRG will also be the driver for CI calculations
-    ASD_DMRG(const std::shared_ptr<const PTree> input, std::shared_ptr<const MultiSite> multisite);
+    ASD_DMRG(const std::shared_ptr<const PTree> input, std::shared_ptr<const Reference> ref);
 
-    /// Driver for calculation
-    void compute(const bool restart = true);
-
-    /// runs calculations for smaller values of M after the main calculation has finished
+    void sweep();
+    void project_active();
     void down_sweep();
 
     const std::vector<double>& energies() const { return energies_; }
     double energies(const int i) const { return energies_.at(i); }
-    
-    std::shared_ptr<const Reference> conv_to_ref() const;
-    std::shared_ptr<const MultiSite> multisite() const { return multisite_; } 
-    void update_multisite(std::shared_ptr<const Coeff> newcoeff) { multisite_ = multisite_->update_coeff(newcoeff); }
-
-    void read_restricted(std::shared_ptr<PTree> input, const int site) const;
-
-    // compute RDM
-    void compute_rdm12();
-
-    // two-site systems
-    void compute_rdm2_31(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_22(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_13(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-
-    // site == 1
-    void compute_rdm2_310(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_301(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-
-    // general terms
-    void compute_rdm2_ras(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_130(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_220(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_031(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_121(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-    void compute_rdm2_211(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
-
-    // last configuration
-    void compute_rdm2_013(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_103(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_022(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_202(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-    void compute_rdm2_112(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
-
-    // return functions
-    int nstate() const { return nstate_; }
-    std::shared_ptr<VecRDM<1>> rdm1() { return rdm1_; }
-    std::shared_ptr<VecRDM<2>> rdm2() { return rdm2_; }
-    std::shared_ptr<RDM<1>> rdm1(const int i, const int j) { return rdm1_->at(i,j); }
-    std::shared_ptr<RDM<2>> rdm2(const int i, const int j) { return rdm2_->at(i,j); }
-    std::shared_ptr<RDM<1>> rdm1(const int i) { return rdm1(i,i); }
-    std::shared_ptr<RDM<2>> rdm2(const int i) { return rdm2(i,i); }
-    std::shared_ptr<const RDM<1>> rdm1(const int i, const int j) const { return rdm1_->at(i,j); }
-    std::shared_ptr<const RDM<2>> rdm2(const int i, const int j) const { return rdm2_->at(i,j); }
-    std::shared_ptr<const RDM<1>> rdm1(const int i) const { return rdm1(i,i); }
-    std::shared_ptr<const RDM<2>> rdm2(const int i) const { return rdm2(i,i); }
-    std::shared_ptr<RDM<1>> rdm1_av() { return rdm1_av_; }
-    std::shared_ptr<RDM<2>> rdm2_av() { return rdm2_av_; }
-    std::shared_ptr<const RDM<1>> rdm1_av() const { return rdm1_av_; }
-    std::shared_ptr<const RDM<2>> rdm2_av() const { return rdm2_av_; }
-
-    void rotate_rdms(std::shared_ptr<const Matrix> trans);
+    std::shared_ptr<const Reference> sref() const { return sref_; }
 
   private:
-    /// Prepare several input files used for growing the chain
+    void rearrange_orbitals(std::shared_ptr<const Reference> iref);
+    std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield) const;
     std::vector<std::shared_ptr<PTree>> prepare_growing_input(const int site) const;
-    /// Prepare one input to be used during the sweep
     std::shared_ptr<PTree> prepare_sweeping_input(const int site) const;
 };
 

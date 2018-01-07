@@ -39,9 +39,11 @@ class RASD : public ASD_DMRG {
     std::shared_ptr<DMRG_Block1> decimate_block(std::shared_ptr<PTree> input, std::shared_ptr<const Reference> ref, std::shared_ptr<DMRG_Block1> system, std::shared_ptr<DMRG_Block1> environment, const int site) override;
 
   public:
-    RASD(const std::shared_ptr<const PTree> input, std::shared_ptr<const MultiSite> multisite);
+    RASD(const std::shared_ptr<const PTree> input, std::shared_ptr<const Reference> ref);
 
   private:
+    void read_restricted(std::shared_ptr<PTree> input, const int site) const;
+
     /// diagonalize site RDM
     std::map<BlockKey, std::shared_ptr<const RASDvec>> diagonalize_site_RDM(const std::vector<std::shared_ptr<ProductRASCivec>>& civecs, const double perturbation = 0.0) const;
     /// diagonalize site+block RDM
