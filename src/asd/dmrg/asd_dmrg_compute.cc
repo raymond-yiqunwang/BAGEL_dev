@@ -35,6 +35,9 @@ void ASD_DMRG::sweep() {
 
   shared_ptr<DMRG_Block1> left_block, right_block;
 
+  left_blocks_.clear();
+  right_blocks_.clear();
+
   // Seed lattice
   cout << " ===== Start growing DMRG chain =====" << endl;
   {
