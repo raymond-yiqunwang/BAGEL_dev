@@ -34,7 +34,6 @@ namespace bagel {
 class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
 
   protected:
-    int nstate_;
     int naa_; // size of active-active part
     // parameters for iteration
     int max_iter_;
@@ -66,7 +65,7 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     virtual void compute() = 0;
   
     // return functions
-    int nstate() const { return nstate_; }
+    int nstate() const { return asd_dmrg_->nstate(); }
     int max_iter() const { return max_iter_; }
     int max_micro_iter() const { return max_micro_iter_; }
     double thresh() const { return thresh_; }

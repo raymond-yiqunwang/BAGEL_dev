@@ -134,6 +134,7 @@ class ASD_DMRG {
     void compute_rdm2_112(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
 
     // return functions
+    int nstate() const { return nstate_; }
     std::shared_ptr<VecRDM<1>> rdm1() { return rdm1_; }
     std::shared_ptr<VecRDM<2>> rdm2() { return rdm2_; }
     std::shared_ptr<RDM<1>> rdm1(const int i, const int j) { return rdm1_->at(i,j); }

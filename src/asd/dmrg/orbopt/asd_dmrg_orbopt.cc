@@ -32,9 +32,9 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   
   print_header();
   
-  // collect ASD-DMRG info
-  auto asd_dmrg_info = input_->get_child_optional("asd_dmrg_info");
-  if (!asd_dmrg_info) throw runtime_error("ASD-DMRG info has to be provided for orbital optimization");
+  max_iter_ = input_->get<int>("opt_maxiter", 50);
+  max_micro_iter_ = input_->get<int>("opt_max_micro_iter", 100);
+  thresh_ = input_->get<double>("opt_thresh", 1.0e-8); // thresh for macro iteration
 
   // collect MultiSite info
   shared_ptr<const MultiSite> multisite;
@@ -46,9 +46,20 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
     ms->compute();
     multisite = ms;
   }
-
   auto mref = multisite->sref();
   coeff_ = mref->coeff();
+  
+  // collect ASD-DMRG info
+  auto asd_dmrg_info = input_->get_child_optional("asd_dmrg_info");
+  if (!asd_dmrg_info) throw runtime_error("ASD-DMRG info has to be provided for orbital optimization");
+  // construct ASD-DMRG
+  asd_dmrg_ = make_shared<RASD>(asd_dmrg_info, multisite);
+
+  cout << "    * nstate   : " << setw(6) << asd_dmrg_->nstate() << endl;
+  cout << "    * nclosed  : " << setw(6) << mref->nclosed() << endl;
+  cout << "    * nact     : " << setw(6) << mref->nact() << endl;
+  cout << "    * nvirt    : " << setw(6) << mref->nvirt() << endl << endl;
+  assert(mref->nact() && mref->nvirt());
 
 #ifdef AAROT
   cout << " *** Active-active rotation turned on!" << endl;
@@ -61,24 +72,10 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   naa_ = 0;
 #endif
 
-  nstate_ = input_->get<int>("opt_nstate", 1);
-  max_iter_ = input_->get<int>("opt_maxiter", 50);
-  max_micro_iter_ = input_->get<int>("opt_max_micro_iter", 100);
-  thresh_ = input_->get<double>("opt_thresh", 1.0e-8); // thresh for macro iteration
-  thresh_micro_ = input_->get<double>("opt_thresh_micro", 5.0e-6); // thresh for micro iteration
+// TODO muffle output
+//  muffle_ = make_shared<Muffle>("asd_dmrg_orbopt.log");
+//  muffle_->unmute();
 
-  cout << "    * nstate   : " << setw(6) << nstate_ << endl;
-  cout << "    * nclosed  : " << setw(6) << mref->nclosed() << endl;
-  cout << "    * nact     : " << setw(6) << mref->nact() << endl;
-  cout << "    * nvirt    : " << setw(6) << mref->nvirt() << endl << endl;
-  assert(mref->nact() && mref->nvirt());
-
-  muffle_ = make_shared<Muffle>("asd_dmrg_orbopt.log");
-  muffle_->unmute();
-
-  // DMRG with RHF orbitals
-  asd_dmrg_ = make_shared<RASD>(asd_dmrg_info, multisite);
-  
   cout << "  ===== Orbital Optimization Iteration =====" << endl << endl;
 }
 
