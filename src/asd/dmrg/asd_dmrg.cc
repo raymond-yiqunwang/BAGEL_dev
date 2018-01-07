@@ -66,6 +66,10 @@ ASD_DMRG::ASD_DMRG(shared_ptr<const PTree> input, shared_ptr<const Reference> ir
   energies_.resize(nstate_);
   sweep_energies_.resize(nstate_);
 
+  // initialize VecRDM
+  rdm1_ = make_shared<VecRDM<1>>();
+  rdm2_ = make_shared<VecRDM<2>>();
+
   // reorder coeff to closed-active-virtual
   rearrange_orbitals(iref);
 }

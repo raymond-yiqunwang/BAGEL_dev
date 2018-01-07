@@ -49,7 +49,7 @@ void ASD_DMRG_Second::compute() {
       asd_dmrg_->project_active();
       asd_dmrg_->sweep();
       asd_dmrg_->compute_rdm12();
-//trans_natorb();
+      trans_natorb();
     }
     
     auto sref = asd_dmrg_->sref();
@@ -1717,7 +1717,6 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
 }
 
 
-/*
 void ASD_DMRG_Second::trans_natorb() {
   auto sref = asd_dmrg_->sref();
   const int nclosed = sref->nclosed();
@@ -1736,6 +1735,5 @@ void ASD_DMRG_Second::trans_natorb() {
   cnew->copy_block(0, nclosed, cnew->ndim(), nact, coeff_->slice(nclosed, nclosed+nact) * *trans);
   coeff_ = cnew;
 }
-*/
 
 
