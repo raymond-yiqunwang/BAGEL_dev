@@ -26,6 +26,7 @@
 #define __ASD_DMRG_ASD_DMRG_H
 
 #include <src/asd/dmrg/dmrg_block.h>
+#include <src/wfn/rdm.h>
 
 namespace bagel {
 
@@ -67,6 +68,14 @@ class ASD_DMRG {
     virtual std::shared_ptr<DMRG_Block1> grow_block(std::vector<std::shared_ptr<PTree>> inputs, std::shared_ptr<const Reference> ref, std::shared_ptr<DMRG_Block1> left, const int site) = 0;
     virtual std::shared_ptr<DMRG_Block1> decimate_block(std::shared_ptr<PTree> input, std::shared_ptr<const Reference> ref, std::shared_ptr<DMRG_Block1> system, std::shared_ptr<DMRG_Block1> environment, const int site) = 0;
 
+    // RDM of DMRG wave function
+    std::shared_ptr<VecRDM<1>> rdm1_;
+    std::shared_ptr<VecRDM<2>> rdm2_;
+    // state averaged RDM
+    std::vector<double> weight_;
+    std::shared_ptr<RDM<1>> rdm1_av_;
+    std::shared_ptr<RDM<2>> rdm2_av_;
+
   public:
     ASD_DMRG(const std::shared_ptr<const PTree> input, std::shared_ptr<const Reference> ref);
 
@@ -74,9 +83,60 @@ class ASD_DMRG {
     void project_active();
     void down_sweep();
 
+    // return functions
+    int nstate() const { return nstate_; }
+    int nsites() const { return nsites_; }
     const std::vector<double>& energies() const { return energies_; }
     double energies(const int i) const { return energies_.at(i); }
     std::shared_ptr<const Reference> sref() const { return sref_; }
+
+    void read_restricted(std::shared_ptr<PTree> input, const int site) const;
+    void update_coeff(std::shared_ptr<const Coeff> coeff) { sref_ = std::make_shared<const Reference>(*sref_, coeff); }
+
+    // compute RDM
+    void compute_rdm12();
+
+    // two-site systems
+    void compute_rdm2_31(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_22(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_13(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+
+    // site == 1
+    void compute_rdm2_310(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_301(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+
+    // general terms
+    void compute_rdm2_ras(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
+    void compute_rdm2_130(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
+    void compute_rdm2_220(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
+    void compute_rdm2_031(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
+    void compute_rdm2_121(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
+    void compute_rdm2_211(std::vector<std::shared_ptr<ProductRASCivec>> dvec, const int site);
+
+    // last configuration
+    void compute_rdm2_013(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_103(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_022(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_202(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+    void compute_rdm2_112(std::vector<std::shared_ptr<ProductRASCivec>> dvec);
+
+    // return functions
+    std::shared_ptr<VecRDM<1>> rdm1() { return rdm1_; } 
+    std::shared_ptr<VecRDM<2>> rdm2() { return rdm2_; }
+    std::shared_ptr<RDM<1>> rdm1(const int i, const int j) { return rdm1_->at(i,j); }
+    std::shared_ptr<RDM<2>> rdm2(const int i, const int j) { return rdm2_->at(i,j); }
+    std::shared_ptr<RDM<1>> rdm1(const int i) { return rdm1(i,i); }
+    std::shared_ptr<RDM<2>> rdm2(const int i) { return rdm2(i,i); }
+    std::shared_ptr<const RDM<1>> rdm1(const int i, const int j) const { return rdm1_->at(i,j); }
+    std::shared_ptr<const RDM<2>> rdm2(const int i, const int j) const { return rdm2_->at(i,j); }
+    std::shared_ptr<const RDM<1>> rdm1(const int i) const { return rdm1(i,i); }
+    std::shared_ptr<const RDM<2>> rdm2(const int i) const { return rdm2(i,i); }
+    std::shared_ptr<RDM<1>> rdm1_av() { return rdm1_av_; }
+    std::shared_ptr<RDM<2>> rdm2_av() { return rdm2_av_; }
+    std::shared_ptr<const RDM<1>> rdm1_av() const { return rdm1_av_; }
+    std::shared_ptr<const RDM<2>> rdm2_av() const { return rdm2_av_; }
+
+    void rotate_rdms(std::shared_ptr<const Matrix> trans);
 
   private:
     void rearrange_orbitals(std::shared_ptr<const Reference> iref);

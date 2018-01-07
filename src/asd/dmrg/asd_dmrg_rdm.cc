@@ -23,6 +23,7 @@
 //
 
 #include <src/asd/dmrg/asd_dmrg.h>
+#include <src/asd/dmrg/product_rasci.h>
 #include <src/asd/dmrg/gamma_forest_asd2.h>
 #include <src/util/muffle.h>
 
@@ -39,7 +40,7 @@ void ASD_DMRG::compute_rdm12() {
 
   cout << endl << "  * Computing ASD-DMRG Reduced Density Matrix.." << endl << endl;
   // initialize RDM12 with 0ull then do ax_plus_y
-  const int nactorb = multisite_->sref()->nact();
+  const int nactorb = sref_->nact();
   auto rdm1 = make_shared<RDM<1>>(nactorb);
   auto rdm2 = make_shared<RDM<2>>(nactorb);
   for (int istate = 0; istate != nstate_; ++istate) {
@@ -49,20 +50,20 @@ void ASD_DMRG::compute_rdm12() {
 
   // one additional sweeping after convergence to collect terms required to construct RDM
   shared_ptr<DMRG_Block1> left_block, right_block;
-  vector<int> active_electrons = multisite_->active_electrons();
+  vector<int> active_electrons = active_electrons_;
   for (int site = 0; site != nsites_; ++site) {
     left_block = (site==0) ? nullptr : left_blocks_[site-1];
     right_block = (site==nsites_-1) ? nullptr : right_blocks_[nsites_-site-2];
     
     if (site != 0)
-      left_block->compute_left_index(site, multisite_->active_sizes());
+      left_block->compute_left_index(site, active_sizes_);
 
     // obtain ProductRASCivec 
     vector<shared_ptr<ProductRASCivec>> cc;
     {
       Muffle hide_cout("asd_dmrg_rdm.log", true);
       
-      shared_ptr<const Reference> ref = multisite_->build_reference(site, vector<bool>(nsites_, false));
+      shared_ptr<const Reference> ref = build_reference(site, vector<bool>(nsites_, false));
       shared_ptr<PTree> input = prepare_sweeping_input(site);
       {
         input->put("nclosed", ref->nclosed());
@@ -186,7 +187,7 @@ void ASD_DMRG::compute_rdm12() {
   shared_ptr<KnowlesHandy> fci;
   {
     Muffle hidefci("fci_debug.log", false);
-    fci = make_shared<KnowlesHandy>(fci_info, multisite_->sref()->geom(), multisite_->sref());
+    fci = make_shared<KnowlesHandy>(fci_info, sref_->geom(), sref_);
     fci->compute();
   }
   cout << "FCI energy : " << setprecision(12) << fci->energy().at(0) << endl;
@@ -245,7 +246,7 @@ void ASD_DMRG::compute_rdm12() {
 
 void ASD_DMRG::compute_rdm2_ras(vector<shared_ptr<ProductRASCivec>> dvec, const int site) {
   vector<shared_ptr<RDM<2>>> rdm2_vec;
-  vector<int> active_sizes = multisite_->active_sizes();
+  vector<int> active_sizes = active_sizes_;
   const int norb = active_sizes.at(site);
   const int nstate = dvec.size();
   shared_ptr<const RDM<1>> rdm1_ptr;
@@ -296,7 +297,7 @@ void ASD_DMRG::compute_rdm2_130(vector<shared_ptr<ProductRASCivec>> dvec, const 
     shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
     auto left_block = doubleblock->left_block();
     auto right_block = doubleblock->right_block();
-    const int norb_site = multisite_->active_sizes().at(site);
+    const int norb_site = active_sizes_.at(site);
     const int norb_left = left_block->norb();
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
@@ -439,7 +440,7 @@ void ASD_DMRG::compute_rdm2_031(vector<shared_ptr<ProductRASCivec>> dvec, const 
     shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
     auto left_block = doubleblock->left_block();
     auto right_block = doubleblock->right_block();
-    const int norb_site = multisite_->active_sizes().at(site);
+    const int norb_site = active_sizes_.at(site);
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
     const int rightoffset = norb_left + norb_site;
@@ -581,7 +582,7 @@ void ASD_DMRG::compute_rdm2_310(vector<shared_ptr<ProductRASCivec>> dvec) {
     shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
     auto left_block = doubleblock->left_block();
     auto right_block = doubleblock->right_block();
-    const int norb_site = multisite_->active_sizes().at(1); // site == 1
+    const int norb_site = active_sizes_.at(1); // site == 1
     const int norb_left = left_block->norb();
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
@@ -735,7 +736,7 @@ void ASD_DMRG::compute_rdm2_301(vector<shared_ptr<ProductRASCivec>> dvec) {
     auto right_block = doubleblock->right_block();
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
-    const int norb_site =  multisite_->active_sizes().at(1); 
+    const int norb_site =  active_sizes_.at(1); 
     const int rightoffset = norb_left + norb_site;
     auto rdm_mat = make_shared<Matrix>(norb_right, lrint(pow(norb_left, 3))); // matrix to store RDM, use ax_plus_y...
 
@@ -826,7 +827,7 @@ void ASD_DMRG::compute_rdm2_013(vector<shared_ptr<ProductRASCivec>> dvec) {
     shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
     auto left_block = doubleblock->left_block();
     auto right_block = doubleblock->right_block();
-    const int norb_site = multisite_->active_sizes().at(nsites_-2);
+    const int norb_site = active_sizes_.at(nsites_-2);
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
     const int rightoffset = norb_left + norb_site;
@@ -970,7 +971,7 @@ void ASD_DMRG::compute_rdm2_103(vector<shared_ptr<ProductRASCivec>> dvec) {
     auto right_block = doubleblock->right_block();
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
-    const int norb_site =  multisite_->active_sizes().at(nsites_-2);
+    const int norb_site =  active_sizes_.at(nsites_-2);
     const int rightoffset = norb_left + norb_site;
     auto rdm_mat = make_shared<Matrix>(lrint(pow(norb_right, 3)), norb_left); // matrix to store RDM, use ax_plus_y...
     auto unordered_rdm = rdm_mat->clone();
@@ -1084,7 +1085,7 @@ void ASD_DMRG::compute_rdm2_220(vector<shared_ptr<ProductRASCivec>> dvec, const 
     shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
     auto left_block = doubleblock->left_block();
     auto right_block = doubleblock->right_block();
-    const int norb_site = multisite_->active_sizes().at(site);
+    const int norb_site = active_sizes_.at(site);
     const int norb_left = left_block->norb();
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
@@ -1325,7 +1326,7 @@ void ASD_DMRG::compute_rdm2_022(vector<shared_ptr<ProductRASCivec>> dvec) {
     shared_ptr<const DMRG_Block2> doubleblock = dynamic_pointer_cast<const DMRG_Block2>(prod_civec->left());
     auto left_block = doubleblock->left_block();
     auto right_block = doubleblock->right_block();
-    const int norb_site = multisite_->active_sizes().at(nsites_-2);
+    const int norb_site = active_sizes_.at(nsites_-2);
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
     const int rightoffset = norb_left + norb_site;
@@ -1556,7 +1557,7 @@ void ASD_DMRG::compute_rdm2_202(vector<shared_ptr<ProductRASCivec>> dvec) {
     auto right_block = doubleblock->right_block();
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
-    const int norb_site =  multisite_->active_sizes().at(nsites_-2); 
+    const int norb_site =  active_sizes_.at(nsites_-2); 
     const int rightoffset = norb_left + norb_site;
 
     int scheme = 0;
@@ -1769,7 +1770,7 @@ void ASD_DMRG::compute_rdm2_121(vector<shared_ptr<ProductRASCivec>> dvec, const 
     auto right_block = doubleblock->right_block();
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
-    const int norb_site = multisite_->active_sizes().at(site);
+    const int norb_site = active_sizes_.at(site);
     const int rightoffset = norb_left + norb_site;
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
@@ -2017,7 +2018,7 @@ void ASD_DMRG::compute_rdm2_211(vector<shared_ptr<ProductRASCivec>> dvec, const 
     auto right_block = doubleblock->right_block();
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
-    const int norb_site = multisite_->active_sizes().at(site);
+    const int norb_site = active_sizes_.at(site);
     const int rightoffset = norb_left + norb_site;
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
@@ -2255,7 +2256,7 @@ void ASD_DMRG::compute_rdm2_112(vector<shared_ptr<ProductRASCivec>> dvec) {
     auto right_block = doubleblock->right_block();
     const int norb_left = left_block->norb();
     const int norb_right = right_block->norb();
-    const int norb_site = multisite_->active_sizes().at(nsites_-2);
+    const int norb_site = active_sizes_.at(nsites_-2);
     const int rightoffset = norb_left + norb_site;
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
@@ -2469,7 +2470,7 @@ void ASD_DMRG::compute_rdm2_31(vector<shared_ptr<ProductRASCivec>> dvec) {
   for (int istate = 0; istate != dvec.size(); ++istate) {
     auto prod_civec = dvec.at(istate);
     shared_ptr<const DMRG_Block1> right_block = dynamic_pointer_cast<const DMRG_Block1>(prod_civec->left());
-    const int norb_site = multisite_->active_sizes().at(0);
+    const int norb_site = active_sizes_.at(0);
     const int norb_right = right_block->norb();
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
@@ -2569,7 +2570,7 @@ void ASD_DMRG::compute_rdm2_13(vector<shared_ptr<ProductRASCivec>> dvec) {
   for (int istate = 0; istate != dvec.size(); ++istate) {
     auto prod_civec = dvec.at(istate);
     shared_ptr<const DMRG_Block1> left_block = dynamic_pointer_cast<const DMRG_Block1>(prod_civec->left());
-    const int norb_site = multisite_->active_sizes().at(1);
+    const int norb_site = active_sizes_.at(1);
     const int norb_left = left_block->norb();
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();
@@ -2694,7 +2695,7 @@ void ASD_DMRG::compute_rdm2_22(vector<shared_ptr<ProductRASCivec>> dvec) {
   for (int istate = 0; istate != dvec.size(); ++istate) {
     auto prod_civec = dvec.at(istate);
     shared_ptr<const DMRG_Block1> right_block = dynamic_pointer_cast<const DMRG_Block1>(prod_civec->left());
-    const int norb_site = multisite_->active_sizes().at(0);
+    const int norb_site = active_sizes_.at(0);
     const int norb_right = right_block->norb();
     const int tot_nelea = prod_civec->nelea();
     const int tot_neleb = prod_civec->neleb();

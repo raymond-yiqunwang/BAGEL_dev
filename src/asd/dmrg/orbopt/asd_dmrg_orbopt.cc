@@ -36,45 +36,29 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   max_micro_iter_ = input_->get<int>("opt_max_micro_iter", 100);
   thresh_ = input_->get<double>("opt_thresh", 1.0e-8); // thresh for macro iteration
 
-  // collect MultiSite info
-  shared_ptr<const MultiSite> multisite;
-  {
-    auto multisite_info = input_->get_child_optional("multisite");
-    if (!multisite_info) throw runtime_error("MultiSite info has to be provided for ASD-DMRG orbital optimization");
-    const int nsites = multisite_info->get<int>("nsites");
-    auto ms = make_shared<MultiSite>(multisite_info, iref, nsites);
-    ms->compute();
-    multisite = ms;
-  }
-  auto mref = multisite->sref();
-  coeff_ = mref->coeff();
-  
   // collect ASD-DMRG info
   auto asd_dmrg_info = input_->get_child_optional("asd_dmrg_info");
   if (!asd_dmrg_info) throw runtime_error("ASD-DMRG info has to be provided for orbital optimization");
   // construct ASD-DMRG
-  asd_dmrg_ = make_shared<RASD>(asd_dmrg_info, multisite);
+  asd_dmrg_ = make_shared<RASD>(asd_dmrg_info, iref);
+  coeff_ = asd_dmrg_->sref()->coeff();
 
   cout << "    * nstate   : " << setw(6) << asd_dmrg_->nstate() << endl;
-  cout << "    * nclosed  : " << setw(6) << mref->nclosed() << endl;
-  cout << "    * nact     : " << setw(6) << mref->nact() << endl;
-  cout << "    * nvirt    : " << setw(6) << mref->nvirt() << endl << endl;
-  assert(mref->nact() && mref->nvirt());
+  cout << "    * nclosed  : " << setw(6) << asd_dmrg_->sref()->nclosed() << endl;
+  cout << "    * nact     : " << setw(6) << asd_dmrg_->sref()->nact() << endl;
+  cout << "    * nvirt    : " << setw(6) << asd_dmrg_->sref()->nvirt() << endl << endl;
+  assert(asd_dmrg_->sref()->nact() && asd_dmrg_->sref()->nvirt());
 
 #ifdef AAROT
   cout << " *** Active-active rotation turned on!" << endl;
   // initialize active-active rotation parameters
   int offset = 0;
-  for (int sj = 0; sj != multisite->nsites()-1; ++sj)
-    act_rotblocks_.emplace_back(multisite->active_sizes(), sj, offset);
+  for (int sj = 0; sj != asd_dmrg_->nsites()-1; ++sj)
+    act_rotblocks_.emplace_back(asd_dmrg_->active_sizes(), sj, offset);
   naa_ = offset;
 #else
   naa_ = 0;
 #endif
-
-// TODO muffle output
-//  muffle_ = make_shared<Muffle>("asd_dmrg_orbopt.log");
-//  muffle_->unmute();
 
   cout << "  ===== Orbital Optimization Iteration =====" << endl << endl;
 }
@@ -100,8 +84,8 @@ void ASD_DMRG_OrbOpt::print_iteration(const int iter, const vector<double>& ener
 
 
 shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_active_fock(const MatView acoeff, shared_ptr<const RDM<1>> rdm1) const {
-  auto mref = asd_dmrg_->multisite()->sref();
-  const int nact = asd_dmrg_->multisite()->sref()->nact();
+  auto mref = asd_dmrg_->sref();
+  const int nact = asd_dmrg_->sref()->nact();
   Matrix dkl(nact, nact);
   copy_n(rdm1->data(), dkl.size(), dkl.data());
   dkl.sqrt();
@@ -112,7 +96,7 @@ shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_active_fock(const MatView acoeff, sh
 
 shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_qvec(const MatView acoeff, shared_ptr<const RDM<2>> rdm2) const {
   
-  auto mref = asd_dmrg_->multisite()->sref();
+  auto mref = asd_dmrg_->sref();
   const int nocc = mref->nclosed() + mref->nact();
   auto half = mref->geom()->df()->compute_half_transform(acoeff);
 
@@ -129,8 +113,9 @@ shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_qvec(const MatView acoeff, shared_pt
 }
 
 
+/*
 shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
-  auto mref = asd_dmrg_->multisite()->sref();
+  auto mref = asd_dmrg_->sref();
   const int nclosed = mref->nclosed();
   const int nact = mref->nact();
   const int nocc = nclosed + nact;
@@ -147,7 +132,7 @@ shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
   const MatView vcoeff = coeff_->slice(nocc, norb);
 
   VectorB eig(coeff_->mdim());
-  auto core_fock = nclosed ? make_shared<Fock<1>>(mref->geom(), mref->hcore(), nullptr, coeff_->slice(0, nclosed), false/*store*/, true/*rhf*/)
+  auto core_fock = nclosed ? make_shared<Fock<1>>(mref->geom(), mref->hcore(), nullptr, coeff_->slice(0, nclosed), false, true)
                             : make_shared<Matrix>(*mref->hcore());
   Fock<1> fock(mref->geom(), core_fock, nullptr, acoeff * *rdm1_mat, false, true);
 
@@ -164,5 +149,6 @@ shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
   
   return make_shared<Coeff>(*coeff_ * trans);
 }
+*/
 
 

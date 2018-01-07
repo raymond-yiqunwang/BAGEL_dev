@@ -295,6 +295,38 @@ string ASD_DMRG::print_progress(const int position, const string left_symbol, co
 }
 
 
+void ASD_DMRG::read_restricted(shared_ptr<PTree> input, const int site) const {
+  auto restricted = input_->get_child("restricted");
+
+  auto read = [&input] (const shared_ptr<const PTree> inp, int current) {
+    array<int, 3> nras = inp->get_array<int, 3>("orbitals");
+    input->put("max_holes", inp->get<string>("max_holes"));
+    input->put("max_particles", inp->get<string>("max_particles"));
+
+    input->erase("active");
+    auto parent = std::make_shared<PTree>();
+    for (int i = 0; i < 3; ++i) {
+      auto tmp = std::make_shared<PTree>();
+      const int norb = nras[i];
+      for (int i = 0; i < norb; ++i, ++current)
+        tmp->push_back(current+1);
+      parent->push_back(tmp);
+    }
+    input->add_child("active", parent);
+  };
+
+  if (restricted->size() == 1)
+    read(*restricted->begin(), input->get<int>("nclosed"));
+  else if (restricted->size() == nsites_) {
+    auto iter = restricted->begin();
+    advance(iter, site);
+    read(*iter, input->get<int>("nclosed"));
+  }
+  else
+    throw runtime_error("Must specify either one set of restrictions for all sites, or one set per site");
+}
+
+
 vector<shared_ptr<PTree>> ASD_DMRG::prepare_growing_input(const int site) const {
   vector<shared_ptr<PTree>> out;
 
@@ -338,6 +370,20 @@ shared_ptr<PTree> ASD_DMRG::prepare_sweeping_input(const int site) const {
   out->erase("nstate"); out->put("nstate", input_->get<string>("nstate", "1"));
 
   return out;
+}
+
+
+void ASD_DMRG::rotate_rdms(shared_ptr<const Matrix> trans) {
+  for (auto& i : *rdm1_)
+    i.second->transform(trans);
+  for (auto& i : *rdm2_)
+    i.second->transform(trans);
+
+  // Only when #state > 1
+  if (rdm1_->size() > 1) rdm1_av_->transform(trans);
+  if (rdm2_->size() > 1) rdm2_av_->transform(trans);
+  assert(rdm1_->size() > 1 || rdm1_->at(0) == rdm1_av_);
+  assert(rdm2_->size() > 1 || rdm2_->at(0) == rdm2_av_);
 }
 
 

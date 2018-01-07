@@ -30,8 +30,9 @@
 #include <src/wfn/localization.h>
 #include <src/asd/construct_asd.h>
 #include <src/asd/orbital/construct_asd_orbopt.h>
-#include <src/asd/dmrg/rasd.h>
 #include <src/asd/multisite/multisite.h>
+#include <src/asd/dmrg/rasd.h>
+#include <src/asd/dmrg/orbopt/asd_dmrg_second.h>
 #include <src/util/exception.h>
 #include <src/util/archive.h>
 #include <src/util/io/moldenout.h>
@@ -177,6 +178,9 @@ int main(int argc, char** argv) {
           asd_dmrg->project_active();
           asd_dmrg->sweep();
           ref = asd_dmrg->sref();
+      } else if (title == "asd_dmrg_orbopt") {
+        auto asd_dmrg_orbopt = make_shared<ASD_DMRG_Second>(itree, ref);
+        asd_dmrg_orbopt->compute();
       } else if (title == "localize") {
         if (ref == nullptr) throw runtime_error("Localize needs a reference");
 
