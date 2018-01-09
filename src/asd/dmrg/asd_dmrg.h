@@ -79,7 +79,7 @@ class ASD_DMRG {
   public:
     ASD_DMRG(const std::shared_ptr<const PTree> input, std::shared_ptr<const Reference> ref);
 
-    void sweep();
+    void sweep(const bool restart = true);
     void project_active();
     void down_sweep();
 

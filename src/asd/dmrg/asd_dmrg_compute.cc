@@ -30,35 +30,36 @@
 using namespace std;
 using namespace bagel;
 
-void ASD_DMRG::sweep() {
+void ASD_DMRG::sweep(const bool restart) {
   Timer dmrg_timer;
 
   shared_ptr<DMRG_Block1> left_block, right_block;
 
-  left_blocks_.clear();
-  right_blocks_.clear();
+  if (!restart) {
+    perturb_ = input_->get<double>("perturb", 1.0e-3);
+  } else {
+    // Seed lattice
+    cout << " ===== Start growing DMRG chain =====" << endl;
+    {
+      shared_ptr<const Reference> ref = build_reference(0, vector<bool>(nsites_, true));
+      left_block = compute_first_block(prepare_growing_input(0), ref);
+      left_blocks_.push_back(left_block);
+      cout << "  " << print_progress(0, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
+    }
 
-  // Seed lattice
-  cout << " ===== Start growing DMRG chain =====" << endl;
-  {
-    shared_ptr<const Reference> ref = build_reference(0, vector<bool>(nsites_, true));
-    left_block = compute_first_block(prepare_growing_input(0), ref);
-    left_blocks_.push_back(left_block);
-    cout << "  " << print_progress(0, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
+    // Grow lattice
+    for (int site = 1; site < nsites_-1; ++site) {
+      vector<bool> meanfield(nsites_, true);
+      fill_n(meanfield.begin(), site, false);
+      shared_ptr<const Reference> ref = build_reference(site, meanfield);
+      left_block = grow_block(prepare_growing_input(site), ref, left_block, site);
+      left_blocks_.push_back(left_block);
+      cout << "  " << print_progress(site, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
+    }
+    assert(left_blocks_.size() == nsites_-1);
+
+    right_blocks_.resize(nsites_-1);
   }
-
-  // Grow lattice
-  for (int site = 1; site < nsites_-1; ++site) {
-    vector<bool> meanfield(nsites_, true);
-    fill_n(meanfield.begin(), site, false);
-    shared_ptr<const Reference> ref = build_reference(site, meanfield);
-    left_block = grow_block(prepare_growing_input(site), ref, left_block, site);
-    left_blocks_.push_back(left_block);
-    cout << "  " << print_progress(site, ">>", "..") << setw(16) << dmrg_timer.tick() << endl;
-  }
-  assert(left_blocks_.size() == nsites_-1);
-
-  right_blocks_.resize(nsites_-1);
 
   cout << endl << " ===== Starting sweeps =====" << endl << endl;
 

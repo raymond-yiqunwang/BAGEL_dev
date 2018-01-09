@@ -47,7 +47,7 @@ void ASD_DMRG_Second::compute() {
     {
       if (iter) asd_dmrg_->update_coeff(coeff_);
       asd_dmrg_->project_active();
-      asd_dmrg_->sweep();
+      asd_dmrg_->sweep(!iter);
       asd_dmrg_->compute_rdm12();
     }
     auto sref = asd_dmrg_->sref();
