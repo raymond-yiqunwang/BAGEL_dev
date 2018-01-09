@@ -49,14 +49,14 @@ void ASD_DMRG_Second::compute() {
       asd_dmrg_->project_active();
       asd_dmrg_->sweep();
       asd_dmrg_->compute_rdm12();
-      trans_natorb();
     }
-    
     auto sref = asd_dmrg_->sref();
+    coeff_ = sref->coeff();
+    trans_natorb();
+    
     const int nclosed = sref->nclosed();
     const int nact = sref->nact();
     const int nocc = nclosed + nact;
-
     shared_ptr<const Matrix> cfockao = nclosed ? make_shared<Fock<1>>(sref->geom(), sref->hcore(), nullptr, coeff_->slice(0, nclosed), true/*store*/, true/*rhf*/)
                                                 : make_shared<Matrix>(*sref->hcore());
     shared_ptr<const Matrix> afockao = compute_active_fock(coeff_->slice(nclosed, nocc), asd_dmrg_->rdm1_av());
@@ -897,9 +897,9 @@ void ASD_DMRG_Second::compute() {
   
   } // end of macro iter
 
-//  coeff_ = semi_canonical_orb();
+  coeff_ = semi_canonical_orb();
   
-// TODO maybe one more ASD iteration
+// TODO one more ASD iteration
 }
 
 

@@ -49,7 +49,7 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     std::vector<ASD_ActRotBlock> act_rotblocks_;
 #endif
 
-//std::shared_ptr<const Coeff> semi_canonical_orb() const;
+    std::shared_ptr<const Coeff> semi_canonical_orb() const;
 
     // util functions
     void print_header() const;

@@ -41,7 +41,6 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   if (!asd_dmrg_info) throw runtime_error("ASD-DMRG info has to be provided for orbital optimization");
   // construct ASD-DMRG
   asd_dmrg_ = make_shared<RASD>(asd_dmrg_info, iref);
-  coeff_ = asd_dmrg_->sref()->coeff();
 
   cout << "    * nstate   : " << setw(6) << asd_dmrg_->nstate() << endl;
   cout << "    * nclosed  : " << setw(6) << asd_dmrg_->sref()->nclosed() << endl;
@@ -84,24 +83,24 @@ void ASD_DMRG_OrbOpt::print_iteration(const int iter, const vector<double>& ener
 
 
 shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_active_fock(const MatView acoeff, shared_ptr<const RDM<1>> rdm1) const {
-  auto mref = asd_dmrg_->sref();
+  auto sref = asd_dmrg_->sref();
   const int nact = asd_dmrg_->sref()->nact();
   Matrix dkl(nact, nact);
   copy_n(rdm1->data(), dkl.size(), dkl.data());
   dkl.sqrt();
   dkl.scale(1.0/sqrt(2.0));
-  return make_shared<Fock<1>>(mref->geom(), mref->hcore()->clone(), nullptr, acoeff*dkl, false, true);
+  return make_shared<Fock<1>>(sref->geom(), sref->hcore()->clone(), nullptr, acoeff*dkl, false, true);
 }
 
 
 shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_qvec(const MatView acoeff, shared_ptr<const RDM<2>> rdm2) const {
   
-  auto mref = asd_dmrg_->sref();
-  const int nocc = mref->nclosed() + mref->nact();
-  auto half = mref->geom()->df()->compute_half_transform(acoeff);
+  auto sref = asd_dmrg_->sref();
+  const int nocc = sref->nclosed() + sref->nact();
+  auto half = sref->geom()->df()->compute_half_transform(acoeff);
 
   // TODO MPI modification
-  shared_ptr<const DFFullDist> full = half->apply_JJ()->compute_second_transform(coeff_->slice(mref->nclosed(), nocc));
+  shared_ptr<const DFFullDist> full = half->apply_JJ()->compute_second_transform(coeff_->slice(sref->nclosed(), nocc));
 
   // [D|tu] = (D|xy) Gamma_{xy,tu}
   shared_ptr<const DFFullDist> prdm = full->apply_2rdm(*rdm2);
@@ -113,13 +112,12 @@ shared_ptr<Matrix> ASD_DMRG_OrbOpt::compute_qvec(const MatView acoeff, shared_pt
 }
 
 
-/*
 shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
-  auto mref = asd_dmrg_->sref();
-  const int nclosed = mref->nclosed();
-  const int nact = mref->nact();
+  auto sref = asd_dmrg_->sref();
+  const int nclosed = sref->nclosed();
+  const int nact = sref->nact();
   const int nocc = nclosed + nact;
-  const int nvirt = mref->nvirt();
+  const int nvirt = sref->nvirt();
   const int norb = coeff_->mdim();
   
   auto rdm1_mat = make_shared<Matrix>(nact, nact);
@@ -132,9 +130,9 @@ shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
   const MatView vcoeff = coeff_->slice(nocc, norb);
 
   VectorB eig(coeff_->mdim());
-  auto core_fock = nclosed ? make_shared<Fock<1>>(mref->geom(), mref->hcore(), nullptr, coeff_->slice(0, nclosed), false, true)
-                            : make_shared<Matrix>(*mref->hcore());
-  Fock<1> fock(mref->geom(), core_fock, nullptr, acoeff * *rdm1_mat, false, true);
+  auto core_fock = nclosed ? make_shared<Fock<1>>(sref->geom(), sref->hcore(), nullptr, coeff_->slice(0, nclosed), false, true)
+                            : make_shared<Matrix>(*sref->hcore());
+  Fock<1> fock(sref->geom(), core_fock, nullptr, acoeff * *rdm1_mat, false, true);
 
   Matrix trans(norb, norb);
   trans.unit();
@@ -149,6 +147,5 @@ shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
   
   return make_shared<Coeff>(*coeff_ * trans);
 }
-*/
 
 
