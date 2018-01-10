@@ -177,6 +177,7 @@ int main(int argc, char** argv) {
           auto asd_dmrg = make_shared<RASD>(itree, ref);
           asd_dmrg->project_active();
           asd_dmrg->sweep();
+          asd_dmrg->compute_rdm12();
           ref = asd_dmrg->sref();
       } else if (title == "asd_dmrg_orbopt") {
         auto asd_dmrg_orbopt = make_shared<ASD_DMRG_Second>(itree, ref);

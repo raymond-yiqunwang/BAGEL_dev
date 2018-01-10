@@ -100,11 +100,15 @@ void ASD_DMRG::sweep(const bool restart) {
       const double sweep_range = *mnmx.second - *mnmx.first;
 
       if (iter != 0)
-        cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(8) << sweep_average << setw(12) << setprecision(8) << sweep_range
+        cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(12) << sweep_average << setw(12) << setprecision(8) << sweep_range
                                                                                << setw(12) << setprecision(8) << energies_[i] - sweep_average << endl;
       else
-        cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(8) << sweep_average << setw(12) << setprecision(8) << sweep_range
+        cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(12) << sweep_average << setw(12) << setprecision(8) << sweep_range
                                                                                << setw(12) << "---------" << endl;
+
+      cout << "sweeping energies :" << endl;
+      for (auto& e : sweep_energies_[i]) cout << setw(16) << setprecision(12) << e << endl;
+      cout << "end of sweeping energies" << endl;
 
       conv &= abs(energies_[i] - sweep_average) < thresh_;
       drop_perturb &= abs(energies_[i] - sweep_average) < perturb_thresh_;
