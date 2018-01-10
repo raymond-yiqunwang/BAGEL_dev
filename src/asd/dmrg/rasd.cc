@@ -240,8 +240,9 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
   }
 
   assert(jop);
-  map<BlockKey, vector<shared_ptr<ProductRASCivec>>> ortho_states;
+//  map<BlockKey, vector<shared_ptr<ProductRASCivec>>> ortho_states;
   for (auto& cc : states) {
+/*
     // orthogonalize the civecs first just in case
     Matrix overlap(cc.second.size(), cc.second.size());
     for (int i = 0; i < cc.second.size(); ++i) {
@@ -269,10 +270,14 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
     hmap.emplace(cc.first, compute_sigma2e(tmpvec, jop));
     spinmap.emplace(cc.first, compute_spin(tmpvec));
     ortho_states.emplace(cc.first, move(tmpvec));
+*/
+    hmap.emplace(cc.first, compute_sigma2e(cc.second, jop));
+    spinmap.emplace(cc.first, compute_spin(cc.second));
   }
   growtime.tick_print("orthonormalize and collect individual states");
 
-  GammaForestProdASD forest(ortho_states);
+//  GammaForestProdASD forest(ortho_states);
+  GammaForestProdASD forest(states);
   growtime.tick_print("construct GammaForestProdASD");
   forest.compute();
   growtime.tick_print("compute forest");
