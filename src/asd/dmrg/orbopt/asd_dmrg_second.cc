@@ -106,6 +106,8 @@ void ASD_DMRG_Second::compute() {
     shared_ptr<const DFHalfDist> halfx = sref->geom()->df()->compute_half_transform(coeff);
     shared_ptr<const DFFullDist> fullx_1j = halfx->compute_second_transform(coeff)->apply_J();
     mo2e = *fullx_1j->form_4index(fullx_1j, 1.0);
+  }
+  const int va_offset = nclosed * nact;
   const int vc_offset = va_offset + nvirt * nact;
 #ifdef AAROT
   const int aa_offset = vc_offset + nvirt * nclosed;
@@ -547,7 +549,7 @@ void ASD_DMRG_Second::compute() {
       }
       // (at, bi)
       for (int i = 0; i != nclosed; ++i) {
-        for (int b = 0; b != nclosed; ++b) {
+        for (int b = 0; b != nvirt; ++b) {
           for (int t = 0; t != nact; ++t) {
             for (int a = 0; a != nvirt; ++a) {
               if (a == b) {
@@ -787,6 +789,7 @@ void ASD_DMRG_Second::compute() {
 #endif
     } // end of Qvec part
 
+    cout << "va_offset : " << va_offset << ", vc_offset : " << vc_offset << endl;
     // check for compute_gradient
     {
       cout << " * checking compute_grad" << endl;
@@ -797,10 +800,9 @@ void ASD_DMRG_Second::compute() {
       for (int i = 0; i != rotsize; ++i) {
         if (fabs(grad_vec(i)) >= 1.0e-15) {
           grad_diff(i) = fabs(tmp(i) / grad_vec(i));
-          if (grad_diff(i) > 1.0e-8) cout << i << " : " << grad_diff(i) << ", grad_vec = " << grad_vec(i) << endl;
+          if (grad_diff(i) > 1.0e-8 && fabs(grad_diff(i) * grad_vec(i)) > 1.0e-8) cout << i << " : " << grad_diff(i) << ", grad_vec = " << grad_vec(i) << endl;
         }
       }
-      cout << "diff grad rms = " << grad_diff.rms() << endl;
     }
     // check for compute_denom
     {
@@ -814,22 +816,21 @@ void ASD_DMRG_Second::compute() {
       for (int i = 0; i != rotsize; ++i) {
         if (fabs(denom_vec(i)) >= 1.0e-15) {
           denom_diff(i) = fabs(tmp(i) / denom_vec(i));
-          if (denom_diff(i) > 1.0e-8) cout << i << " : " << denom_diff(i) << ", denom_vec = " << denom_vec(i) << endl;
+          if (denom_diff(i) > 1.0e-8 && fabs(denom_diff(i) * denom_vec(i)) > 1.0e-10) cout << i << " : " << denom_diff(i) << ", denom_vec = " << denom_vec(i) << endl;
         }
       }
-      cout << "diff denom rms = " << denom_diff.rms() << endl;
     }
     // check for hessian_trial
     {
       cout << " * checking compute_hess_trial" << endl;
       auto rot = trot->clone();
-      std::iota(rot->begin(), rot->begin()+va_offset, 1.0);
+//      std::iota(rot->begin(), rot->begin()+va_offset, 1.0);
       std::iota(rot->begin()+va_offset, rot->begin()+vc_offset, 1.0);
 #ifdef AAROT
       std::iota(rot->begin()+vc_offset, rot->begin()+aa_offset, 1.0);
       std::iota(rot->begin()+aa_offset, rot->end(), 1.0);
 #else
-      std::iota(rot->begin()+vc_offset, rot->end(), 1.0);
+//      std::iota(rot->begin()+vc_offset, rot->end(), 1.0);
 #endif
       auto hess_trial_rotfile = compute_hess_trial(rot, half, halfa, halfa_JJ, cfock, afock, qxr);
       VectorB hess_trial_vec(rotsize);
@@ -844,10 +845,9 @@ void ASD_DMRG_Second::compute() {
       for (int i = 0; i != rotsize; ++i) {
         if (fabs(hess_trial_vec(i)) >= 1.0e-15) {
           hess_t_diff(i) = fabs(tmp(i) / hess_trial_vec(i));
-          if (hess_t_diff(i) > 1.0e-8) cout << i << " : " << hess_t_diff(i) << ", hess_t_vec = " << hess_trial_vec(i) << endl;
+          if (hess_t_diff(i) > 1.0e-6 && fabs(hess_t_diff(i) * hess_trial_vec(i)) > 1.0e-8) cout << i << " : " << hess_t_diff(i) << ", hess_t_vec = " << hess_trial_vec(i) << endl;
         }
       }
-      cout << "diff hess_trial rms : " << hess_t_diff.rms() << endl;
     }
   }
 #endif // end of DEBUG_HESS

@@ -36,7 +36,7 @@ void ASD_DMRG::sweep(const bool restart) {
   shared_ptr<DMRG_Block1> left_block, right_block;
 
   if (!restart) {
-    perturb_ = input_->get<double>("perturb", 1.0e-3);
+    perturb_ = 0.1 * input_->get<double>("perturb", 1.0e-3);
   } else {
     // Seed lattice
     cout << " ===== Start growing DMRG chain =====" << endl;
@@ -105,10 +105,6 @@ void ASD_DMRG::sweep(const bool restart) {
       else
         cout << setw(6) << iter << setw(6) << i << setw(18) << setprecision(12) << sweep_average << setw(12) << setprecision(8) << sweep_range
                                                                                << setw(12) << "---------" << endl;
-
-      cout << "sweeping energies :" << endl;
-      for (auto& e : sweep_energies_[i]) cout << setw(16) << setprecision(12) << e << endl;
-      cout << "end of sweeping energies" << endl;
 
       conv &= abs(energies_[i] - sweep_average) < thresh_;
       drop_perturb &= abs(energies_[i] - sweep_average) < perturb_thresh_;

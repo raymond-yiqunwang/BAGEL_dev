@@ -27,7 +27,7 @@
 #include <src/asd/dmrg/gamma_forest_asd2.h>
 #include <src/util/muffle.h>
 
-//#define DEBUG_RDM
+#define DEBUG_RDM
 #ifdef DEBUG_RDM
 #include <src/ci/fci/knowles.h>
 #endif
@@ -201,9 +201,9 @@ void ASD_DMRG::compute_rdm12() {
   auto diff_rdm1 = make_shared<RDM<1>>(*fci_rdm1 - *asd_rdm1);
   auto diff_rdm2 = make_shared<RDM<2>>(*fci_rdm2 - *asd_rdm2);
   // print DEBUG info
-  const double reldiff_thresh = 1.0e-5;
+  const double reldiff_thresh = 1.0e-6;
   const double diff_product = 1.0e-8;
-  const double zero_thresh = 1.0e-13;
+  const double zero_thresh = 1.0e-14;
   // RDM1
   {
     cout << "    * PROCESSING RDM1" << endl;
