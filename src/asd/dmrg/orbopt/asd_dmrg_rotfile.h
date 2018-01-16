@@ -26,7 +26,7 @@
 #define __ASD_DMRG_ROTFILE_H
 
 #define DEBUG_HESS
-//#define AAROT
+#define AAROT
 
 #include <src/util/math/matrix.h>
 #include <src/asd/dmrg/orbopt/actrotblock.h>
@@ -127,7 +127,6 @@ class ASD_DMRG_RotFile {
     std::shared_ptr<Matrix> ca_mat() const;
     std::shared_ptr<Matrix> va_mat() const;
     std::shared_ptr<Matrix> vc_mat() const;
-//    std::shared_ptr<Matrix> aa_mat() const;
 
     // unpack to Matrix
     std::shared_ptr<Matrix> unpack(std::vector<ASD_ActRotBlock> act_rotblocks = {}, const double a = 0.0) const;

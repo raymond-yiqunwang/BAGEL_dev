@@ -27,7 +27,7 @@
 #include <src/asd/dmrg/gamma_forest_asd2.h>
 #include <src/util/muffle.h>
 
-#define DEBUG_RDM
+//#define DEBUG_RDM
 #ifdef DEBUG_RDM
 #include <src/ci/fci/knowles.h>
 #endif

@@ -157,8 +157,8 @@ void ASD_DMRG_Second::compute() {
     for (auto& block : act_rotblocks_) {
       const int istart = block.iorbstart;
       const int jstart = block.jorbstart;
-      const int inorb = block.norbi;
-      const int jnorb = block.norbj;
+      const int inorb = block.norb_i;
+      const int jnorb = block.norb_j;
       const int offset = block.offset;
 
       for (int t = 0; t != inorb; ++t) {
@@ -274,8 +274,8 @@ void ASD_DMRG_Second::compute() {
       for (auto& block : act_rotblocks_) {
         const int istart = block.iorbstart;
         const int jstart = block.jorbstart;
-        const int inorb = block.norbi;
-        const int jnorb = block.norbj;
+        const int inorb = block.norb_i;
+        const int jnorb = block.norb_j;
         const int offset = block.offset;
 
         // (ti, uv)
@@ -320,8 +320,8 @@ void ASD_DMRG_Second::compute() {
         for (auto& block2 : act_rotblocks_) {
           const int istart2 = block2.iorbstart;
           const int jstart2 = block2.jorbstart;
-          const int inorb2 = block2.norbi;
-          const int jnorb2 = block2.norbj;
+          const int inorb2 = block2.norb_i;
+          const int jnorb2 = block2.norb_j;
           const int offset2 = block2.offset;
 
           for (int w = 0; w != jnorb2; ++w) {
@@ -440,8 +440,8 @@ void ASD_DMRG_Second::compute() {
       for (auto& block : act_rotblocks_) {
         const int istart = block.iorbstart;
         const int jstart = block.jorbstart;
-        const int inorb = block.norbi;
-        const int jnorb = block.norbj;
+        const int inorb = block.norb_i;
+        const int jnorb = block.norb_j;
         const int offset = block.offset;
 
         // (ti, uv)
@@ -616,8 +616,8 @@ void ASD_DMRG_Second::compute() {
       for (auto& block : act_rotblocks_) {
         const int istart = block.iorbstart;
         const int jstart = block.jorbstart;
-        const int inorb = block.norbi;
-        const int jnorb = block.norbj;
+        const int inorb = block.norb_i;
+        const int jnorb = block.norb_j;
         const int offset = block.offset;
 
         // (ti, uv)
@@ -710,8 +710,8 @@ void ASD_DMRG_Second::compute() {
         for (auto& block2 : act_rotblocks_) {
           const int istart2 = block2.iorbstart;
           const int jstart2 = block2.jorbstart;
-          const int inorb2 = block2.norbi;
-          const int jnorb2 = block2.norbj;
+          const int inorb2 = block2.norb_i;
+          const int jnorb2 = block2.norb_j;
           const int offset2 = block2.offset;
           
           for (int w = 0; w != jnorb2; ++w) {
@@ -789,7 +789,7 @@ void ASD_DMRG_Second::compute() {
 #endif
     } // end of Qvec part
 
-    cout << "va_offset : " << va_offset << ", vc_offset : " << vc_offset << endl;
+    cout << "va_offset : " << va_offset << ", vc_offset : " << vc_offset << ", aa_offset : " << aa_offset << endl;
     // check for compute_gradient
     {
       cout << " * checking compute_grad" << endl;
