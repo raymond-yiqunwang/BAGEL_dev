@@ -216,9 +216,18 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
       Muffle hide_cout("asd_dmrg.log", true);
       auto prod_ras = make_shared<ProductRASCI>(inp, ref, left);
       prod_ras->compute();
-      vector<shared_ptr<ProductRASCivec>> civecs = prod_ras->civectors();
-      jop = prod_ras->jop();
       BlockKey key(prod_ras->nelea(), prod_ras->neleb());
+      vector<shared_ptr<ProductRASCivec>> civecs;
+      {
+        // filter out unwanted spin states
+        const int nspin = key.nelea - key.neleb;
+        const double target_spin = 0.25 * static_cast<double>(nspin * (nspin + 2));
+        vector<shared_ptr<ProductRASCivec>> tmp;
+        for (auto& ci : prod_ras->civectors())
+          if ((ci->spin_expectation() - target_spin) < 1.0e-8)
+            civecs.push_back(ci);
+      }
+      jop = prod_ras->jop();
       states[key].insert(states[key].end(), civecs.begin(), civecs.end());
 
       for (int i = 0; i < spin; ++i) {
