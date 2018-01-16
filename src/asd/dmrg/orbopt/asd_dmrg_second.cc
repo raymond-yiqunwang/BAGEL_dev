@@ -25,6 +25,7 @@
 #include <src/asd/dmrg/orbopt/asd_dmrg_second.h>
 #include <src/scf/hf/fock.h>
 #include <src/util/math/aughess.h>
+#include <src/util/io/moldenout.h>
 
 #ifdef DEBUG_HESS
 #include <src/multi/casscf/cassecond.h>
@@ -45,14 +46,16 @@ void ASD_DMRG_Second::compute() {
     
     // first obtain RDM from ASD_DMRG
     {
-      if (iter) asd_dmrg_->update_coeff(coeff_);
-      asd_dmrg_->project_active();
+      if (!iter)
+        asd_dmrg_->project_active();
+      else
+        asd_dmrg_->update_coeff(coeff_);
       asd_dmrg_->sweep(!iter);
       asd_dmrg_->compute_rdm12();
     }
     auto sref = asd_dmrg_->sref();
     coeff_ = sref->coeff();
-    trans_natorb();
+    trans_natorb_block();
     
     const int nclosed = sref->nclosed();
     const int nact = sref->nact();
@@ -1717,22 +1720,22 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
 }
 
 
-void ASD_DMRG_Second::trans_natorb() {
+void ASD_DMRG_Second::trans_natorb_block() {
   auto sref = asd_dmrg_->sref();
   const int nclosed = sref->nclosed();
   const int nact = sref->nact();
 
-  auto trans = make_shared<Matrix>(nact, nact);
-  trans->add_diag(2.0);
-  blas::ax_plus_y_n(-1.0, asd_dmrg_->rdm1_av()->data(), nact*nact, trans->data());
+  auto rdm1 = make_shared<Matrix>(nact, nact);
+  rdm1->add_diag(2.0);
+  blas::ax_plus_y_n(-1.0, asd_dmrg_->rdm1_av()->data(), nact*nact, rdm1->data());
 
   VectorB occup(nact);
-  trans->diagonalize(occup);
+  auto rotation = rdm1->diagonalize_blocks(occup, asd_dmrg_->active_sizes());
 
-  asd_dmrg_->rotate_rdms(trans);
+  asd_dmrg_->rotate_rdms(rotation);
 
   auto cnew = make_shared<Coeff>(*coeff_);
-  cnew->copy_block(0, nclosed, cnew->ndim(), nact, coeff_->slice(nclosed, nclosed+nact) * *trans);
+  cnew->copy_block(0, nclosed, cnew->ndim(), nact, coeff_->slice(nclosed, nclosed+nact) * *rotation);
   coeff_ = cnew;
 }
 

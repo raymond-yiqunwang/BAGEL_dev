@@ -89,6 +89,7 @@ class ASD_DMRG {
     const std::vector<double>& energies() const { return energies_; }
     double energies(const int i) const { return energies_.at(i); }
     std::shared_ptr<const Reference> sref() const { return sref_; }
+    std::vector<int> active_sizes() const { return active_sizes_; }
 
     void read_restricted(std::shared_ptr<PTree> input, const int site) const;
     void update_coeff(std::shared_ptr<const Coeff> coeff) { sref_ = std::make_shared<const Reference>(*sref_, coeff); }
