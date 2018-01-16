@@ -816,7 +816,7 @@ void ASD_DMRG_Second::compute() {
       for (int i = 0; i != rotsize; ++i) {
         if (fabs(denom_vec(i)) >= 1.0e-15) {
           denom_diff(i) = fabs(tmp(i) / denom_vec(i));
-          if (denom_diff(i) > 1.0e-8 && fabs(denom_diff(i) * denom_vec(i)) > 1.0e-10) cout << i << " : " << denom_diff(i) << ", denom_vec = " << denom_vec(i) << endl;
+          if (denom_diff(i) > 1.0e-6 && fabs(denom_diff(i) * denom_vec(i)) > 1.0e-10) cout << i << " : " << denom_diff(i) << ", denom_vec = " << denom_vec(i) << endl;
         }
       }
     }
@@ -824,13 +824,13 @@ void ASD_DMRG_Second::compute() {
     {
       cout << " * checking compute_hess_trial" << endl;
       auto rot = trot->clone();
-//      std::iota(rot->begin(), rot->begin()+va_offset, 1.0);
+      std::iota(rot->begin(), rot->begin()+va_offset, 1.0);
       std::iota(rot->begin()+va_offset, rot->begin()+vc_offset, 1.0);
 #ifdef AAROT
       std::iota(rot->begin()+vc_offset, rot->begin()+aa_offset, 1.0);
       std::iota(rot->begin()+aa_offset, rot->end(), 1.0);
 #else
-//      std::iota(rot->begin()+vc_offset, rot->end(), 1.0);
+      std::iota(rot->begin()+vc_offset, rot->end(), 1.0);
 #endif
       auto hess_trial_rotfile = compute_hess_trial(rot, half, halfa, halfa_JJ, cfock, afock, qxr);
       VectorB hess_trial_vec(rotsize);
