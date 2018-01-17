@@ -26,6 +26,7 @@
 #include <src/scf/hf/fock.h>
 #include <src/util/math/aughess.h>
 #include <src/util/io/moldenout.h>
+#include <src/util/muffle.h>
 
 #ifdef DEBUG_HESS
 #include <src/multi/casscf/cassecond.h>
@@ -87,8 +88,8 @@ void ASD_DMRG_Second::compute() {
 
     // compute_denominator
     shared_ptr<const ASD_DMRG_RotFile> denom = compute_denom(half, half_1j, halfa, halfa_JJ, cfock, afock);
-    auto minmax = minmax_element(denom->data(), denom->data()+denom->size());
-    cout << "denom minmax : (" << *(minmax.first) << ", " << *(minmax.second) << ")" << endl;
+//    auto minmax = minmax_element(denom->data(), denom->data()+denom->size());
+//    cout << "denom minmax : (" << *(minmax.first) << ", " << *(minmax.second) << ")" << endl;
 
     AugHess<ASD_DMRG_RotFile> solver(max_micro_iter_, grad);
 

@@ -36,6 +36,7 @@ void ASD_DMRG::sweep(const bool restart) {
   shared_ptr<DMRG_Block1> left_block, right_block;
 
   if (!restart) {
+    ntrunc_ = input_->get<int>("ntrunc", ntrunc_);
     perturb_ = 0.1 * input_->get<double>("perturb", 1.0e-3);
   } else {
     // Seed lattice

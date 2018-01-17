@@ -67,6 +67,11 @@ void ASD_DMRG_OrbOpt::print_header() const {
   cout << "  --------------------------------------------------" << endl;
   cout << "     ASD-DMRG Second Order Orbital Optimization     " << endl;
   cout << "  --------------------------------------------------" << endl << endl;
+#ifdef AAROT
+  cout << "  * Active-Active rotation turned ON !" << endl;
+#else
+  cout << "  * Active-Active rotation turned OFF !" << endl;
+#endif
 }
 
 
