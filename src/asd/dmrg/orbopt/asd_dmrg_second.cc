@@ -1026,7 +1026,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
     Matrix tmp_ao(nao, nao);
     for (int i = 0; i != nact; ++i) {
       dgemv_("T", nri, nao*nao, 1.0, sref->geom()->df()->block(0)->data(), nri, vgaa->block(0)->data()+nri*(i+nact*i), 1, 0.0, tmp_ao.data(), 1);
-      // tmp_ao.allreduce();
+      tmp_ao.allreduce();
       Matrix tmp_virt = vcoeff % tmp_ao * vcoeff;
       blas::ax_plus_y_n(2.0, tmp_virt.diag().get(), nvirt, denom->ptr_va()+nvirt*i);
       if (nclosed) {
@@ -1073,7 +1073,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
       vgaa->ax_plus_y(-1.0, vaa);
       for (int i = 0; i != nact; ++i) {
         dgemv_("T", nri, nao*nao, 1.0, sref->geom()->df()->block(0)->data(), nri, vgaa->block(0)->data()+nri*(i+nact*i), 1, 0.0, tmp.data(), 1);
-        // tmp.allreduce();
+        tmp.allreduce();
         Matrix tmp0 = ccoeff % tmp * ccoeff;
         blas::ax_plus_y_n(4.0, tmp0.diag().get(), nclosed, denom->ptr_ca()+nclosed*i);
       }
@@ -1092,7 +1092,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
       Matrix tmp_ao(nao, nao);
       for (int i = 0; i != nclosed; ++i) {
         dgemv_("T", nri, nao*nao, 1.0, sref->geom()->df()->block(0)->data(), nri, vgcc->block(0)->data()+nri*(i+nclosed*i), 1, 0.0, tmp_ao.data(), 1);
-        // tmp_ao.allreduce();
+        tmp_ao.allreduce();
         Matrix tmp_virt = vcoeff % tmp_ao * vcoeff;
         blas::ax_plus_y_n(-4.0, tmp_virt.diag().get(), nvirt, denom->ptr_vc()+nvirt*i);
       }
