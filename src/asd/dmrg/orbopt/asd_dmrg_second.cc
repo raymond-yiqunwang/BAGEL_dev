@@ -46,10 +46,12 @@ void ASD_DMRG_Second::compute() {
     
     // first obtain RDM from ASD_DMRG
     {
-      if (!iter)
+      if (!iter) {
         asd_dmrg_->project_active();
-      else
+      } else {
+        semi_canonicalize_block();
         asd_dmrg_->update_coeff(coeff_);
+      }
       asd_dmrg_->sweep(!iter);
       asd_dmrg_->compute_rdm12();
     }
@@ -795,6 +797,11 @@ void ASD_DMRG_Second::compute() {
       cout << " * checking compute_grad" << endl;
       VectorB grad_vec(rotsize);
       copy_n(grad->data(), rotsize, grad_vec.data());
+/*
+      cout << "grad AAROT :" << endl;
+      for (int i = aa_offset; i != aa_offset+naa_; ++i)
+        cout << setw(4) << setprecision(2) << grad_vec[i] << endl;
+*/
       VectorB grad_diff(rotsize);
       VectorB tmp(grad_vec - grad_check);
       for (int i = 0; i != rotsize; ++i) {
@@ -1737,6 +1744,32 @@ void ASD_DMRG_Second::trans_natorb_block() {
   auto cnew = make_shared<Coeff>(*coeff_);
   cnew->copy_block(0, nclosed, cnew->ndim(), nact, coeff_->slice(nclosed, nclosed+nact) * *rotation);
   coeff_ = cnew;
+}
+
+
+void ASD_DMRG_Second::semi_canonicalize_block() {
+  auto sref = asd_dmrg_->sref();
+  const int nclosed = sref->nclosed();
+  const int nact = sref->nact();
+  const int nocc = nclosed + nact;
+
+  auto rdm1_mat = make_shared<Matrix>(nact, nact);
+  copy_n(asd_dmrg_->rdm1_av()->data(), rdm1_mat->size(), rdm1_mat->data());
+  rdm1_mat->sqrt();
+  rdm1_mat->scale(1.0/sqrt(2.0));
+
+  const MatView acoeff = coeff_->slice(nclosed, nocc);
+  auto core_fock = nclosed ? make_shared<Fock<1>>(sref->geom(), sref->hcore(), nullptr, coeff_->slice(0, nclosed), false, true)
+                           : make_shared<Matrix>(*sref->hcore());
+  Fock<1> fock(sref->geom(), core_fock, nullptr, acoeff * *rdm1_mat, false, true);
+
+   Matrix afock = acoeff % fock * acoeff;
+   VectorB eigs(nact);
+   auto rotation = afock.diagonalize_blocks(eigs, asd_dmrg_->active_sizes());
+
+   auto cnew = make_shared<Coeff>(*coeff_);
+   cnew->copy_block(0, nclosed, cnew->ndim(), nact, coeff_->slice(nclosed, nclosed+nact) * *rotation);
+   coeff_ = cnew;
 }
 
 
