@@ -33,34 +33,61 @@ using namespace bagel;
 
 void ASD_DMRG_Second::compute() {
 
+  double grad_without_aa_rms;
+  double grad_aa_rms;
   for (int iter = 0; iter != max_iter_; ++iter) {
     
     // first obtain RDM from ASD_DMRG
-    {
-      if (!iter) {
-        asd_dmrg_->project_active();
-      } else {
-        semi_canonicalize_block();
-        asd_dmrg_->update_coeff(coeff_);
-      }
-      asd_dmrg_->sweep(!iter);
+    if (!iter) {
+      asd_dmrg_->project_active();
+      asd_dmrg_->sweep(true);
       asd_dmrg_->compute_rdm12();
+      coeff_ = asd_dmrg_->sref()->coeff();
+      rdm1_ = asd_dmrg_->rdm1_av();
+      rdm2_ = asd_dmrg_->rdm2_av();
+    } else {
+      semi_canonicalize_block();
+      asd_dmrg_->update_coeff(coeff_);
+      asd_dmrg_->sweep(false);
+
+#ifdef AAROT
+      if (iter < 10) {
+#endif
+        asd_dmrg_->compute_rdm12();
+        rdm1_ = asd_dmrg_->rdm1_av();
+        rdm2_ = asd_dmrg_->rdm2_av();
+
+#ifdef AAROT
+      }
+#endif
     }
-    auto sref = asd_dmrg_->sref();
-    coeff_ = sref->coeff();
+      
     trans_natorb_block();
+
+    auto sref = asd_dmrg_->sref();
     
     const int nclosed = sref->nclosed();
     const int nact = sref->nact();
     const int nocc = nclosed + nact;
     shared_ptr<const Matrix> cfockao = nclosed ? make_shared<Fock<1>>(sref->geom(), sref->hcore(), nullptr, coeff_->slice(0, nclosed), true/*store*/, true/*rhf*/)
                                                 : make_shared<Matrix>(*sref->hcore());
-    shared_ptr<const Matrix> afockao = compute_active_fock(coeff_->slice(nclosed, nocc), asd_dmrg_->rdm1_av());
+    shared_ptr<const Matrix> afockao = compute_active_fock(coeff_->slice(nclosed, nocc), rdm1_);
     shared_ptr<const Matrix> cfock = make_shared<Matrix>(*coeff_ % *cfockao * *coeff_);
     shared_ptr<const Matrix> afock = make_shared<Matrix>(*coeff_ % *afockao * *coeff_);
-    shared_ptr<const Matrix> qxr = compute_qvec(coeff_->slice(nclosed, nocc), asd_dmrg_->rdm2_av());
+    shared_ptr<const Matrix> qxr = compute_qvec(coeff_->slice(nclosed, nocc), rdm2_);
 
     shared_ptr<const ASD_DMRG_RotFile> grad = compute_gradient(cfock, afock, qxr);
+#ifdef AAROT
+    auto grad_without_aa = make_shared<ASD_DMRG_RotFile>(nclosed, nact, sref->nvirt(), 0);
+    copy_n(grad->data(), grad->size()-naa_, grad_without_aa->data());
+    assert(grad->size() - naa_ == grad_without_aa->size());
+    grad_without_aa_rms = grad_without_aa->rms();
+    auto grad_aa = make_shared<ASD_DMRG_RotFile>(0, 0, 0, naa_);
+    copy_n(grad->data()+grad_without_aa->size(), grad_aa->size(), grad_aa->data());
+    grad_aa_rms = grad_aa->rms();
+    cout << "grad_without_aa->rms() = " << scientific << grad_without_aa_rms << ", grad_aa->rms() = " << grad_aa_rms << endl;
+#endif
+
 
     // check gradient and break if converged
     const double gradient = grad->rms();
@@ -147,7 +174,6 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
   const int nvirt = sref->nvirt();
 
   auto grad = make_shared<ASD_DMRG_RotFile>(nclosed, nact, nvirt, naa_);
-  shared_ptr<const RDM<1>> rdm1 = asd_dmrg_->rdm1_av();
   
   // closed-active section, closed runs first
   if (nclosed) {
@@ -157,7 +183,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
       blas::ax_plus_y_n(4.0, afock->element_ptr(0, nclosed+t), nclosed, target);
       blas::ax_plus_y_n(-2.0, qxr->element_ptr(0, t), nclosed, target);
       for (int u = 0; u != nact; ++u)
-        blas::ax_plus_y_n(-2.0*rdm1->element(u, t), cfock->element_ptr(0, nclosed+u), nclosed, target);
+        blas::ax_plus_y_n(-2.0*rdm1_->element(u, t), cfock->element_ptr(0, nclosed+u), nclosed, target);
     }
   }
   // virtual-active section, virtual runs first
@@ -166,7 +192,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
     for (int t = 0; t != nact; ++t, target += nvirt) {
       blas::ax_plus_y_n(2.0, qxr->element_ptr(nocc, t), nvirt, target);
       for (int u = 0; u != nact; ++u)
-        blas::ax_plus_y_n(2.0*rdm1->element(u, t), cfock->element_ptr(nocc, nclosed+u), nvirt, target);
+        blas::ax_plus_y_n(2.0*rdm1_->element(u, t), cfock->element_ptr(nocc, nclosed+u), nvirt, target);
     }
   }
   // virtual-closed asection, virtual runs firsgt
@@ -189,8 +215,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_gradient(shared_ptr<const 
 
     for (int j = 0; j != jnorb; ++j, target += inorb) {
       for (int v = 0; v != nact; ++v) {
-        blas::ax_plus_y_n(2.0*rdm1->element(v, jstart+j), cfock->element_ptr(nclosed+istart, nclosed+v), inorb, target);
-        blas::ax_plus_y_n(-2.0*cfock->element(nclosed+v, nclosed+jstart+j), rdm1->element_ptr(istart, v), inorb, target);
+        blas::ax_plus_y_n(2.0*rdm1_->element(v, jstart+j), cfock->element_ptr(nclosed+istart, nclosed+v), inorb, target);
+        blas::ax_plus_y_n(-2.0*cfock->element(nclosed+v, nclosed+jstart+j), rdm1_->element_ptr(istart, v), inorb, target);
       }
       blas::ax_plus_y_n(2.0, qxr->element_ptr(nclosed+istart, jstart+j), inorb, target);
       blas::ax_plus_y_n(-2.0, qxr->transpose()->element_ptr(istart, nclosed+jstart+j), inorb, target);
@@ -216,7 +242,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
   const MatView vcoeff = coeff_->slice(nocc, nocc+nvirt);
 
   Matrix rdm1(nact, nact);
-  copy_n(asd_dmrg_->rdm1_av()->data(), rdm1.size(), rdm1.data());
+  copy_n(rdm1_->data(), rdm1.size(), rdm1.data());
 
   // Fock related part
   const Matrix fcd = *cfock->get_submatrix(nclosed, nclosed, nact, nact) * rdm1;
@@ -244,7 +270,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
   // [tt|pq] = \Gamma_{vw,tt}(vw|pq)
   shared_ptr<const DFFullDist> vaa = halfa_JJ->compute_second_transform(acoeff);
   const int nri = vaa->block(0)->asize();
-  shared_ptr<const DFFullDist> vgaa = vaa->apply_2rdm(*asd_dmrg_->rdm2_av());
+  shared_ptr<const DFFullDist> vgaa = vaa->apply_2rdm(*rdm2_);
   {
     Matrix tmp_ao(nao, nao);
     for (int i = 0; i != nact; ++i) {
@@ -264,7 +290,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
   shared_ptr<const Matrix> mo2e = vaa->form_4index(vaa_exc, 1.0);
   {
     for (int i = 0; i != nact; ++i) {
-      const double e2 = -2.0 * blas::dot_product(mo2e->element_ptr(0, i*nact), nact*nact*nact, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,i));
+      const double e2 = -2.0 * blas::dot_product(mo2e->element_ptr(0, i*nact), nact*nact*nact, rdm2_->element_ptr(0,0,0,i));
       for (int j = 0; j != nvirt; ++j)
         denom->ele_va(j, i) += e2;
       for (int k = 0; k != nclosed; ++k)
@@ -277,7 +303,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
   for (int i = 0; i != nact; ++i)
     for (int j = 0; j != nact; ++j)
       for (int k = 0; k != nact; ++k)
-        rdmk(k+nact*j, i) = asd_dmrg_->rdm2_av()->element(k, i, j, i) + asd_dmrg_->rdm2_av()->element(k, i, i, j);
+        rdmk(k+nact*j, i) = rdm2_->element(k, i, j, i) + rdm2_->element(k, i, i, j);
   {
     shared_ptr<const DFFullDist> vav = halfa->compute_second_transform(vcoeff)->apply_J();
     denom->ax_plus_y_va(2.0, *(rdmk % *vav->form_4index_diagonal_part()).transpose());
@@ -340,24 +366,24 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_denom(shared_ptr<const DFH
     
     // prepare for mixed rdm2
     btas::CRange<3> range(nact, nact, nact*nact);
-    auto tmptensor = make_shared<btas::Tensor3<double>>(range, asd_dmrg_->rdm2_av()->storage());
+    auto tmptensor = make_shared<btas::Tensor3<double>>(range, rdm2_->storage());
     vector<double> buf(nact*nact);
     for (int i = 0; i != tmptensor->extent(2); ++i) {
       copy_n(&(*tmptensor)(0,0,i), buf.size(), buf.data());
       blas::transpose(buf.data(), nact, nact, &(*tmptensor)(0,0,i));
     }
-    RDM<2> rdmmix = *asd_dmrg_->rdm2_av()->copy();
+    RDM<2> rdmmix = *rdm2_->copy();
     blas::ax_plus_y_n(1.0, tmptensor->data(), tmptensor->size(), rdmmix.data());
     auto mat1 = make_shared<Matrix>(nact*nact, inorb*jnorb);
     auto mat2 = mat1->clone();
     
     for (int j = 0; j != jnorb; ++j) {
       // [t,t] = \Gamma_{vw,xt}(vw|xt)
-      const double e2j = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact*(jstart+j)), nact*nact*nact, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,jstart+j));
+      const double e2j = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact*(jstart+j)), nact*nact*nact, rdm2_->element_ptr(0,0,0,jstart+j));
 
       // Fock related part
       for (int i = 0; i != inorb; ++i) {
-        const double e2i = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact*(istart+i)), nact*nact*nact, asd_dmrg_->rdm2_av()->element_ptr(0,0,0,istart+i));
+        const double e2i = -2.0 * blas::dot_product(mo2e->element_ptr(0, nact*(istart+i)), nact*nact*nact, rdm2_->element_ptr(0,0,0,istart+i));
 
         denom->ele_aa_offset(i, inorb, j, offset) = 2.0 * (*cfock)(nclosed+istart+i, nclosed+istart+i) * rdm1(jstart+j, jstart+j)
                                                     + 2.0 * (*cfock)(nclosed+jstart+j, nclosed+jstart+j) * rdm1(istart+i, istart+i)
@@ -423,7 +449,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
   const MatView vcoeff = coeff_->slice(nocc, nocc+nvirt);
 
   Matrix rdm1(nact, nact);
-  copy_n(asd_dmrg_->rdm1_av()->data(), nact*nact, rdm1.data());
+  copy_n(rdm1_->data(), nact*nact, rdm1.data());
 
   // lambda for computing g(D)
   auto compute_gd = [&, this] (shared_ptr<const DFHalfDist> halft, shared_ptr<const DFHalfDist> halfjj, const MatView pcoeff) {
@@ -637,8 +663,8 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
     shared_ptr<DFFullDist> fullta = halfta->compute_second_transform(acoeff);
     shared_ptr<const DFFullDist> fulltas = fullta->swap();
     fullta->ax_plus_y(1.0, fulltas);
-    shared_ptr<const DFFullDist> fullaaD = fullaa->apply_2rdm(*asd_dmrg_->rdm2_av());
-    shared_ptr<const DFFullDist> fulltaD = fullta->apply_2rdm(*asd_dmrg_->rdm2_av());
+    shared_ptr<const DFFullDist> fullaaD = fullaa->apply_2rdm(*rdm2_);
+    shared_ptr<const DFFullDist> fulltaD = fullta->apply_2rdm(*rdm2_);
     shared_ptr<const Matrix> qp = halfa_JJ->form_2index(fulltaD, 1.0);
     shared_ptr<const Matrix> qpp = halfta->form_2index(fullaaD, 1.0);
 
@@ -688,14 +714,14 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         auto tmpfull2 = fullaa->transform_occ1(make_shared<Matrix>(*filti * rotmat_aa));
         auto tmpfull2s = tmpfull2->swap();
         tmpfull2->ax_plus_y(1.0, tmpfull2s);
-        full2D = tmpfull2->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+        full2D = tmpfull2->apply_2rdm(*rdm2_)->swap();
         shared_ptr<const Matrix> qp1 = half1->form_2index(full2D, 1.0);
 
         half1 = halfa;
         tmpfull2 = fullaa->transform_occ1(make_shared<Matrix>((*filtj) ^ rotmat_aa));
         tmpfull2s = tmpfull2->swap();
         tmpfull2->ax_plus_y(1.0, tmpfull2s);
-        full2D = tmpfull2->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+        full2D = tmpfull2->apply_2rdm(*rdm2_)->swap();
         shared_ptr<const Matrix> qp2 = half1->form_2index(full2D, 1.0);
 
         sigma->ax_plus_y_va(4.0, vcoeff % (*qp1 - *qp2 + *qpp1 - *qpp2));
@@ -713,7 +739,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
         Qp += *qpp->get_submatrix(istart, jstart, inorb, jnorb) - *(qpp->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
 
         full1 = fullaa;
-        full2D = fullta->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+        full2D = fullta->apply_2rdm(*rdm2_)->swap();
         shared_ptr<const Matrix> qp = full1->form_2index(full2D, 1.0);
         Qp += *qp->get_submatrix(istart, jstart, inorb, jnorb) - *(qp->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
 
@@ -762,7 +788,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
           shared_ptr<DFFullDist> tmpfull2 = fulltaj2_0J->copy();
           auto tmpfull2s = tmpfull2->swap();
           tmpfull2->ax_plus_y(1.0, tmpfull2s);
-          full2D = tmpfull2->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+          full2D = tmpfull2->apply_2rdm(*rdm2_)->swap();
           shared_ptr<const Matrix> Qp1 = full1->form_2index(full2D, 1.0);
           out += *Qp1->get_submatrix(istart, jstart, inorb, jnorb) - *(Qp1->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
 
@@ -770,7 +796,7 @@ shared_ptr<ASD_DMRG_RotFile> ASD_DMRG_Second::compute_hess_trial(shared_ptr<cons
           tmpfull2 = fulltai2_0J->copy();
           tmpfull2s = tmpfull2->swap();
           tmpfull2->ax_plus_y(1.0, tmpfull2s);
-          full2D = tmpfull2->apply_2rdm(*asd_dmrg_->rdm2_av())->swap();
+          full2D = tmpfull2->apply_2rdm(*rdm2_)->swap();
           shared_ptr<const Matrix> Qp2 = full2D->form_2index(full1, 1.0);
           out += *Qp2->get_submatrix(istart, jstart, inorb, jnorb) - *(Qp2->get_submatrix(jstart, istart, jnorb, inorb)->transpose());
 
@@ -960,12 +986,14 @@ void ASD_DMRG_Second::trans_natorb_block() {
 
   auto rdm1 = make_shared<Matrix>(nact, nact);
   rdm1->add_diag(2.0);
-  blas::ax_plus_y_n(-1.0, asd_dmrg_->rdm1_av()->data(), nact*nact, rdm1->data());
+  blas::ax_plus_y_n(-1.0, rdm1_->data(), nact*nact, rdm1->data());
 
   VectorB occup(nact);
   auto rotation = rdm1->diagonalize_blocks(occup, asd_dmrg_->active_sizes());
 
-  asd_dmrg_->rotate_rdms(rotation);
+  // rotate rdms
+  rdm1_->transform(rotation);
+  rdm2_->transform(rotation);
 
   auto cnew = make_shared<Coeff>(*coeff_);
   cnew->copy_block(0, nclosed, cnew->ndim(), nact, coeff_->slice(nclosed, nclosed+nact) * *rotation);
@@ -980,7 +1008,7 @@ void ASD_DMRG_Second::semi_canonicalize_block() {
   const int nocc = nclosed + nact;
 
   auto rdm1_mat = make_shared<Matrix>(nact, nact);
-  copy_n(asd_dmrg_->rdm1_av()->data(), rdm1_mat->size(), rdm1_mat->data());
+  copy_n(rdm1_->data(), rdm1_mat->size(), rdm1_mat->data());
   rdm1_mat->sqrt();
   rdm1_mat->scale(1.0/sqrt(2.0));
 
@@ -992,6 +1020,10 @@ void ASD_DMRG_Second::semi_canonicalize_block() {
    Matrix afock = acoeff % fock * acoeff;
    VectorB eigs(nact);
    auto rotation = afock.diagonalize_blocks(eigs, asd_dmrg_->active_sizes());
+
+   // rotate rdms
+   rdm1_->transform(rotation);
+   rdm2_->transform(rotation);
 
    auto cnew = make_shared<Coeff>(*coeff_);
    cnew->copy_block(0, nclosed, cnew->ndim(), nact, coeff_->slice(nclosed, nclosed+nact) * *rotation);

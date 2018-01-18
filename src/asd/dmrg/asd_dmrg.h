@@ -137,8 +137,6 @@ class ASD_DMRG {
     std::shared_ptr<const RDM<1>> rdm1_av() const { return rdm1_av_; }
     std::shared_ptr<const RDM<2>> rdm2_av() const { return rdm2_av_; }
 
-    void rotate_rdms(std::shared_ptr<const Matrix> trans);
-
   private:
     void rearrange_orbitals(std::shared_ptr<const Reference> iref);
     std::shared_ptr<Reference> build_reference(const int site, const std::vector<bool> meanfield) const;

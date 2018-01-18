@@ -377,17 +377,3 @@ shared_ptr<PTree> ASD_DMRG::prepare_sweeping_input(const int site) const {
 }
 
 
-void ASD_DMRG::rotate_rdms(shared_ptr<const Matrix> trans) {
-  for (auto& i : *rdm1_)
-    i.second->transform(trans);
-  for (auto& i : *rdm2_)
-    i.second->transform(trans);
-
-  // Only when #state > 1
-  if (rdm1_->size() > 1) rdm1_av_->transform(trans);
-  if (rdm2_->size() > 1) rdm2_av_->transform(trans);
-  assert(rdm1_->size() > 1 || rdm1_->at(0) == rdm1_av_);
-  assert(rdm2_->size() > 1 || rdm2_->at(0) == rdm2_av_);
-}
-
-

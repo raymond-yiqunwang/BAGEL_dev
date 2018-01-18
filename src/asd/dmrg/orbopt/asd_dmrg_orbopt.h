@@ -43,6 +43,8 @@ class ASD_DMRG_OrbOpt : public std::enable_shared_from_this<ASD_DMRG_OrbOpt> {
     std::shared_ptr<RASD> asd_dmrg_;
     std::shared_ptr<const PTree> input_;
     std::shared_ptr<const Coeff> coeff_;
+    std::shared_ptr<RDM<1>> rdm1_;
+    std::shared_ptr<RDM<2>> rdm2_;
 
 #ifdef AAROT
     // active-active rotation parameters
