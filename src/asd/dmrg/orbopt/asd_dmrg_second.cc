@@ -46,8 +46,9 @@ void ASD_DMRG_Second::compute() {
       rdm1_ = asd_dmrg_->rdm1_av();
       rdm2_ = asd_dmrg_->rdm2_av();
     } else {
-//      semi_canonicalize_block();
+      semi_canonicalize_block();
       asd_dmrg_->update_coeff(coeff_);
+      asd_dmrg_->project_active();
       asd_dmrg_->sweep(false);
 
 #ifdef AAROT
@@ -62,7 +63,7 @@ void ASD_DMRG_Second::compute() {
 #endif
     }
       
-//    trans_natorb_block();
+    trans_natorb_block();
 
     auto sref = asd_dmrg_->sref();
     
