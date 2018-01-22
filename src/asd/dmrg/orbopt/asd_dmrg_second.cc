@@ -48,7 +48,6 @@ void ASD_DMRG_Second::compute() {
     } else {
       semi_canonicalize_block();
       asd_dmrg_->update_coeff(coeff_);
-      asd_dmrg_->project_active();
       asd_dmrg_->sweep(false);
 
 #ifdef AAROT
