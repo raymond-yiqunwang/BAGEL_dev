@@ -149,7 +149,6 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
 
   for (auto& inp : inputs) {
     const int spin = inp->get<int>("nspin");
-    const int charge = inp->get<int>("charge");
     { // prepare the input
       inp->put("nclosed", ref->nclosed());
       inp->put("extern_nactele", true);
@@ -208,11 +207,8 @@ shared_ptr<DMRG_Block1> RASD::compute_first_block(vector<shared_ptr<PTree>> inpu
         civecs = tmpvec;
       }
     }
-    const int nstates = inp->get<int>("nstate");
-    cout << "      - charge: " << charge << ", nspin: " << spin << ", nstates: " << nstates
-                                    << fixed << setw(10) << setprecision(2) << rastime.tick() << endl;
   }
-
+  
   GammaForestASD<RASDvec> forest(states);
   rastime.tick_print("construct forest");
   forest.compute();
@@ -233,7 +229,6 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
 
   Timer growtime(2);
   for (auto& inp : inputs) {
-    const int charge = inp->get<int>("charge");
     const int spin = inp->get<int>("nspin");
     { // prepare input
       inp->put("nclosed", ref->nclosed());
@@ -264,9 +259,6 @@ shared_ptr<DMRG_Block1> RASD::grow_block(vector<shared_ptr<PTree>> inputs, share
         civecs = tmpvecs;
       }
     }
-    const int nstates = inp->get<int>("nstate");
-    cout << "      - charge: " << charge << ", nspin: " << spin << ", nstates: " << nstates
-                                    << fixed << setw(10) << setprecision(2) << growtime.tick() << endl;
   }
 
   assert(jop);

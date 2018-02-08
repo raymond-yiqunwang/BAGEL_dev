@@ -55,6 +55,11 @@ GammaForestProdASD::GammaForestProdASD(map<BlockKey, vector<shared_ptr<ProductRA
       }
     }
   }
+  
+  cout << "printing vecmap" << endl;
+  for (auto& ivec : vecmap) {
+    cout << "  ProductState : block(" << ivec.first.block.nelea << ", " << ivec.first.block.neleb << "), ras(" << ivec.first.ci.nelea << ", " << ivec.first.ci.neleb << "), state : " << ivec.first.state << ", RASvec size : " << ivec.second->ij() << endl;
+  }
 
 #ifdef HAVE_MPI_H
   // make a "lexical" ordering for ProductStates that will be used to distribute based on ket vectors

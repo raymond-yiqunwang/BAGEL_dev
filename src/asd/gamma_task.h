@@ -73,6 +73,18 @@ class GammaTask {
               std::shared_ptr<const VecType> cvec = bvec->apply(c, action(k), spin(k));
               for (auto& kbra : third->bras())
                 dot_product(kbra.second, cvec, third->gammas().find(kbra.first)->second->element_ptr(0, a_*norb*norb + b*norb + c));
+
+              for (int l = 0; l != nops; ++l) {
+                std::shared_ptr<GammaBranch<VecType>> fourth = third->branch(l);
+                if (!fourth->active()) continue;
+
+                for (int d = 0; d != norb; ++d) {
+                  if (c==d && l==k) continue;
+                  std::shared_ptr<const VecType> dvec = cvec->apply(d, action(l), spin(l));
+                  for (auto& lbra : fourth->bras())
+                    dot_product(lbra.second, dvec, fourth->gammas().find(lbra.first)->second->element_ptr(0, a_*norb*norb*norb + b*norb*norb + c*norb + d));
+                }
+              }
             }
           }
         }
@@ -239,6 +251,20 @@ class GammaTask<RASDvec> : public RASTask<GammaBranch<RASDvec>> {
                   if (!cblock) continue;
                   for (auto& kbra : third->bras())
                     dot_product(kbra.second, cblock, third->gammas().find(kbra.first)->second->element_ptr(iket*kbra.second->ij(), a_*norb*norb + b*norb + c));
+
+                  for (int l = 0; l != nops; ++l) {
+                    std::shared_ptr<GammaBranch<RASDvec>> fourth = third->branch(l);
+                    if (!fourth->active()) continue;
+
+                    for (int d = 0; d != norb; ++d) {
+                      if (c==d && l==k) continue;
+                      std::shared_ptr<const RASBlock<double>> dblock = next_block(fourth, cblock, d, action(l), spin(l));
+                      if (!dblock) continue;
+                      for (auto& lbra : fourth->bras())
+                        dot_product(lbra.second, dblock, fourth->gammas().find(lbra.first)->second->element_ptr(iket*lbra.second->ij(), 
+                                                                                                              a_*norb*norb*norb + b*norb*norb + c*norb + d));
+                    }
+                  }
                 }
               }
             }

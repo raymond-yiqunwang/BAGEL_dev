@@ -123,8 +123,11 @@ GammaTree<VecType>::GammaTree(shared_ptr<const VecType> ket) : ket_(ket) {
     base_->branch(i) = make_shared<GammaBranch<VecType>>();
     for (int j = 0; j < nops; ++j) {
       base_->branch(i)->branch(j) = make_shared<GammaBranch<VecType>>();
-      for (int k = 0; k < nops; ++k)
+      for (int k = 0; k < nops; ++k) {
         base_->branch(i)->branch(j)->branch(k) = make_shared<GammaBranch<VecType>>();
+        for (int l = 0; l != nops; ++l)
+          base_->branch(i)->branch(j)->branch(k)->branch(l) = make_shared<GammaBranch<VecType>>();
+      }
     }
   }
 }

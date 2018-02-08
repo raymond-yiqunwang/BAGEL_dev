@@ -72,6 +72,16 @@ int GammaForest<VecType,N>::allocate_and_count() {
               const int nstates = nA * nAp;
               third->gammas().emplace(kbra.first, make_shared<Matrix>(nstates, norb * norb * norb));
             }
+
+            for (int l = 0; l != nops; ++l) {
+              shared_ptr<GammaBranch<VecType>> fourth = third->branch(l);
+              if (!fourth->active()) continue;
+              for (auto& lbra : fourth->bras()) {
+                const int nAp = lbra.second->ij();
+                const int nstates = nA * nAp;
+                fourth->gammas().emplace(lbra.first, make_shared<Matrix>(nstates, pow(norb, 4)));
+              }
+            }
           }
         }
       }
