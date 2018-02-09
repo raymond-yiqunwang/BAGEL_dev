@@ -56,11 +56,6 @@ GammaForestProdASD::GammaForestProdASD(map<BlockKey, vector<shared_ptr<ProductRA
     }
   }
   
-  cout << "printing vecmap" << endl;
-  for (auto& ivec : vecmap) {
-    cout << "  ProductState : block(" << ivec.first.block.nelea << ", " << ivec.first.block.neleb << "), ras(" << ivec.first.ci.nelea << ", " << ivec.first.ci.neleb << "), state : " << ivec.first.state << ", RASvec size : " << ivec.second->ij() << endl;
-  }
-
 #ifdef HAVE_MPI_H
   // make a "lexical" ordering for ProductStates that will be used to distribute based on ket vectors
   unordered_map<size_t, size_t> product_lex;
@@ -84,6 +79,9 @@ GammaForestProdASD::GammaForestProdASD(map<BlockKey, vector<shared_ptr<ProductRA
     {GammaSQ::CreateAlpha,     GammaSQ::CreateAlpha,     GammaSQ::AnnihilateAlpha},
     {GammaSQ::CreateBeta,      GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta},
     {GammaSQ::CreateAlpha,     GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta},
+    {GammaSQ::CreateAlpha,     GammaSQ::CreateAlpha,     GammaSQ::AnnihilateAlpha,     GammaSQ::AnnihilateAlpha},
+    {GammaSQ::CreateBeta,      GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta,      GammaSQ::AnnihilateBeta},
+    {GammaSQ::CreateAlpha,     GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta,      GammaSQ::AnnihilateAlpha}
   };
 
   forest_ = make_shared<GammaForest<RASDvec, 1>>();
@@ -99,7 +97,7 @@ GammaForestProdASD::GammaForestProdASD(map<BlockKey, vector<shared_ptr<ProductRA
 
           for (int partition = 0; partition < npartition; ++partition) {
             // if bit is true --> ci part; if bit is false --> block part
-            bitset<3> pattern(partition);
+            bitset<4> pattern(partition);
             list<GammaSQ> blockops, ciops;
             {
               auto citer = coupling.begin();
@@ -138,14 +136,24 @@ GammaForestProdASD::GammaForestProdASD(map<BlockKey, vector<shared_ptr<ProductRA
 }
 
 tuple</*conj*/bool, /*rev*/bool, list<GammaSQ>> GammaForestProdASD::try_permutations(const list<GammaSQ>& gammalist) const {
-  if (gammalist.empty()) return make_tuple(false, false, gammalist);
+  if (gammalist.empty() || gammalist.size()==4) return make_tuple(false, false, gammalist);
   // loop through all possibilities of conjugating or reversing
   for (int conjrev = 0; conjrev < 4; ++conjrev) {
     // first bit --> conjugate, second bit --> reverse
     const bool rev = bitset<2>(conjrev)[1];
     const bool conj = bitset<2>(conjrev)[0];
 
-    list<GammaSQ> tmp = (rev != conj) ? list<GammaSQ>(gammalist.rbegin(), gammalist.rend()) : list<GammaSQ>(gammalist.begin(), gammalist.end());
+    list<GammaSQ> tmp = conj ? list<GammaSQ>(gammalist.rbegin(), gammalist.rend()) : list<GammaSQ>(gammalist.begin(), gammalist.end());
+    if (tmp.size()==2) {
+      if (rev) tmp = list<GammaSQ>(tmp.rbegin(), tmp.rend());
+    } else if (tmp.size()==3) {
+      if (rev) { 
+        vector<GammaSQ> tmpvec(3);
+        copy_n(tmp.begin(), tmp.size(), tmpvec.begin());
+        swap(tmpvec[0], tmpvec[1]);
+        copy_n(tmpvec.begin(), tmpvec.size(), tmp.begin());
+      }
+    }
     if (conj) for_each(tmp.begin(), tmp.end(), [] (GammaSQ& a) { a = conjugate(a); });
 
     if (count(possible_couplings_.begin(), possible_couplings_.end(), tmp)==1)
@@ -155,13 +163,13 @@ tuple</*conj*/bool, /*rev*/bool, list<GammaSQ>> GammaForestProdASD::try_permutat
   return make_tuple(false, false, list<GammaSQ>());
 }
 
-tuple<size_t, size_t, size_t> GammaForestProdASD::get_indices(const bitset<3> bit, const int size, const size_t ijk_local, const int lnorb, const bool block_is_reversed, const int rnorb, const bool ci_is_reversed) const {
+tuple<size_t, size_t, size_t> GammaForestProdASD::get_indices(const bitset<4> bit, const int size, const size_t ijkl_local, const int lnorb, const bool block_is_reversed, const int rnorb, const bool ci_is_reversed) const {
   vector<size_t> strides(size, 1);
   for (size_t i = 1; i < size; ++i)
     strides[i] = strides[i-1] * (bit[i-1] ? rnorb : lnorb);
 
   vector<size_t> indices(size);
-  size_t current = ijk_local;
+  size_t current = ijkl_local;
   for (int i = size-1; i >= 0; --i) {
     const size_t index = current / strides[i];
     indices[i] = index;
@@ -171,10 +179,10 @@ tuple<size_t, size_t, size_t> GammaForestProdASD::get_indices(const bitset<3> bi
 
   const int norb = lnorb + rnorb;
 
-  size_t ijk = 0;
+  size_t ijkl = 0;
   for (int i = size-1; i >= 0; --i) {
     size_t ind = bit[i] ? indices[i] : indices[i] + rnorb;
-    ijk = ind + ijk*norb;
+    ijkl = ind + ijkl*norb;
   }
 
   vector<size_t> block_indices, ci_indices;
@@ -185,7 +193,7 @@ tuple<size_t, size_t, size_t> GammaForestProdASD::get_indices(const bitset<3> bi
   const size_t block_index = accumulate(block_indices.rbegin(), block_indices.rend(), 0ull, [lnorb] (size_t ij, size_t index) { return index + ij*lnorb; });
   const size_t ci_index = accumulate(ci_indices.rbegin(), ci_indices.rend(), 0ull, [rnorb] (size_t ij, size_t index) { return index + ij*rnorb; });
 
-  return make_tuple(ijk, block_index, ci_index);
+  return make_tuple(ijkl, block_index, ci_index);
 }
 
 void GammaForestProdASD::compute() {
@@ -210,19 +218,19 @@ void GammaForestProdASD::compute() {
       const vector<shared_ptr<ProductRASCivec>>& bra_states = block_states_.at(bra_key);
       BlockInfo bra_info(bra_key.nelea, bra_key.neleb, bra_states.size());
 
-      const size_t nijk = accumulate(coupling.begin(), coupling.end(), 1, [norb] (size_t x, GammaSQ a) { return x*norb; });
-      auto gamma_matrix = make_shared<Matrix>(bra_info.nstates*ket_info.nstates, nijk);
+      const size_t nijkl = accumulate(coupling.begin(), coupling.end(), 1, [norb] (size_t x, GammaSQ a) { return x*norb; });
+      auto gamma_matrix = make_shared<Matrix>(bra_info.nstates*ket_info.nstates, nijkl);
 
       assert(dmrgblock == bra_states.front()->left());
       assert(dmrgblock == ket_states.front()->left());
 
-      // contains set of ijk's that will need to be transposed at the end of this loop
+      // contains set of ijkl's that will need to be transposed at the end of this loop
       set<size_t> transpose_list;
 
       // loop through all the ways to divide the operators between block and ras
       const int npart = 1 << coupling.size();
       for (int part = 0; part < npart; ++part) {
-        bitset<3> bit(part);
+        bitset<4> bit(part);
         list<GammaSQ> original_blockops, original_ciops;
         auto citer = coupling.begin();
         // divide such that if bit is true --> ciops, bit false --> blockops
@@ -238,12 +246,12 @@ void GammaForestProdASD::compute() {
         tie(block_conj, block_rev, rearranged_blockops) = try_permutations(original_blockops);
         tie(ci_conj, ci_rev, rearranged_ciops) = try_permutations(original_ciops);
 
-        const size_t nijk_part = accumulate(original_blockops.begin(), original_blockops.end(), 1, [lnorb] (size_t x, GammaSQ a) { return x*lnorb; }) *
-                              accumulate(original_ciops.begin(), original_ciops.end(), 1, [rnorb] (size_t x, GammaSQ a) { return x*rnorb; });
+        const size_t nijkl_part = accumulate(original_blockops.begin(), original_blockops.end(), 1, [lnorb] (size_t x, GammaSQ a) { return x*lnorb; }) *
+                                    accumulate(original_ciops.begin(), original_ciops.end(), 1, [rnorb] (size_t x, GammaSQ a) { return x*rnorb; });
 
-        vector<tuple<size_t, size_t, size_t>> index_data; index_data.reserve(nijk_part);
-        for (size_t ijk_part = 0; ijk_part < nijk_part; ++ijk_part) {
-          tuple<size_t, size_t, size_t> indices = get_indices(bit, coupling.size(), ijk_part, lnorb, block_conj^block_rev, rnorb, ci_conj != ci_rev);
+        vector<tuple<size_t, size_t, size_t>> index_data; index_data.reserve(nijkl_part);
+        for (size_t ijkl_part = 0; ijkl_part < nijkl_part; ++ijkl_part) {
+          tuple<size_t, size_t, size_t> indices = get_indices(bit, coupling.size(), ijkl_part, lnorb, block_conj^block_rev, rnorb, ci_conj != ci_rev);
           if (ci_conj) transpose_list.insert(std::get<0>(indices));
           index_data.push_back(indices);
         }
@@ -270,9 +278,9 @@ void GammaForestProdASD::compute() {
 
             // first part: phase from reversing order of operators (should only happen when both are creation or annihilation)
             // second part: the phase from rearranging the operators so that the block operators are on the right
-            //   sign only changes if part = "010" or "101"
+            //   sign only changes if part is : 0001 | 0100 | 0101 | 0111 | 1010 | 1101
             // third part: phase from moving block operators past ci ket
-            const int phase = ((block_rev != ci_rev) ? -1 : 1) * (part==2 || part==5 ? -1 : 1) * static_cast<int>(1 - (((original_blockops.size()*(ci_ket.nelea+ci_ket.neleb))%2) << 1));
+            const int phase = ((block_rev != ci_rev) ? -1 : 1) * ((part==1 || part==4 || part==5 || part==7 || part==10 || part==13)? -1 : 1) * static_cast<int>(1 - (((original_blockops.size()*(ci_ket.nelea+ci_ket.neleb))%2) << 1));
 
             // swap where appropriate
             if (block_conj) swap(block_bra, block_ket);
@@ -306,10 +314,10 @@ void GammaForestProdASD::compute() {
                   const double* block_part_base = blockI ? nullptr : &(*block_part)(bra_k, ket_k, 0);
 
                   for (auto& iter : index_data) {
-                    size_t ijk, block_index, ci_index;
-                    tie(ijk, block_index, ci_index) = iter;
+                    size_t ijkl, block_index, ci_index;
+                    tie(ijkl, block_index, ci_index) = iter;
 
-                    double* gamma_target = gamma_matrix->element_ptr(0, ijk);
+                    double* gamma_target = gamma_matrix->element_ptr(0, ijkl);
 
                     assert(block_part ? (bra_k < block_part->extent(0) && ket_k < block_part->extent(1) && block_index < block_part->extent(2)) : true);
 
