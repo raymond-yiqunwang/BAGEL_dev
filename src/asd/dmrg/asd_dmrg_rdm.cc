@@ -70,7 +70,6 @@ void ASD_DMRG::compute_rdm12() {
     const list<list<GammaSQ>> gammalists = {
       {GammaSQ::CreateAlpha, GammaSQ::CreateAlpha, GammaSQ::AnnihilateAlpha, GammaSQ::AnnihilateAlpha},
       {GammaSQ::CreateBeta,  GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateBeta},
-      {GammaSQ::CreateAlpha, GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha},
       {GammaSQ::CreateAlpha, GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha}
     };
 
@@ -85,32 +84,32 @@ void ASD_DMRG::compute_rdm12() {
 
       for (auto& gammalist : gammalists) {
         auto mat = forest.get(key, key, gammalist);
-        blas::ax_plus_y_n(1.0, mat->data(), mat->size(), rdm2_->at(istate)->data());
+        for (int l = 0; l != nact; ++l) {
+          for (int k = 0; k != nact; ++k) {
+            for (int j = 0; j != nact; ++j) {
+              for (int i = 0; i != nact; ++i) {
+                rdm2_->at(istate)->element(i, j, k, l) += mat->element(0, i+k*nact+l*nact*nact+j*nact*nact*nact);
+              }
+            }
+          }
+        }
+        list<GammaSQ> tmp = {GammaSQ::CreateAlpha, GammaSQ::CreateBeta,  GammaSQ::AnnihilateBeta,  GammaSQ::AnnihilateAlpha};
+        if (gammalist == tmp) {
+          for (int l = 0; l != nact; ++l)
+            for (int k = 0; k != nact; ++k)
+              for (int j = 0; j != nact; ++j)
+                for (int i = 0; i != nact; ++i)
+                  rdm2_->at(istate)->element(i, j, k, l) += mat->element(0, k+i*nact+j*nact*nact+l*nact*nact*nact);
+        }
       }
 
       // compute RDM1 from RDM2
       const int nactelectrons = accumulate(active_electrons_.begin(), active_electrons_.end(), 0);
-      for (int i = 0; i != nact; ++i) {
-        for (int j = 0; j != nact; ++j) {
-          for (int k = 0; k != nact; ++k) {
-            *(rdm1_->at(istate)->element_ptr(j, i)) += 1.0/static_cast<double>(nactelectrons-1) * rdm2_->at(istate)->element(j, k, k, i);
-          }
-        }
-      }
+      for (int k = 0; k != nact; ++k)
+        blas::ax_plus_y_n(1.0/static_cast<double>(nactelectrons-1), rdm2_->at(istate)->element_ptr(0, 0, k, k), rdm1_->at(istate)->size(), rdm1_->at(istate)->data());
       
-//      cout << "print RDM1" << endl;
-//      rdm1_->at(istate)->print(0.01);
     } // end of loop over nstate
   } // end of compute RDM
-
-/*
-  auto fci_info = input_->get_child("fci");
-  auto fci = make_shared<KnowlesHandy>(fci_info, sref_->geom(), sref_);
-  fci->compute();
-  auto fci_rdm1 = fci->rdm1_av();
-  cout << "fci rdm1" << endl;
-  fci_rdm1->print(0.01);
-*/
 
   if (rdm1_av_ == nullptr && nstate_ > 1) {
     rdm1_av_ = make_shared<RDM<1>>(nact);
@@ -128,6 +127,27 @@ void ASD_DMRG::compute_rdm12() {
   } else {
     rdm1_av_ = rdm1_->at(0,0);
     rdm2_av_ = rdm2_->at(0,0);
+  }
+
+  {
+    Muffle mute("ignore", false);
+    auto fci_info = input_->get_child("fci");
+    auto fci = make_shared<KnowlesHandy>(fci_info, sref_->geom(), sref_);
+    fci->compute();
+    auto fci_rdm1 = fci->rdm1_av();
+    auto dmrg_rdm1 = rdm1_av_;
+    auto diff_rdm1 = make_shared<RDM<1>>(*fci_rdm1 - *dmrg_rdm1);
+    diff_rdm1->print(0.01);
+    VectorB diff1(diff_rdm1->size());
+    copy_n(diff_rdm1->data(), diff_rdm1->size(), diff1.data());
+    mute.unmute();
+    cout << "diff RDM1 rms : " << setw(12) << setprecision(10) << diff1.rms() << endl;
+    auto fci_rdm2 = fci->rdm2_av();
+    auto dmrg_rdm2 = rdm2_av_;
+    auto diff_rdm2 = make_shared<RDM<2>>(*fci_rdm2 - *dmrg_rdm2);
+    VectorB diff2(diff_rdm2->size());
+    copy_n(diff_rdm2->data(), diff_rdm2->size(), diff2.data());
+    cout << "diff RDM2 rms : " << setw(12) << setprecision(10) << diff2.rms() << endl;
   }
 }
 
