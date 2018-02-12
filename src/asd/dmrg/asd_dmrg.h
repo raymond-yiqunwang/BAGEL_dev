@@ -77,7 +77,7 @@ class ASD_DMRG {
   public:
     ASD_DMRG(const std::shared_ptr<const PTree> input, std::shared_ptr<const Reference> ref);
 
-    void sweep();
+    void sweep(const bool restart = true);
     void project_active();
     void down_sweep();
 
@@ -90,6 +90,7 @@ class ASD_DMRG {
     std::vector<int> active_sizes() const { return active_sizes_; }
 
     void read_restricted(std::shared_ptr<PTree> input, const int site) const;
+    void update_coeff(std::shared_ptr<const Coeff> coeff) { sref_ = std::make_shared<const Reference>(*sref_, coeff); }
 
     // compute RDM
     void compute_rdm12();

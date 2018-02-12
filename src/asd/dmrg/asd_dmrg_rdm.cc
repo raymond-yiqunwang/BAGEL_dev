@@ -1,6 +1,6 @@
 //
 // BAGEL - Brilliantly Advanced General Electronic Structure Library
-// Filename: asd_dmrg_base.cc
+// Filename: asd_dmrg_rdm.cc
 // Copyright (C) 2017 Raymond Wang
 //
 // Author: Raymond Wang <raymondwang@u.northwestern.edu>
@@ -24,6 +24,8 @@
 
 #include <src/asd/dmrg/asd_dmrg.h>
 #include <src/asd/dmrg/product_rasci.h>
+#include <src/util/muffle.h>
+
 #include <src/ci/fci/knowles.h>
 
 using namespace std;
@@ -48,6 +50,7 @@ void ASD_DMRG::compute_rdm12() {
   const int site = 0;
   vector<shared_ptr<ProductRASCivec>> cc; // wavefunction
   {
+    Muffle hide_cout("asd_dmrg_rdm.log", false);
     shared_ptr<const Reference> ref = build_reference(site, vector<bool>(nsites_, false));
     shared_ptr<PTree> input = prepare_sweeping_input(site);
     {
@@ -95,17 +98,19 @@ void ASD_DMRG::compute_rdm12() {
         }
       }
       
-      cout << "print RDM1" << endl;
-      rdm1_->at(istate)->print(0.01);
+//      cout << "print RDM1" << endl;
+//      rdm1_->at(istate)->print(0.01);
     } // end of loop over nstate
   } // end of compute RDM
 
+/*
   auto fci_info = input_->get_child("fci");
   auto fci = make_shared<KnowlesHandy>(fci_info, sref_->geom(), sref_);
   fci->compute();
   auto fci_rdm1 = fci->rdm1_av();
   cout << "fci rdm1" << endl;
   fci_rdm1->print(0.01);
+*/
 
   if (rdm1_av_ == nullptr && nstate_ > 1) {
     rdm1_av_ = make_shared<RDM<1>>(nact);
@@ -114,7 +119,7 @@ void ASD_DMRG::compute_rdm12() {
     rdm1_av_->zero();
     rdm2_av_->zero();
   }
-  
+
   if (nstate_ != 1) {
     for (int ist = 0; ist != nstate_; ++ist) {
       rdm1_av_->ax_plus_y(weights_[ist], rdm1_->at(ist));

@@ -82,6 +82,7 @@ void ASD_DMRG::rearrange_orbitals(shared_ptr<const Reference> iref) {
   const int nclosed = (iref->geom()->nele() - charge_ - nactele) / 2;
   assert((iref->geom()->nele() - charge_ - nactele) % 2 == 0);
   const int nactive = accumulate(active_sizes_.begin(), active_sizes_.end(), 0);
+  assert(nactive);
   const int nvirt = iref->coeff()->mdim() - nclosed - nactive;
   const int nbasis = iref->geom()->nbasis();
 
@@ -140,6 +141,7 @@ void ASD_DMRG::project_active() {
   }
   
   const int nactive = sref_->nact();
+  assert(nactive);
 
   shared_ptr<const PTree> localization_data = input_->get_child_optional("localization");
   if (localization_data) {

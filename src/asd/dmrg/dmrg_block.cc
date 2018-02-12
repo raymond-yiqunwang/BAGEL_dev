@@ -154,6 +154,7 @@ shared_ptr<const BlockOperators> DMRG_Block1::compute_block_ops(shared_ptr<Dimer
   return make_shared<BlockOperators1>(shared_from_this(), jop);
 }
 
+
 DMRG_Block2::DMRG_Block2(shared_ptr<const DMRG_Block1> lb, shared_ptr<const DMRG_Block1> rb) : left_block_(lb), right_block_(rb) {
   // left block runs first in the resulting pairmap_ vectors
   for (auto& left : lb->blocks()) {
