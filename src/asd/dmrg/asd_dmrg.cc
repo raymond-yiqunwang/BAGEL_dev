@@ -66,6 +66,10 @@ ASD_DMRG::ASD_DMRG(shared_ptr<const PTree> input, shared_ptr<const Reference> ir
   energies_.resize(nstate_);
   sweep_energies_.resize(nstate_);
 
+  // initialize RDM
+  rdm1_ = make_shared<VecRDM<1>>();
+  rdm2_ = make_shared<VecRDM<2>>();
+
   // reorder coeff to closed-active-virtual
   rearrange_orbitals(iref);
 }
@@ -292,6 +296,38 @@ string ASD_DMRG::print_progress(const int position, const string left_symbol, co
   for (int i = position+1; i < nsites_; ++i) out << right_symbol << " ";
 
   return out.str();
+}
+
+
+void ASD_DMRG::read_restricted(shared_ptr<PTree> input, const int site) const {
+  auto restricted = input_->get_child("restricted");
+
+  auto read = [&input] (const shared_ptr<const PTree> inp, int current) {
+    array<int, 3> nras = inp->get_array<int, 3>("orbitals");
+    input->put("max_holes", inp->get<string>("max_holes"));
+    input->put("max_particles", inp->get<string>("max_particles"));
+
+    input->erase("active");
+    auto parent = std::make_shared<PTree>();
+    for (int i = 0; i < 3; ++i) {
+      auto tmp = std::make_shared<PTree>();
+      const int norb = nras[i];
+      for (int i = 0; i < norb; ++i, ++current)
+        tmp->push_back(current+1);
+      parent->push_back(tmp);
+    }
+    input->add_child("active", parent);
+  };
+
+  if (restricted->size() == 1)
+    read(*restricted->begin(), input->get<int>("nclosed"));
+  else if (restricted->size() == nsites_) {
+    auto iter = restricted->begin();
+    advance(iter, site);
+    read(*iter, input->get<int>("nclosed"));
+  }
+  else
+    throw runtime_error("Must specify either one set of restrictions for all sites, or one set per site");
 }
 
 

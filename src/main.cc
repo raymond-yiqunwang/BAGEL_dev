@@ -176,6 +176,7 @@ int main(int argc, char** argv) {
           auto asd_dmrg = make_shared<RASD>(itree, ref);
           asd_dmrg->project_active();
           asd_dmrg->sweep();
+          asd_dmrg->compute_rdm12();
           ref = asd_dmrg->sref();
       } else if (title == "localize") {
         if (ref == nullptr) throw runtime_error("Localize needs a reference");

@@ -54,7 +54,9 @@ class GammaForestASD : public GammaForest<VecType, 1> {
         {GammaSQ::CreateAlpha,     GammaSQ::CreateAlpha,     GammaSQ::AnnihilateAlpha},
         {GammaSQ::CreateBeta,      GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta},
         {GammaSQ::CreateAlpha,     GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta},
-        {GammaSQ::CreateAlpha,     GammaSQ::CreateAlpha,     GammaSQ::AnnihilateAlpha,     GammaSQ::AnnihilateAlpha}
+        {GammaSQ::CreateAlpha,     GammaSQ::CreateAlpha,     GammaSQ::AnnihilateAlpha,     GammaSQ::AnnihilateAlpha},
+        {GammaSQ::CreateBeta,      GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta,      GammaSQ::AnnihilateBeta},
+        {GammaSQ::CreateAlpha,     GammaSQ::CreateBeta,      GammaSQ::AnnihilateBeta,      GammaSQ::AnnihilateAlpha}
       };
 
       for (auto& ket : monomer_states) {

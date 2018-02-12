@@ -278,9 +278,9 @@ void GammaForestProdASD::compute() {
 
             // first part: phase from reversing order of operators (should only happen when both are creation or annihilation)
             // second part: the phase from rearranging the operators so that the block operators are on the right
-            //   sign only changes if part is : 0001 | 0100 | 0101 | 0111 | 1010 | 1101
+            //   sign only changes if part is : 0010 | 1000 | 0101 | 1010 | 1011 | 1110
             // third part: phase from moving block operators past ci ket
-            const int phase = ((block_rev != ci_rev) ? -1 : 1) * ((part==1 || part==4 || part==5 || part==7 || part==10 || part==13)? -1 : 1) * static_cast<int>(1 - (((original_blockops.size()*(ci_ket.nelea+ci_ket.neleb))%2) << 1));
+            const int phase = ((block_rev != ci_rev) ? -1 : 1) * ((part==2 || part==5 || part==8 || part==10 || part==11 || part==14)? -1 : 1) * static_cast<int>(1 - (((original_blockops.size()*(ci_ket.nelea+ci_ket.neleb))%2) << 1));
 
             // swap where appropriate
             if (block_conj) swap(block_bra, block_ket);
@@ -339,8 +339,8 @@ void GammaForestProdASD::compute() {
       }
       if (!transpose_list.empty()) {
         unique_ptr<double[]> tmp(new double[ket_info.nstates * bra_info.nstates]);
-        for (auto& ijk : transpose_list) {
-          double* target = gamma_matrix->element_ptr(0, ijk);
+        for (auto& ijkl : transpose_list) {
+          double* target = gamma_matrix->element_ptr(0, ijkl);
           blas::transpose(target, ket_info.nstates, bra_info.nstates, tmp.get(), 1.0);
           copy_n(tmp.get(), ket_info.nstates*bra_info.nstates, target);
         }

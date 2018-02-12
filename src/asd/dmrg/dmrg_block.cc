@@ -74,11 +74,6 @@ DMRG_Block1::DMRG_Block1(GammaForestASD<RASDvec>&& forest, const map<BlockKey, s
     CouplingBlock cb(brakey, ketkey, tensor);
     sparse_[gammalist].emplace(cb.key(), cb);
   }
-
-  cout << "  printing DMRG Block information :" << endl;
-  for (auto& iblock : blocks_) {
-    cout << "    block key : (" << iblock.nelea << ", " << iblock.neleb << "), nstates : " << iblock.nstates << endl;
-  }
 }
 
 DMRG_Block1::DMRG_Block1(GammaForestProdASD&& forest, const map<BlockKey, shared_ptr<const Matrix>> h2e,
