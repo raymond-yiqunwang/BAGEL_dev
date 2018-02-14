@@ -25,7 +25,7 @@
 #ifndef __ASD_DMRG_ROTFILE_H
 #define __ASD_DMRG_ROTFILE_H
 
-//#define AAROT
+#define AAROT
 
 #include <src/util/math/matrix.h>
 #include <src/asd/dmrg/orbopt/actrotblock.h>

@@ -153,7 +153,7 @@ void ASD_DMRG::compute_rdm12() {
       for (int j = 0; j != nact; ++j) {
         for (int k = 0; k != nact; ++k) {
           for (int l = 0; l != nact; ++l) {
-            if ((dmrg_rdm2->element(l, k, j, i) - fci_rdm2->element(l, k, j, i)) > 1.0e-10)
+            if ((dmrg_rdm2->element(l, k, j, i) - fci_rdm2->element(l, k, j, i)) > 1.0e-2)
               cout << "(" << l << ", " << k << ", " << j << ", " << i << ") dmrg : " << dmrg_rdm2->element(l, k, j, i) << ", fci : " << fci_rdm2->element(l, k, j, i) << endl;
           }
         }

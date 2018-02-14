@@ -163,7 +163,8 @@ tuple</*conj*/bool, /*rev*/bool, list<GammaSQ>> GammaForestProdASD::try_permutat
   return make_tuple(false, false, list<GammaSQ>());
 }
 
-tuple<size_t, size_t, size_t> GammaForestProdASD::get_indices(const bitset<4> bit, const int size, const size_t ijkl_local, const int lnorb, const bool block_is_reversed, const int rnorb, const bool ci_is_reversed) const {
+tuple<size_t, size_t, size_t> GammaForestProdASD::get_indices(const bitset<4> bit, const int size, const size_t ijkl_local, const int lnorb, const bool block_is_conjugated,
+                                                              const bool block_is_reversed, const int rnorb, const bool ci_is_conjugated, const bool ci_is_reversed) const {
   vector<size_t> strides(size, 1);
   for (size_t i = 1; i < size; ++i)
     strides[i] = strides[i-1] * (bit[i-1] ? rnorb : lnorb);
@@ -187,8 +188,10 @@ tuple<size_t, size_t, size_t> GammaForestProdASD::get_indices(const bitset<4> bi
 
   vector<size_t> block_indices, ci_indices;
   for (int i = 0; i < size; ++i) (bit[i] ? ci_indices : block_indices).push_back(indices[i]);
-  if (block_is_reversed) reverse(block_indices.begin(), block_indices.end());
-  if (ci_is_reversed) reverse(ci_indices.begin(), ci_indices.end());
+  if (block_is_conjugated) reverse(block_indices.begin(), block_indices.end());
+  if (block_is_reversed) swap(block_indices[0], block_indices[1]);
+  if (ci_is_conjugated) reverse(ci_indices.begin(), ci_indices.end());
+  if (ci_is_reversed) swap(ci_indices[0], ci_indices[1]);
 
   const size_t block_index = accumulate(block_indices.rbegin(), block_indices.rend(), 0ull, [lnorb] (size_t ij, size_t index) { return index + ij*lnorb; });
   const size_t ci_index = accumulate(ci_indices.rbegin(), ci_indices.rend(), 0ull, [rnorb] (size_t ij, size_t index) { return index + ij*rnorb; });
@@ -251,7 +254,7 @@ void GammaForestProdASD::compute() {
 
         vector<tuple<size_t, size_t, size_t>> index_data; index_data.reserve(nijkl_part);
         for (size_t ijkl_part = 0; ijkl_part < nijkl_part; ++ijkl_part) {
-          tuple<size_t, size_t, size_t> indices = get_indices(bit, coupling.size(), ijkl_part, lnorb, block_conj^block_rev, rnorb, ci_conj != ci_rev);
+          tuple<size_t, size_t, size_t> indices = get_indices(bit, coupling.size(), ijkl_part, lnorb, block_conj, block_rev, rnorb, ci_conj, ci_rev);
           if (ci_conj) transpose_list.insert(std::get<0>(indices));
           index_data.push_back(indices);
         }
@@ -280,7 +283,9 @@ void GammaForestProdASD::compute() {
             // second part: the phase from rearranging the operators so that the block operators are on the right
             //   sign only changes if part is : 
             // third part: phase from moving block operators past ci ket
-            const int phase = ((block_rev != ci_rev) ? -1 : 1) * ((part==2 || part==5)? -1 : 1) * static_cast<int>(1 - (((original_blockops.size()*(ci_ket.nelea+ci_ket.neleb))%2) << 1));
+            int phase;
+            phase = ((block_rev != ci_rev) ? -1 : 1) * ((part==2 || part==5 || part==8 || part==10 || part==11 || part==14)? -1 : 1) 
+                                * static_cast<int>(1 - (((original_blockops.size()*(ci_ket.nelea+ci_ket.neleb))%2) << 1));
 
             // swap where appropriate
             if (block_conj) swap(block_bra, block_ket);
