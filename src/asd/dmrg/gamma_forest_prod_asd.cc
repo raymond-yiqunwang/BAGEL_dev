@@ -140,21 +140,21 @@ tuple</*conj*/bool, /*rev*/bool, list<GammaSQ>> GammaForestProdASD::try_permutat
   // loop through all possibilities of conjugating or reversing
   for (int conjrev = 0; conjrev < 4; ++conjrev) {
     // first bit --> conjugate, second bit --> reverse
-    const bool rev = bitset<2>(conjrev)[1];
     const bool conj = bitset<2>(conjrev)[0];
+    const bool rev = bitset<2>(conjrev)[1];
 
-    list<GammaSQ> tmp = conj ? list<GammaSQ>(gammalist.rbegin(), gammalist.rend()) : list<GammaSQ>(gammalist.begin(), gammalist.end());
-    if (tmp.size()==2) {
-      if (rev) tmp = list<GammaSQ>(tmp.rbegin(), tmp.rend());
-    } else if (tmp.size()==3) {
-      if (rev) { 
-        vector<GammaSQ> tmpvec(3);
-        copy_n(tmp.begin(), tmp.size(), tmpvec.begin());
-        swap(tmpvec[0], tmpvec[1]);
-        copy_n(tmpvec.begin(), tmpvec.size(), tmp.begin());
-      }
+    list<GammaSQ> tmp = gammalist;
+
+    if (conj) {
+      tmp = list<GammaSQ>(gammalist.rbegin(), gammalist.rend());
+      for_each(tmp.begin(), tmp.end(), [] (GammaSQ& a) { a = conjugate(a); });
     }
-    if (conj) for_each(tmp.begin(), tmp.end(), [] (GammaSQ& a) { a = conjugate(a); });
+
+    if (rev) {
+      vector<GammaSQ> tmpvec(tmp.begin(), tmp.end());
+      swap(tmpvec[0], tmpvec[1]);
+      tmp = list<GammaSQ>(tmpvec.begin(), tmpvec.end());
+    }
 
     if (count(possible_couplings_.begin(), possible_couplings_.end(), tmp)==1)
       return make_tuple(conj, rev, tmp);
@@ -278,9 +278,9 @@ void GammaForestProdASD::compute() {
 
             // first part: phase from reversing order of operators (should only happen when both are creation or annihilation)
             // second part: the phase from rearranging the operators so that the block operators are on the right
-            //   sign only changes if part is : 0010 | 1000 | 0101 | 1010 | 1011 | 1110
+            //   sign only changes if part is : 
             // third part: phase from moving block operators past ci ket
-            const int phase = ((block_rev != ci_rev) ? -1 : 1) * ((part==2 || part==5 || part==8 || part==10 || part==11 || part==14)? -1 : 1) * static_cast<int>(1 - (((original_blockops.size()*(ci_ket.nelea+ci_ket.neleb))%2) << 1));
+            const int phase = ((block_rev != ci_rev) ? -1 : 1) * ((part==2 || part==5)? -1 : 1) * static_cast<int>(1 - (((original_blockops.size()*(ci_ket.nelea+ci_ket.neleb))%2) << 1));
 
             // swap where appropriate
             if (block_conj) swap(block_bra, block_ket);

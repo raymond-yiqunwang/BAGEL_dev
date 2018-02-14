@@ -45,7 +45,7 @@ void ASD_DMRG::compute_rdm12() {
   }
 
   // pick up one specific wavefunction and compute RDM from GammaForest
-  auto right_block = right_blocks_[1];
+  auto right_block = right_blocks_[0];
   assert(right_block);
   const int site = 0;
   vector<shared_ptr<ProductRASCivec>> cc; // wavefunction
@@ -148,6 +148,17 @@ void ASD_DMRG::compute_rdm12() {
     VectorB diff2(diff_rdm2->size());
     copy_n(diff_rdm2->data(), diff_rdm2->size(), diff2.data());
     cout << "diff RDM2 rms : " << setw(12) << setprecision(10) << diff2.rms() << endl;
+    cout << "fci energy : " << setw(16) << setprecision(12) << fci->energy(0) << endl;
+    for (int i = 0; i != nact; ++i) {
+      for (int j = 0; j != nact; ++j) {
+        for (int k = 0; k != nact; ++k) {
+          for (int l = 0; l != nact; ++l) {
+            if ((dmrg_rdm2->element(l, k, j, i) - fci_rdm2->element(l, k, j, i)) > 1.0e-10)
+              cout << "(" << l << ", " << k << ", " << j << ", " << i << ") dmrg : " << dmrg_rdm2->element(l, k, j, i) << ", fci : " << fci_rdm2->element(l, k, j, i) << endl;
+          }
+        }
+      }
+    }
   }
 }
 
