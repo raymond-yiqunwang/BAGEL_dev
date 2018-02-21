@@ -39,7 +39,7 @@ FCI_bare::FCI_bare(shared_ptr<const CIWfn> ci) {
   norb_  = ci->nact();
   nstate_ = ci->nstates();
   energy_ = ci->energies();
-  cc_ = ci->civectors()->copy();
+  cc_ = ci->civectors() ? ci->civectors()->copy() : nullptr;
   det_ = ci->det();
   rdm1_ = make_shared<VecRDM<1>>();
   rdm2_ = make_shared<VecRDM<2>>();
@@ -119,6 +119,7 @@ tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
 
   return compute_rdm12_last_step(dbra, dket, cbra);
 }
+
 
 tuple<shared_ptr<RDM<1>>, shared_ptr<RDM<2>>>
 FCI::compute_rdm12_last_step(shared_ptr<const Dvec> dbra, shared_ptr<const Dvec> dket, shared_ptr<const Civec> cibra) const {

@@ -27,12 +27,12 @@
 #define _BAGEL_WFN_REFERENCE_H
 
 #include <set>
-#include <src/scf/coeff.h>
 #include <src/mat1e/hcore.h>
 #include <src/ci/fci/dvec.h>
 #include <src/wfn/geometry.h>
 #include <src/wfn/ciwfn.h>
 #include <src/wfn/rdm.h>
+#include <src/wfn/coeff.h>
 #include <src/util/vec.h>
 
 // all the info to construct wave functions
@@ -177,9 +177,10 @@ class Reference : public std::enable_shared_from_this<Reference> {
     std::shared_ptr<const Dvec> civectors() const;
     std::shared_ptr<Dvec> rdm1deriv(const int istate) const;
     std::shared_ptr<Dvec> rdm2deriv(const int istate) const;
-    std::shared_ptr<Matrix> rdm2deriv_offset(const int istate, const size_t offset, const size_t size) const;
-    std::tuple<std::shared_ptr<Matrix>,std::shared_ptr<Matrix>,std::shared_ptr<Matrix>>
-      rdm3deriv(const int istate, std::shared_ptr<const Matrix> fock, const size_t offset, const size_t size, std::shared_ptr<const Matrix> fock_ebra_in) const;
+    std::shared_ptr<Matrix> rdm2fderiv(const int istate, std::shared_ptr<const Matrix> fock, std::shared_ptr<const Matrix> dmat) const;
+    std::shared_ptr<Matrix> rdm2deriv_offset(const int istate, const size_t offset, const size_t size, std::shared_ptr<const Matrix> dmat) const;
+    std::tuple<std::shared_ptr<Matrix>,std::shared_ptr<Matrix>>
+      rdm3deriv(const int istate, std::shared_ptr<const Matrix> fock, const size_t offset, const size_t size, std::shared_ptr<const Matrix> dbra_in, std::shared_ptr<const Matrix> fock_ebra_in) const;
 
     // basis-set projection based on SVD
     virtual std::shared_ptr<Reference> project_coeff(const std::shared_ptr<const Geometry>, const bool check_geom_change = true) const;

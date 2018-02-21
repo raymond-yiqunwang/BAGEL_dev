@@ -36,25 +36,25 @@ using namespace bagel;
 
 template<typename DataType>
 SMITH_Info<DataType>::SMITH_Info(shared_ptr<const Reference> o, const shared_ptr<const PTree> idata) : ref_(o) {
+  stringstream ss;
   method_ = idata->get<string>("method");
 
   const bool frozen = idata->get<bool>("frozen", true);
   ncore_ = idata->get<int>("ncore", (frozen ? ref_->geom()->num_count_ncore_only()/2 : 0));
   if (ncore_)
-    cout << "    * freezing " << ncore_ << " orbital" << (ncore_^1 ? "s" : "") << endl;
+    ss << "    * freezing " << ncore_ << " orbital" << (ncore_^1 ? "s" : "") << endl;
   nfrozenvirt_ = idata->get<int>("nfrozenvirt", 0);
   if (nfrozenvirt_)
-    cout << "    * freezing " << nfrozenvirt_ << " orbital" << (nfrozenvirt_^1 ? "s" : "") << " (virtual)" << endl;
+    ss << "    * freezing " << nfrozenvirt_ << " orbital" << (nfrozenvirt_^1 ? "s" : "") << " (virtual)" << endl;
 
   maxiter_ = idata->get<int>("maxiter", 50);
   maxtile_ = idata->get<int>("maxtile", 10);
-  cimaxtile_ = idata->get<int>("cimaxtile", (ciwfn()->civectors()->size() > 10000) ? 100 : 10);
   cimaxchunk_ = idata->get<int>("cimaxchunk", 317520001);
 
   do_ms_   = idata->get<bool>("ms",  true);
   do_xms_  = idata->get<bool>("xms", true);
   if (do_xms_ && (method_ == "casa" || method_ == "mrci")) {
-    cout << "    * XMS rotation is only appropriate for CASPT2, and will not be used with " << method_ << endl;
+    ss << "    * XMS rotation is only appropriate for CASPT2, and will not be used with " << method_ << endl;
     do_xms_ = false;
   }
 
@@ -64,7 +64,11 @@ SMITH_Info<DataType>::SMITH_Info(shared_ptr<const Reference> o, const shared_ptr
 
   // check nact() because ciwfn() is nullptr with zero active orbitals
   if (nact() && ciwfn()->nstates() > 1)
-    cout << "    * " << (sssr_ ? "SS-SR" : "MS-MR") << " internal contraction is used" << endl;
+    ss << "    * " << (sssr_ ? "SS-SR" : "MS-MR") << " internal contraction is used" << endl;
+
+  // print
+  const string sout = ss.str();
+  cout << sout << (sout.empty() ? "" : "\n");
 
   if (ref_->nstate() != 1) {
     if (idata->get<bool>("extract_civectors", false)) {
@@ -100,15 +104,13 @@ SMITH_Info<DataType>::SMITH_Info(shared_ptr<const Reference> o, const shared_ptr
   external_rdm_ = idata->get<string>("external_rdm", "");
   if (external_rdm_.empty() && !ciwfn()->civectors())
     throw runtime_error("CI vectors are missing. Most likely you ran CASSCF with external RDMs and forgot to specify external_rdm in the smith input block.");
-  if (!external_rdm_.empty() && is_same<DataType,double>::value)
-    throw logic_error("so far the external RDMs are only interfaced to relativistic theories. TODO");
 }
 
 
 template<typename DataType>
 SMITH_Info<DataType>::SMITH_Info(shared_ptr<const Reference> o, shared_ptr<const SMITH_Info> info)
   : ref_(o), method_(info->method_), ncore_(info->ncore_), nfrozenvirt_(info->nfrozenvirt_), thresh_(info->thresh_), shift_(info->shift_),
-    maxiter_(info->maxiter_), maxtile_(info->maxtile_), cimaxtile_(info->cimaxtile_),
+    maxiter_(info->maxiter_), maxtile_(info->maxtile_),
     cimaxchunk_(info->cimaxchunk_), davidson_subspace_(info->davidson_subspace_), grad_(info->grad_),
     do_ms_(info->do_ms_), do_xms_(info->do_xms_), sssr_(info->sssr_),
     shift_diag_(info->shift_diag_), block_diag_fock_(info->block_diag_fock_), restart_(info->restart_),
