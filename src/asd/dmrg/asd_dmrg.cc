@@ -283,6 +283,7 @@ shared_ptr<Reference> ASD_DMRG::build_reference(const int site, const vector<boo
   current = 0;
   closed_orbitals.push_back(make_shared<MatView>(active_orbitals));
   for (auto& orbitals : closed_orbitals) {
+    if (!orbitals) continue; // for cases without closed orbitals
     copy_n(orbitals->data(), orbitals->size(), out->element_ptr(0, current));
     current += orbitals->mdim();
   }

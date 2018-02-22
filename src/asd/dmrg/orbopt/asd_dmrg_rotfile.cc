@@ -216,10 +216,10 @@ shared_ptr<Matrix> ASD_DMRG_RotFile::unpack(vector<ASD_ActRotBlock> act_rotblock
 #ifdef AAROT
   // active-active
   for (auto& block : act_rotblocks) {
-    const int istart = block.iorbstart;
-    const int jstart = block.jorbstart;
-    const int inorb = block.norb_i;
-    const int jnorb = block.norb_j;
+    const int istart = block.istart;
+    const int jstart = block.jstart;
+    const int inorb = block.inorb;
+    const int jnorb = block.jnorb;
     const int offset = block.offset;
     
     for (int j = 0; j != jnorb; ++j)

@@ -28,20 +28,14 @@
 namespace bagel {
 
 struct ASD_ActRotBlock {
-    int iorbstart;
-    int norb_i;
-    int jorbstart;
-    int norb_j;
+    int istart;
+    int inorb;
+    int jstart;
+    int jnorb;
     int offset;
-    int size;
   
-    ASD_ActRotBlock(std::vector<int> active_sizes, const int sj, int& off) : offset(off) {
-      norb_j = active_sizes.at(sj);
-      jorbstart = accumulate(active_sizes.begin(), active_sizes.begin()+sj, 0);
-      iorbstart = jorbstart + norb_j;
-      norb_i = accumulate(active_sizes.begin()+sj+1, active_sizes.end(), 0);
-      size = norb_i * norb_j;
-      off += size;
+    ASD_ActRotBlock(const int i, const int iorb, const int j, const int jorb, int &off) : istart(i), inorb(iorb), jstart(j), jnorb(jorb), offset(off) {
+      off += inorb * jnorb;
     }
 };
 

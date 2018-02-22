@@ -281,7 +281,6 @@ void GammaForestProdASD::compute() {
 
             // first part: phase from reversing order of operators (should only happen when both are creation or annihilation)
             // second part: the phase from rearranging the operators so that the block operators are on the right
-            //   sign only changes if part is : 
             // third part: phase from moving block operators past ci ket
             int phase;
             phase = ((block_rev != ci_rev) ? -1 : 1) * ((part==2 || part==5 || part==8 || part==10 || part==11 || part==14)? -1 : 1) 

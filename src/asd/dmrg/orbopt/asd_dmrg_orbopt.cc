@@ -32,7 +32,7 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   
   print_header();
   
-  max_iter_ = input_->get<int>("opt_maxiter", 50);
+  max_iter_ = input_->get<int>("opt_maxiter", 30);
   max_micro_iter_ = input_->get<int>("opt_max_micro_iter", 100);
   thresh_ = input_->get<double>("opt_thresh", 1.0e-8); // thresh for macro iteration
 
@@ -41,19 +41,27 @@ ASD_DMRG_OrbOpt::ASD_DMRG_OrbOpt(shared_ptr<const PTree> idata, shared_ptr<const
   if (!asd_dmrg_info) throw runtime_error("ASD-DMRG info has to be provided for orbital optimization");
   // construct ASD-DMRG
   asd_dmrg_ = make_shared<RASD>(asd_dmrg_info, iref);
+  auto asd_ref = asd_dmrg_->sref();
 
   cout << "    * nstate   : " << setw(6) << asd_dmrg_->nstate() << endl;
-  cout << "    * nclosed  : " << setw(6) << asd_dmrg_->sref()->nclosed() << endl;
-  cout << "    * nact     : " << setw(6) << asd_dmrg_->sref()->nact() << endl;
-  cout << "    * nvirt    : " << setw(6) << asd_dmrg_->sref()->nvirt() << endl << endl;
-  assert(asd_dmrg_->sref()->nact() && asd_dmrg_->sref()->nvirt());
+  cout << "    * nclosed  : " << setw(6) << asd_ref->nclosed() << endl;
+  cout << "    * nact     : " << setw(6) << asd_ref->nact() << endl;
+  cout << "    * nvirt    : " << setw(6) << asd_ref->nvirt() << endl << endl;
+  assert(asd_ref->nact());
 
 #ifdef AAROT
-  cout << " *** Active-active rotation turned on!" << endl;
   // initialize active-active rotation parameters
+  vector<int> actsize = asd_dmrg_->active_sizes();
+  const int norb = accumulate(actsize.begin(), actsize.end(), 0);
   int offset = 0;
-  for (int sj = 0; sj != asd_dmrg_->nsites()-1; ++sj)
-    act_rotblocks_.emplace_back(asd_dmrg_->active_sizes(), sj, offset);
+  int istart = 0;
+  int jstart = 0;
+  for (int sj = 0; sj != asd_dmrg_->nsites()-1; ++sj) {
+    const int norb_site = asd_dmrg_->active_sizes().at(sj);
+    istart += norb_site;
+    act_rotblocks_.emplace_back(istart, norb-istart, jstart, norb_site, offset);
+    jstart += norb_site;
+  }
   naa_ = offset;
 #else
   naa_ = 0;
@@ -146,10 +154,11 @@ shared_ptr<const Coeff> ASD_DMRG_OrbOpt::semi_canonical_orb() const {
     ofock.diagonalize(eig);
     trans.copy_block(0, 0, nclosed, nclosed, ofock);
   }
-  Matrix vfock = vcoeff % fock * vcoeff;
-  vfock.diagonalize(eig);
-  trans.copy_block(nocc, nocc, nvirt, nvirt, vfock);
-  
+  if (nvirt) {
+    Matrix vfock = vcoeff % fock * vcoeff;
+    vfock.diagonalize(eig);
+    trans.copy_block(nocc, nocc, nvirt, nvirt, vfock);
+  }
   return make_shared<Coeff>(*coeff_ * trans);
 }
 
