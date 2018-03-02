@@ -104,7 +104,7 @@ void ASD_DMRG::compute_rdm12() {
       const int nactelectrons = accumulate(active_electrons_.begin(), active_electrons_.end(), 0);
       for (int k = 0; k != nact; ++k)
         blas::ax_plus_y_n(1.0/static_cast<double>(nactelectrons-1), rdm2_->at(istate)->element_ptr(0, 0, k, k), rdm1_->at(istate)->size(), rdm1_->at(istate)->data());
-      
+
     } // end of loop over nstate
   } // end of compute RDM
 

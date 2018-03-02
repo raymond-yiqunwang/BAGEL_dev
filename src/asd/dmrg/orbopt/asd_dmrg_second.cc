@@ -39,7 +39,7 @@ void ASD_DMRG_Second::compute() {
     if (!iter) {
       asd_dmrg_->project_active();
     } else {
-      semi_canonicalize_block();
+//      semi_canonicalize_block();
       asd_dmrg_->update_coeff(coeff_);
     }
     
@@ -47,12 +47,12 @@ void ASD_DMRG_Second::compute() {
     asd_dmrg_->sweep(iter ? false : true);
     hide_cout.unmute();
 
-    if (iter % 2 == 0) asd_dmrg_->compute_rdm12();
+    asd_dmrg_->compute_rdm12();
     rdm1_ = asd_dmrg_->rdm1_av();
     rdm2_ = asd_dmrg_->rdm2_av();
       
     coeff_ = asd_dmrg_->sref()->coeff();
-    trans_natorb_block();
+//    trans_natorb_block();
 
     auto sref = asd_dmrg_->sref();
     const int nclosed = sref->nclosed();
@@ -66,6 +66,168 @@ void ASD_DMRG_Second::compute() {
     shared_ptr<const Matrix> qxr = compute_qvec(coeff_->slice(nclosed, nocc), rdm2_);
 
     shared_ptr<const ASD_DMRG_RotFile> grad = compute_gradient(cfock, afock, qxr);
+    grad->print();
+
+// DEBUG HESSIAN
+{
+  const int rotsize = grad->size();
+  cout << "rotsize = " << rotsize << endl;
+  Matrix rdm1(nact, nact);
+  copy_n(rdm1_->data(), rdm1.size(), rdm1.data());
+  auto rdm2 = *rdm2_;
+  Matrix mo2e(nact, nact);
+  {
+    const MatView coeff(*coeff_);
+    shared_ptr<const DFHalfDist> halfx = sref->geom()->df()->compute_half_transform(coeff);
+    shared_ptr<const DFFullDist> fullx_1j = halfx->compute_second_transform(coeff)->apply_J();
+    mo2e = *fullx_1j->form_4index(fullx_1j, 1.0);
+  }
+  const Matrix cfkd = *cfock * rdm1;
+
+  auto hessian = make_shared<Matrix>(rotsize, rotsize);
+  {
+    // Fock part
+    assert(act_rotblocks_.size() == 1);
+    const int nclosed = 0;
+      for (auto& block : act_rotblocks_) {
+        const int istart = block.istart;
+        const int jstart = block.jstart;
+        const int inorb = block.inorb;
+        const int jnorb = block.jnorb;
+        const int offset = block.offset;
+
+        // (tu, vw)
+        for (auto& block2 : act_rotblocks_) {
+          const int istart2 = block2.istart;
+          const int jstart2 = block2.jstart;
+          const int inorb2 = block2.inorb;
+          const int jnorb2 = block2.jnorb;
+          const int offset2 = block2.offset;
+
+          for (int w = 0; w != jnorb2; ++w) {
+            for (int v = 0; v != inorb2; ++v) {
+              for (int u = 0; u != jnorb; ++u) {
+                for (int t = 0; t != inorb; ++t) {
+                  double value = 2.0 * rdm1(jstart2+w, jstart+u) * cfock->element(nclosed+istart+t, nclosed+istart2+v)
+                               - 2.0 * rdm1(istart2+v, jstart+u) * cfock->element(nclosed+istart+t, nclosed+jstart2+w)
+                               - 2.0 * rdm1(jstart2+w, istart+t) * cfock->element(nclosed+jstart+u, nclosed+istart2+v)
+                               + 2.0 * rdm1(istart2+v, istart+t) * cfock->element(nclosed+jstart+u, nclosed+jstart2+w);
+                  if (jstart+u == istart2+v) {
+                    value += cfkd(nclosed+istart+t, jstart2+w) + cfkd(nclosed+jstart2+w, istart+t);
+                  }
+                  if (jstart+u == jstart2+w) {
+                    value -= cfkd(nclosed+istart+t, istart2+v) + cfkd(nclosed+istart2+v, istart+t);
+                  }
+                  if (istart+t == istart2+v) {
+                    value -= cfkd(nclosed+jstart+u, jstart2+w) + cfkd(nclosed+jstart2+w, jstart+u);
+                  }
+                  if (istart+t == jstart2+w) {
+                    value += cfkd(nclosed+jstart+u, istart2+v) + cfkd(nclosed+istart2+v, jstart+u);
+                  }
+                  hessian->element(offset+t+u*inorb, offset2+v+w*inorb2) = value;
+                }
+              }
+            }
+          }
+        }
+      } // end end looping over actrotblocks
+
+    // Qvec part
+    {
+      const int norb = nact;
+      for (auto& block : act_rotblocks_) {
+        const int istart = block.istart;
+        const int jstart = block.jstart;
+        const int inorb = block.inorb;
+        const int jnorb = block.jnorb;
+        const int offset = block.offset;
+
+        // (tu, vw)
+        for (auto& block2 : act_rotblocks_) {
+          const int istart2 = block2.istart;
+          const int jstart2 = block2.jstart;
+          const int inorb2 = block2.inorb;
+          const int jnorb2 = block2.jnorb;
+          const int offset2 = block2.offset;
+          
+          for (int w = 0; w != jnorb2; ++w) {
+            for (int v = 0; v != inorb2; ++v) {
+              for (int u = 0; u != jnorb; ++u) {
+                for (int t = 0; t != inorb; ++t) {
+                  double value = 0.0;
+                  if (jstart+u == istart2+v) {
+                    for (int x = 0; x != nact; ++x) {
+                      for (int y = 0; y != nact; ++y) {
+                        for (int z = 0; z != nact; ++z) {
+                          value += rdm2(jstart2+w, x, y, z) * mo2e(nclosed+istart+t+(nclosed+x)*nact, nclosed+y+(nclosed+z)*nact)
+                                 + rdm2(istart+t, x, y, z) * mo2e(nclosed+jstart2+w+(nclosed+x)*nact, nclosed+y+(nclosed+z)*nact);
+                        }
+                      }
+                    }
+                  }
+                  if (istart+t == jstart2+w) {
+                    for (int x = 0; x != nact; ++x) {
+                      for (int y = 0; y != nact; ++y) {
+                        for (int z = 0; z != nact; ++z) {
+                          value += rdm2(jstart+u, x, y, z) * mo2e(nclosed+istart2+v+(nclosed+x)*norb, nclosed+y+(nclosed+z)*norb)
+                                 + rdm2(istart2+v, x, y, z) * mo2e(nclosed+jstart+u+(nclosed+x)*norb, nclosed+y+(nclosed+z)*norb);
+                        }
+                      }
+                    }
+                  }
+                  if (jstart+u == jstart2+w) {
+                    for (int x = 0; x != nact; ++x) {
+                      for (int y = 0; y != nact; ++y) {
+                        for (int z = 0; z != nact; ++z) {
+                          value -= rdm2(istart2+v, x, y, z) * mo2e(nclosed+istart+t+(nclosed+x)*norb, nclosed+y+(nclosed+z)*norb)
+                                 + rdm2(istart+t, x, y, z) * mo2e(nclosed+istart2+v+(nclosed+x)*norb, nclosed+y+(nclosed+z)*norb);
+                        }
+                      }
+                    }
+                  }
+                  if (istart+t == istart2+v) {
+                    for (int x = 0; x != nact; ++x) {
+                      for (int y = 0; y != nact; ++y) {
+                        for (int z = 0; z != nact; ++z) {
+                          value -= rdm2(jstart+u, x, y, z) * mo2e(nclosed+jstart2+w+(nclosed+x)*norb, nclosed+y+(nclosed+z)*norb)
+                                 + rdm2(jstart2+w, x, y, z) * mo2e(nclosed+jstart+u+(nclosed+x)*norb, nclosed+y+(nclosed+z)*norb);
+                        }
+                      }
+                    }
+                  }
+                  hessian->element(offset+t+u*inorb, offset2+v+w*inorb2) += value;
+
+                  // Q' and Q''
+                  double value2 = 0.0;
+                  for (int x = 0; x != nact; ++x) {
+                    for (int y = 0; y != nact; ++y) {
+                      value2 += rdm2(jstart2+w, jstart+u, x, y) * mo2e(nclosed+istart2+v+(nclosed+istart+t)*norb, nclosed+x+(nclosed+y)*norb)
+                             + (rdm2(jstart2+w, x, jstart+u, y) + rdm2(x, jstart2+w, jstart+u, y)) * mo2e(nclosed+istart2+v+(nclosed+x)*norb, 
+                                                                                                          nclosed+istart+t+(nclosed+y)*norb);
+                      value2 -= rdm2(istart2+v, jstart+u, x, y) * mo2e(nclosed+jstart2+w+(nclosed+istart+t)*norb, nclosed+x+(nclosed+y)*norb)
+                             + (rdm2(istart2+v, x, jstart+u, y) + rdm2(x, istart2+v, jstart+u, y)) * mo2e(nclosed+jstart2+w+(nclosed+x)*norb,
+                                                                                                          nclosed+istart+t+(nclosed+y)*norb);
+                      value2 -= rdm2(jstart2+w, istart+t, x, y) * mo2e(nclosed+istart2+v+(nclosed+jstart+u)*norb, nclosed+x+(nclosed+y)*norb)
+                             + (rdm2(jstart2+w, x, istart+t, y) + rdm2(x, jstart2+w, istart+t, y)) * mo2e(nclosed+istart2+v+(nclosed+x)*norb,
+                                                                                                          nclosed+jstart+u+(nclosed+y)*norb);
+                      value2 += rdm2(istart2+v, istart+t, x, y) * mo2e(nclosed+jstart2+w+(nclosed+jstart+u)*norb, nclosed+x+(nclosed+y)*norb)
+                             + (rdm2(istart2+v, x, istart+t, y) + rdm2(x, istart2+v, istart+t, y)) * mo2e(nclosed+jstart2+w+(nclosed+x)*norb,
+                                                                                                          nclosed+jstart+u+(nclosed+y)*norb);
+                    }
+                  }
+                  hessian->element(offset+t+u*inorb, offset2+v+w*inorb2) += 2.0 * value2;
+                }
+              }
+            }
+          }
+        }
+      }
+    } // end of Qvec part
+  }
+  for (int i = 0; i != rotsize; ++i) {
+    cout << "Hessian(" << i << ", " << i << ") = " << setprecision(8) << hessian->element(i, i) << endl;
+  }
+} // end of debug Hessian
 
     // check gradient and break if converged
     const double gradient = grad->rms();
@@ -114,10 +276,16 @@ void ASD_DMRG_Second::compute() {
 
     shared_ptr<const ASD_DMRG_RotFile> sol = solver.civec();
 #ifdef AAROT
-    shared_ptr<const Matrix> a = sol->unpack(act_rotblocks_);
+    shared_ptr<Matrix> a = sol->unpack(act_rotblocks_);
 #else
-    shared_ptr<const Matrix> a = sol->unpack();
+    shared_ptr<Matrix> a = sol->unpack();
 #endif
+    cout << "print X matrix" << endl;
+    a->print();
+    a->zero();
+    const double eps = input_->get<double>("epsilon");
+    a->element(2, 0) =  eps;
+    a->element(0, 2) = (-1.0) * eps;
     Matrix w(*a * *a);
     VectorB eig(a->ndim());
     w.diagonalize(eig);
@@ -1013,5 +1181,4 @@ void ASD_DMRG_Second::semi_canonicalize_block() {
    cnew->copy_block(0, nclosed, cnew->ndim(), nact, coeff_->slice(nclosed, nclosed+nact) * *rotation);
    coeff_ = cnew;
 }
-
 
